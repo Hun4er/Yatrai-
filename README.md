@@ -175,7 +175,29 @@ GET http://localhost:5000/api/health
 
 ---
 
-## 9. Code Quality & Linting
+## 9. Database Operations & Testing (Phase 1)
+
+### Test Live Database Connection
+```bash
+npm run db:test
+```
+Pings MongoDB with the configured `MONGODB_URI` and outputs connection diagnostics.
+
+### Seed Development Data
+```bash
+npm run seed
+```
+Seeds representative Indian locations (Delhi, Sonipat, Patna, Varanasi, Mumbai, Bengaluru), transport providers (IRCTC, IndiGo, UPSRTC, Ola), multimodal journeys, search requests, and notifications.
+
+### Run Automated Model & Database Tests
+```bash
+npm test
+```
+Runs 18 unit/integration tests verifying all 9 Mongoose models, CRUD operations, GeoJSON 2dsphere indexing, referential integrity, and cascading deletions.
+
+---
+
+## 10. Code Quality & Linting
 
 ### Linting
 Runs ESLint across both frontend and backend workspaces:
@@ -197,7 +219,7 @@ npm run build
 
 ---
 
-## 10. Development Conventions
+## 11. Development Conventions
 
 1. **Separation of Concerns:**
    - Routes only bind URLs to Controllers.
@@ -214,12 +236,12 @@ npm run build
 
 ---
 
-## 11. Complete Product Roadmap
+## 12. Complete Product Roadmap
 
 | Phase | Phase Name | Status |
 |---|---|---|
-| **PHASE 0** | **Project Foundation** | **CURRENT PHASE** |
-| PHASE 1 | Database + Core Models | Upcoming |
+| **PHASE 0** | **Project Foundation** | **Completed** |
+| **PHASE 1** | **Database + Core Models** | **Completed** |
 | PHASE 2 | Authentication & User Management | Upcoming |
 | PHASE 3 | Location & Destination Resolution | Upcoming |
 | PHASE 4 | Journey Search Engine | Upcoming |

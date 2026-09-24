@@ -8,17 +8,23 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "lint": "eslint src/"
+    "lint": "eslint src/ tests/",
+    "db:test": "node src/database/testConnection.js",
+    "seed": "node src/database/seed/seed.js",
+    "seed:reset": "node src/database/seed/seed.js --reset",
+    "test": "node --test tests/**/*.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "mongoose": "^9.10.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
     "eslint": "^9.21.0",
     "globals": "^16.0.0",
+    "mongodb-memory-server": "^11.3.0",
     "nodemon": "^3.1.9"
   }
 }

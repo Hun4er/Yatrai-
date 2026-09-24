@@ -14,7 +14,11 @@
     "server": "npm --workspace=server run dev",
     "build": "npm --workspace=client run build",
     "lint": "npm --workspace=client run lint && npm --workspace=server run lint",
-    "format": "prettier --write \"**/*.{js,jsx,json,md,css}\""
+    "format": "prettier --write \"**/*.{js,jsx,json,md,css}\"",
+    "db:test": "npm --workspace=server run db:test",
+    "seed": "npm --workspace=server run seed",
+    "seed:reset": "npm --workspace=server run seed:reset",
+    "test": "npm --workspace=server run test"
   },
   "keywords": [
     "journey-discovery",

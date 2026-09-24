@@ -11,6 +11,7 @@ export function getHealth(req, res, next) {
       success: true,
       service: health.service,
       status: health.status,
+      database: health.database,
       environment: health.environment,
       uptimeSeconds: health.uptimeSeconds,
       timestamp: health.timestamp,

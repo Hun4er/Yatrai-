@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import config from '../config/index.js';
 
 /**
@@ -6,9 +7,18 @@ import config from '../config/index.js';
  */
 export const healthService = {
   getSystemHealth() {
+    const dbStateMap = {
+      0: 'disconnected',
+      1: 'connected',
+      2: 'connecting',
+      3: 'disconnecting',
+    };
+    const dbStatus = dbStateMap[mongoose.connection.readyState] || 'unknown';
+
     return {
       service: 'yatrai-api',
       status: 'healthy',
+      database: dbStatus,
       environment: config.env,
       uptimeSeconds: Math.floor(process.uptime()),
       timestamp: new Date().toISOString(),

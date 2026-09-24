@@ -46,8 +46,9 @@ export const config = Object.freeze({
   // Logging
   logLevel: process.env.LOG_LEVEL || 'debug',
 
-  // Placeholders for future phases (Phase 1+)
+  // Database — Phase 1 (MongoDB)
   database: {
+    mongodbUri: process.env.MONGODB_URI || process.env.DATABASE_URL || 'mongodb://127.0.0.1:27017/yatrai_dev',
     url: process.env.DATABASE_URL || null,
   },
   cache: {

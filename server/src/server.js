@@ -1,19 +1,33 @@
 import { createApp } from './app.js';
 import config from './config/index.js';
 import logger from './utils/logger.js';
+import { connectDatabase, disconnectDatabase } from './config/database.js';
 
 const app = createApp();
 
-const server = app.listen(config.port, () => {
+const server = app.listen(config.port, async () => {
   logger.info(`Yatrai API Server running in [${config.env}] mode on http://${config.host}:${config.port}`);
   logger.info(`Health check available at http://${config.host}:${config.port}/api/health`);
+
+  // Attempt database connection on startup
+  try {
+    await connectDatabase();
+  } catch (dbError) {
+    logger.warn(`[Database Warning] Could not connect to MongoDB on startup: ${dbError.message}. Proceeding without active DB connection.`);
+  }
 });
 
 /**
  * Graceful Shutdown Handler
  */
-function gracefulShutdown(signal) {
+async function gracefulShutdown(signal) {
   logger.info(`Received ${signal}. Shutting down gracefully...`);
+  try {
+    await disconnectDatabase();
+  } catch (err) {
+    logger.error(`Error closing database during shutdown: ${err.message}`);
+  }
+
   server.close(() => {
     logger.info('HTTP server closed.');
     process.exit(0);
