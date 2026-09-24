@@ -1,0 +1,31 @@
+{
+  "name": "yatrai",
+  "version": "0.1.0",
+  "description": "Yatrai — Production-grade Journey Discovery and Recovery Platform",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -p \"[{name}]\" -n \"SERVER,CLIENT\" -c \"blue.bold,magenta.bold\" \"npm run server\" \"npm run client\"",
+    "client": "npm --workspace=client run dev",
+    "server": "npm --workspace=server run dev",
+    "build": "npm --workspace=client run build",
+    "lint": "npm --workspace=client run lint && npm --workspace=server run lint",
+    "format": "prettier --write \"**/*.{js,jsx,json,md,css}\""
+  },
+  "keywords": [
+    "journey-discovery",
+    "travel",
+    "multimodal",
+    "yatrai"
+  ],
+  "author": "Yatrai Engineering Team",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prettier": "^3.5.3"
+  }
+}
