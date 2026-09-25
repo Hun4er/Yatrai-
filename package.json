@@ -19,6 +19,7 @@
     "seed": "npm --workspace=server run seed",
     "seed:reset": "npm --workspace=server run seed:reset",
     "auth:verify": "npm --workspace=server run auth:verify",
+    "location:verify": "npm --workspace=server run location:verify",
     "test": "npm --workspace=server run test"
   },
   "keywords": [

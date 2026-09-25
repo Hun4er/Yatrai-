@@ -27,7 +27,7 @@ export function MainLayout({ children }) {
       <footer className="border-t border-white/10 bg-background-secondary py-6">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-6 text-xs text-text-tertiary sm:flex-row">
           <span>&copy; {new Date().getFullYear()} Yatrai Platform. All rights reserved.</span>
-          <span>Phase 2: Authentication</span>
+          <span>Phase 3: Location Resolution</span>
         </div>
       </footer>
     </div>

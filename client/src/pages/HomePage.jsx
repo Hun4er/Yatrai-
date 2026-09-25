@@ -2,6 +2,7 @@ import React from 'react';
 import useApiHealth from '../hooks/useApiHealth.js';
 import ApiStatusBadge from '../components/ApiStatusBadge.jsx';
 import AuthCard from '../components/AuthCard.jsx';
+import LocationResolverCard from '../components/LocationResolverCard.jsx';
 import { APP_NAME, APP_TAGLINE, CURRENT_PHASE } from '../constants/index.js';
 
 export function HomePage() {
@@ -19,16 +20,24 @@ export function HomePage() {
         </h1>
         <p className="mt-2 text-lg text-brand-primary font-medium">{APP_TAGLINE}</p>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-text-secondary">
-          Welcome to the development environment of Yatrai. The authentication system (Phase 2) is
-          active, providing secure email &amp; password authentication, HTTP-only refresh token
-          session rotation, and protected route access.
+          Welcome to the development environment of Yatrai. Phase 3 (Location Resolution) is active,
+          converting human location text and travel phrases into canonical, structured geographic
+          data for multi-modal journey planning.
         </p>
+      </div>
+
+      {/* Phase 3: Location Resolution Module */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-text-tertiary">
+          Phase 3 — Location Resolution
+        </h2>
+        <LocationResolverCard />
       </div>
 
       {/* Phase 2: Authentication Module */}
       <div className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-text-tertiary">
-          Authentication &amp; Session Management
+          Phase 2 — Authentication &amp; Session Management
         </h2>
         <AuthCard />
       </div>

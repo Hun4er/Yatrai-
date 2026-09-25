@@ -119,6 +119,20 @@ export const api = {
         method: 'GET',
       }),
   },
+
+  // Phase 3: Location Resolution
+  locations: {
+    search: (query, limit = 5) =>
+      request(`/locations/search?q=${encodeURIComponent(query)}&limit=${limit}`),
+
+    resolve: (query) =>
+      request('/locations/resolve', {
+        method: 'POST',
+        body: JSON.stringify({ query }),
+      }),
+
+    getById: (id) => request(`/locations/${id}`),
+  },
 };
 
 export default api;

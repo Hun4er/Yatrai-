@@ -242,11 +242,43 @@ Phase 2 establishes the end-to-end authentication infrastructure for Yatrai:
 npm test
 ```
 
-Executes all 41 automated unit and integration tests across 17 suites, validating registration, credential verification, duplicate prevention, whitespace preservation, token rotation, session revocation, token expiration, account deactivation, and endpoint protection.
+Executes all automated unit and integration tests across suites, validating registration, credential verification, duplicate prevention, whitespace preservation, token rotation, session revocation, token expiration, account deactivation, and endpoint protection.
 
 ---
 
-## 11. Code Quality & Linting
+## 11. Location & Destination Resolution (Phase 3)
+
+Phase 3 establishes the **Location Resolution** layer, translating human-entered location queries and simple travel intent phrases into canonical, structured location documents.
+
+### Architecture Highlights
+
+- **Provider-Agnostic Adapter Pattern:** Uses OpenStreetMap Nominatim with structured administrative address normalization (`nominatim.adapter.js`). The provider can be swapped via configuration without touching business logic.
+- **Strict GeoJSON Standards:** Latitudes (`-90..90`) and longitudes (`-180..180`) are validated; coordinates are saved in canonical GeoJSON `[longitude, latitude]` ordering.
+- **Smart Database Caching & Deduplication:** Pre-queries MongoDB for existing records before external requests; deduplicates incoming provider responses by `placeId` or compound keys (`name`, `city`, `state`).
+- **Query Relaxation:** Automatically retries queries with stripped regional acronyms (e.g., `"NCR"`) to ensure institutions like `"SRM University Delhi NCR"` resolve accurately.
+- **Deterministic Natural-Language Extraction:** Recognizes `"from <origin> to <destination>"` intent patterns without guessing or hallucinating on ambiguous inputs.
+
+### Endpoints
+
+| Method | Endpoint                        | Description                                                   | Protection |
+| ------ | ------------------------------- | ------------------------------------------------------------- | ---------- |
+| `GET`  | `/api/locations/search?q=Delhi` | Multi-candidate location search and geocoding                 | Public     |
+| `POST` | `/api/locations/resolve`        | Query resolution (single location or natural-language intent) | Public     |
+| `GET`  | `/api/locations/:id`            | Retrieve canonical location document by MongoDB ID            | Public     |
+
+### Testing & Verification
+
+```bash
+# Run unit & integration test suite (includes 18 location resolution tests)
+npm test
+
+# Run live location resolution verification script
+npm run location:verify
+```
+
+---
+
+## 12. Code Quality & Linting
 
 ### Linting
 
@@ -274,7 +306,7 @@ npm run build
 
 ---
 
-## 12. Development Conventions
+## 13. Development Conventions
 
 1. **Separation of Concerns:**
    - Routes only bind URLs to Controllers and Middleware.
@@ -292,14 +324,14 @@ npm run build
 
 ---
 
-## 13. Complete Product Roadmap
+## 14. Complete Product Roadmap
 
 | Phase       | Phase Name                                            | Status        |
 | ----------- | ----------------------------------------------------- | ------------- |
 | **PHASE 0** | **Project Foundation**                                | **Completed** |
 | **PHASE 1** | **Database + Core Models**                            | **Completed** |
 | **PHASE 2** | **Authentication**                                    | **Completed** |
-| PHASE 3     | Location & Destination Resolution                     | Upcoming      |
+| **PHASE 3** | **Location & Destination Resolution**                 | **Completed** |
 | PHASE 4     | Journey Search Engine                                 | Upcoming      |
 | PHASE 5     | Transport Providers Gateway (Rail, Bus, Flight, Road) | Upcoming      |
 | PHASE 6     | Journey Normalization Layer                           | Upcoming      |

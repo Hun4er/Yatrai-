@@ -90,6 +90,15 @@ export const config = Object.freeze({
     provider: process.env.MAP_PROVIDER || 'default',
     apiKey: process.env.MAP_API_KEY || null,
   },
+  geocoding: {
+    provider: process.env.GEOCODING_PROVIDER || 'nominatim',
+    apiKey: process.env.GEOCODING_API_KEY || null,
+    baseUrl: process.env.GEOCODING_BASE_URL || 'https://nominatim.openstreetmap.org',
+    userAgent:
+      process.env.GEOCODING_USER_AGENT ||
+      'Yatrai-Platform/1.0 (contact: engineering@yatrai.internal)',
+    timeoutMs: parseInt(process.env.GEOCODING_TIMEOUT_MS || '6000', 10),
+  },
 });
 
 export default config;
