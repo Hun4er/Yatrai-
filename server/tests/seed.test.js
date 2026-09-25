@@ -77,7 +77,11 @@ describe('Yatrai Phase 1 — Database Seed Suite', () => {
       const legs = await JourneyLeg.find({ journey: journey._id }).sort({ sequence: 1 });
       assert.ok(legs.length > 1, 'Multi-leg journey has multiple legs');
       legs.forEach((leg, index) => {
-        assert.equal(leg.sequence, index + 1, 'Leg sequence is strictly sequential starting from 1');
+        assert.equal(
+          leg.sequence,
+          index + 1,
+          'Leg sequence is strictly sequential starting from 1'
+        );
       });
     }
   });

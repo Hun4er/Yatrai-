@@ -12,30 +12,22 @@ export function MainLayout({ children }) {
               Y
             </div>
             <div>
-              <span className="text-lg font-bold tracking-tight text-text-primary">
-                {APP_NAME}
-              </span>
-              <span className="ml-2 text-xs font-mono text-brand-primary">
-                v{APP_VERSION}
-              </span>
+              <span className="text-lg font-bold tracking-tight text-text-primary">{APP_NAME}</span>
+              <span className="ml-2 text-xs font-mono text-brand-primary">v{APP_VERSION}</span>
             </div>
           </div>
-          <div className="text-xs text-text-tertiary hidden sm:block">
-            {APP_TAGLINE}
-          </div>
+          <div className="text-xs text-text-tertiary hidden sm:block">{APP_TAGLINE}</div>
         </div>
       </header>
 
       {/* Main Content Shell */}
-      <main className="flex-1 mx-auto w-full max-w-6xl px-6 py-10">
-        {children}
-      </main>
+      <main className="flex-1 mx-auto w-full max-w-6xl px-6 py-10">{children}</main>
 
       {/* Footer */}
       <footer className="border-t border-white/10 bg-background-secondary py-6">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-6 text-xs text-text-tertiary sm:flex-row">
           <span>&copy; {new Date().getFullYear()} Yatrai Platform. All rights reserved.</span>
-          <span>Phase 0: Project Foundation</span>
+          <span>Phase 2: Authentication</span>
         </div>
       </footer>
     </div>

@@ -18,7 +18,9 @@ export const searchRequestService = {
       throw new Error(`Referenced origin Location '${requestData.origin}' does not exist.`);
     }
     if (!destinationExists) {
-      throw new Error(`Referenced destination Location '${requestData.destination}' does not exist.`);
+      throw new Error(
+        `Referenced destination Location '${requestData.destination}' does not exist.`
+      );
     }
     if (requestData.user && !userExists) {
       throw new Error(`Referenced User '${requestData.user}' does not exist.`);
@@ -29,7 +31,10 @@ export const searchRequestService = {
   },
 
   async findById(id) {
-    return await SearchRequest.findById(id).populate('origin').populate('destination').populate('user');
+    return await SearchRequest.findById(id)
+      .populate('origin')
+      .populate('destination')
+      .populate('user');
   },
 
   async findByUser(userId) {
@@ -37,7 +42,11 @@ export const searchRequestService = {
   },
 
   async updateStatus(id, status) {
-    return await SearchRequest.findByIdAndUpdate(id, { status }, { returnDocument: 'after', runValidators: true });
+    return await SearchRequest.findByIdAndUpdate(
+      id,
+      { status },
+      { returnDocument: 'after', runValidators: true }
+    );
   },
 
   async delete(id) {

@@ -80,15 +80,12 @@ describe('Yatrai Phase 1 — Database Models & Services Suite', () => {
     });
 
     it('rejects invalid email formats', async () => {
-      await assert.rejects(
-        async () => {
-          await userService.create({
-            name: 'Bad Email User',
-            email: 'not-an-email',
-          });
-        },
-        /valid email/i
-      );
+      await assert.rejects(async () => {
+        await userService.create({
+          name: 'Bad Email User',
+          email: 'not-an-email',
+        });
+      }, /valid email/i);
     });
 
     it('enforces unique email constraint', async () => {
@@ -97,15 +94,12 @@ describe('Yatrai Phase 1 — Database Models & Services Suite', () => {
         email: 'duplicate@example.com',
       });
 
-      await assert.rejects(
-        async () => {
-          await userService.create({
-            name: 'Second User',
-            email: 'duplicate@example.com',
-          });
-        },
-        /E11000|duplicate/i
-      );
+      await assert.rejects(async () => {
+        await userService.create({
+          name: 'Second User',
+          email: 'duplicate@example.com',
+        });
+      }, /E11000|duplicate/i);
     });
   });
 
@@ -147,49 +141,40 @@ describe('Yatrai Phase 1 — Database Models & Services Suite', () => {
     });
 
     it('rejects invalid coordinates outside bounds', async () => {
-      await assert.rejects(
-        async () => {
-          await locationService.create({
-            name: 'Invalid Latitude Location',
-            type: 'city',
-            location: {
-              type: 'Point',
-              coordinates: [77.2, 95.0], // Latitude > 90
-            },
-          });
-        },
-        /Invalid coordinates/i
-      );
+      await assert.rejects(async () => {
+        await locationService.create({
+          name: 'Invalid Latitude Location',
+          type: 'city',
+          location: {
+            type: 'Point',
+            coordinates: [77.2, 95.0], // Latitude > 90
+          },
+        });
+      }, /Invalid coordinates/i);
 
-      await assert.rejects(
-        async () => {
-          await locationService.create({
-            name: 'Invalid Longitude Location',
-            type: 'city',
-            location: {
-              type: 'Point',
-              coordinates: [-190.0, 28.0], // Longitude < -180
-            },
-          });
-        },
-        /Invalid coordinates/i
-      );
+      await assert.rejects(async () => {
+        await locationService.create({
+          name: 'Invalid Longitude Location',
+          type: 'city',
+          location: {
+            type: 'Point',
+            coordinates: [-190.0, 28.0], // Longitude < -180
+          },
+        });
+      }, /Invalid coordinates/i);
     });
 
     it('rejects unsupported location types', async () => {
-      await assert.rejects(
-        async () => {
-          await locationService.create({
-            name: 'Alien Base',
-            type: 'space_station',
-            location: {
-              type: 'Point',
-              coordinates: [0, 0],
-            },
-          });
-        },
-        /not a supported location type/i
-      );
+      await assert.rejects(async () => {
+        await locationService.create({
+          name: 'Alien Base',
+          type: 'space_station',
+          location: {
+            type: 'Point',
+            coordinates: [0, 0],
+          },
+        });
+      }, /not a supported location type/i);
     });
   });
 
@@ -214,16 +199,13 @@ describe('Yatrai Phase 1 — Database Models & Services Suite', () => {
       assert.equal(found.name, provider.name);
 
       // Rejects duplicate code
-      await assert.rejects(
-        async () => {
-          await providerService.create({
-            name: 'Duplicate Provider',
-            code: 'IRCTC_TEST',
-            type: 'rail',
-          });
-        },
-        /E11000|duplicate/i
-      );
+      await assert.rejects(async () => {
+        await providerService.create({
+          name: 'Duplicate Provider',
+          code: 'IRCTC_TEST',
+          type: 'rail',
+        });
+      }, /E11000|duplicate/i);
 
       // Delete
       await providerService.delete(provider._id);
@@ -277,38 +259,32 @@ describe('Yatrai Phase 1 — Database Models & Services Suite', () => {
 
     it('rejects journey with non-existent origin reference', async () => {
       const fakeId = new Location()._id;
-      await assert.rejects(
-        async () => {
-          await journeyService.create({
-            origin: fakeId,
-            destination: locDest._id,
-            departureTime: new Date(),
-            arrivalTime: new Date(Date.now() + 3600000),
-            duration: 60,
-            totalPrice: 500,
-          });
-        },
-        /Referenced origin Location/i
-      );
+      await assert.rejects(async () => {
+        await journeyService.create({
+          origin: fakeId,
+          destination: locDest._id,
+          departureTime: new Date(),
+          arrivalTime: new Date(Date.now() + 3600000),
+          duration: 60,
+          totalPrice: 500,
+        });
+      }, /Referenced origin Location/i);
     });
 
     it('rejects journey where arrivalTime < departureTime', async () => {
       const dep = new Date('2026-10-01T12:00:00Z');
       const arr = new Date('2026-10-01T08:00:00Z'); // Earlier than dep
 
-      await assert.rejects(
-        async () => {
-          await journeyService.create({
-            origin: locOrigin._id,
-            destination: locDest._id,
-            departureTime: dep,
-            arrivalTime: arr,
-            duration: 60,
-            totalPrice: 500,
-          });
-        },
-        /Arrival time cannot be earlier than departure time/i
-      );
+      await assert.rejects(async () => {
+        await journeyService.create({
+          origin: locOrigin._id,
+          destination: locDest._id,
+          departureTime: dep,
+          arrivalTime: arr,
+          duration: 60,
+          totalPrice: 500,
+        });
+      }, /Arrival time cannot be earlier than departure time/i);
     });
   });
 
@@ -401,21 +377,18 @@ describe('Yatrai Phase 1 — Database Models & Services Suite', () => {
         duration: 210,
       });
 
-      await assert.rejects(
-        async () => {
-          await journeyLegService.create({
-            journey: testJourney._id,
-            sequence: 1, // Duplicate sequence!
-            origin: loc2._id,
-            destination: loc3._id,
-            mode: 'rail',
-            departureTime: new Date('2026-10-01T10:00:00Z'),
-            arrivalTime: new Date('2026-10-01T14:00:00Z'),
-            duration: 240,
-          });
-        },
-        /E11000|duplicate/i
-      );
+      await assert.rejects(async () => {
+        await journeyLegService.create({
+          journey: testJourney._id,
+          sequence: 1, // Duplicate sequence!
+          origin: loc2._id,
+          destination: loc3._id,
+          mode: 'rail',
+          departureTime: new Date('2026-10-01T10:00:00Z'),
+          arrivalTime: new Date('2026-10-01T14:00:00Z'),
+          duration: 240,
+        });
+      }, /E11000|duplicate/i);
     });
 
     it('cascade-deletes legs when parent journey is deleted', async () => {
@@ -536,12 +509,9 @@ describe('Yatrai Phase 1 — Database Models & Services Suite', () => {
       assert.ok(saved._id);
 
       // Rejects saving duplicate
-      await assert.rejects(
-        async () => {
-          await savedJourneyService.saveJourney(user._id, journey._id);
-        },
-        /E11000|duplicate/i
-      );
+      await assert.rejects(async () => {
+        await savedJourneyService.saveJourney(user._id, journey._id);
+      }, /E11000|duplicate/i);
     });
   });
 

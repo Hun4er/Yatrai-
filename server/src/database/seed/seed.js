@@ -101,7 +101,8 @@ export async function seedDatabase(options = {}) {
     const bsb = locationMap.get('Varanasi Junction Railway Station') || locationMap.get('Varanasi');
     const snp = locationMap.get('Sonipat Junction Railway Station') || locationMap.get('Sonipat');
     const delAirport = locationMap.get('Indira Gandhi International Airport');
-    const patAirport = locationMap.get('Jay Prakash Narayan International Airport') || locationMap.get('Patna');
+    const patAirport =
+      locationMap.get('Jay Prakash Narayan International Airport') || locationMap.get('Patna');
     const irctc = providerMap.get('IRCTC');
     const indigo = providerMap.get('INDIGO');
 
@@ -261,7 +262,10 @@ export async function seedDatabase(options = {}) {
     }
 
     // 6. Seed Saved Journey
-    const savedExists = await SavedJourney.findOne({ user: primaryUser._id, journey: journey1._id });
+    const savedExists = await SavedJourney.findOne({
+      user: primaryUser._id,
+      journey: journey1._id,
+    });
     if (!savedExists) {
       await SavedJourney.create({
         user: primaryUser._id,
@@ -273,7 +277,10 @@ export async function seedDatabase(options = {}) {
     }
 
     // 7. Seed Notification
-    const notifExists = await Notification.findOne({ user: primaryUser._id, type: 'journey_update' });
+    const notifExists = await Notification.findOne({
+      user: primaryUser._id,
+      type: 'journey_update',
+    });
     if (!notifExists) {
       await Notification.create({
         user: primaryUser._id,

@@ -2,25 +2,9 @@ import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
 
-export const PROVIDER_TYPES = [
-  'airline',
-  'rail',
-  'bus',
-  'taxi',
-  'ride_hailing',
-  'rental',
-  'other',
-];
+export const PROVIDER_TYPES = ['airline', 'rail', 'bus', 'taxi', 'ride_hailing', 'rental', 'other'];
 
-export const TRANSPORT_MODES = [
-  'road',
-  'rail',
-  'bus',
-  'flight',
-  'walk',
-  'taxi',
-  'metro',
-];
+export const TRANSPORT_MODES = ['road', 'rail', 'bus', 'flight', 'walk', 'taxi', 'metro'];
 
 const TransportProviderSchema = new Schema(
   {

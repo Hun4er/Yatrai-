@@ -20,8 +20,8 @@ export function ApiStatusBadge({ status, data, error, lastChecked, onRetry }) {
                 isConnected
                   ? 'bg-semantic-success'
                   : isChecking
-                  ? 'bg-semantic-warning animate-pulse'
-                  : 'bg-semantic-error'
+                    ? 'bg-semantic-warning animate-pulse'
+                    : 'bg-semantic-error'
               }`}
             />
           </span>
@@ -31,23 +31,17 @@ export function ApiStatusBadge({ status, data, error, lastChecked, onRetry }) {
               Backend Status
             </span>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-text-primary">
-                Yatrai API:
-              </span>
+              <span className="text-sm font-semibold text-text-primary">Yatrai API:</span>
               <span
                 className={`text-sm font-medium ${
                   isConnected
                     ? 'text-semantic-success'
                     : isChecking
-                    ? 'text-semantic-warning'
-                    : 'text-semantic-error'
+                      ? 'text-semantic-warning'
+                      : 'text-semantic-error'
                 }`}
               >
-                {isConnected
-                  ? '● Connected'
-                  : isChecking
-                  ? '○ Checking...'
-                  : '✕ Disconnected'}
+                {isConnected ? '● Connected' : isChecking ? '○ Checking...' : '✕ Disconnected'}
               </span>
             </div>
           </div>
@@ -80,9 +74,7 @@ export function ApiStatusBadge({ status, data, error, lastChecked, onRetry }) {
             </div>
             <div>
               <span className="text-text-disabled">Checked:</span>{' '}
-              <span className="font-mono text-text-secondary">
-                {formatTimestamp(lastChecked)}
-              </span>
+              <span className="font-mono text-text-secondary">{formatTimestamp(lastChecked)}</span>
             </div>
           </div>
         )}

@@ -3,13 +3,7 @@ import { TRANSPORT_MODES } from './TransportProvider.js';
 
 const { Schema } = mongoose;
 
-export const JOURNEY_STATUSES = [
-  'scheduled',
-  'in_progress',
-  'completed',
-  'cancelled',
-  'disrupted',
-];
+export const JOURNEY_STATUSES = ['scheduled', 'in_progress', 'completed', 'cancelled', 'disrupted'];
 
 const JourneySchema = new Schema(
   {

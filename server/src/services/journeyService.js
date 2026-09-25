@@ -16,7 +16,9 @@ export const journeyService = {
       throw new Error(`Referenced origin Location '${journeyData.origin}' does not exist.`);
     }
     if (!destinationExists) {
-      throw new Error(`Referenced destination Location '${journeyData.destination}' does not exist.`);
+      throw new Error(
+        `Referenced destination Location '${journeyData.destination}' does not exist.`
+      );
     }
 
     const journey = new Journey(journeyData);
@@ -49,11 +51,15 @@ export const journeyService = {
   async update(id, updateData) {
     if (updateData.origin) {
       const exists = await Location.exists({ _id: updateData.origin });
-      if (!exists) throw new Error(`Referenced origin Location '${updateData.origin}' does not exist.`);
+      if (!exists)
+        throw new Error(`Referenced origin Location '${updateData.origin}' does not exist.`);
     }
     if (updateData.destination) {
       const exists = await Location.exists({ _id: updateData.destination });
-      if (!exists) throw new Error(`Referenced destination Location '${updateData.destination}' does not exist.`);
+      if (!exists)
+        throw new Error(
+          `Referenced destination Location '${updateData.destination}' does not exist.`
+        );
     }
 
     return await Journey.findByIdAndUpdate(id, updateData, {

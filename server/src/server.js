@@ -6,14 +6,18 @@ import { connectDatabase, disconnectDatabase } from './config/database.js';
 const app = createApp();
 
 const server = app.listen(config.port, async () => {
-  logger.info(`Yatrai API Server running in [${config.env}] mode on http://${config.host}:${config.port}`);
+  logger.info(
+    `Yatrai API Server running in [${config.env}] mode on http://${config.host}:${config.port}`
+  );
   logger.info(`Health check available at http://${config.host}:${config.port}/api/health`);
 
   // Attempt database connection on startup
   try {
     await connectDatabase();
   } catch (dbError) {
-    logger.warn(`[Database Warning] Could not connect to MongoDB on startup: ${dbError.message}. Proceeding without active DB connection.`);
+    logger.warn(
+      `[Database Warning] Could not connect to MongoDB on startup: ${dbError.message}. Proceeding without active DB connection.`
+    );
   }
 });
 

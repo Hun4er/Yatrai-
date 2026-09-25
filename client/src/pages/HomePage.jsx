@@ -1,6 +1,7 @@
 import React from 'react';
 import useApiHealth from '../hooks/useApiHealth.js';
 import ApiStatusBadge from '../components/ApiStatusBadge.jsx';
+import AuthCard from '../components/AuthCard.jsx';
 import { APP_NAME, APP_TAGLINE, CURRENT_PHASE } from '../constants/index.js';
 
 export function HomePage() {
@@ -16,14 +17,20 @@ export function HomePage() {
         <h1 className="mt-4 text-3xl sm:text-4xl font-extrabold tracking-tight text-text-primary">
           {APP_NAME}
         </h1>
-        <p className="mt-2 text-lg text-brand-primary font-medium">
-          {APP_TAGLINE}
-        </p>
+        <p className="mt-2 text-lg text-brand-primary font-medium">{APP_TAGLINE}</p>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-text-secondary">
-          Welcome to the development environment of Yatrai. The frontend and backend foundations
-          are initialized, establishing client-server communication, modular architectural layers,
-          error handling, and centralized configuration.
+          Welcome to the development environment of Yatrai. The authentication system (Phase 2) is
+          active, providing secure email &amp; password authentication, HTTP-only refresh token
+          session rotation, and protected route access.
         </p>
+      </div>
+
+      {/* Phase 2: Authentication Module */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-text-tertiary">
+          Authentication &amp; Session Management
+        </h2>
+        <AuthCard />
       </div>
 
       {/* Backend API Health Status */}
@@ -58,11 +65,10 @@ export function HomePage() {
           <div className="text-xs font-bold uppercase tracking-wider text-brand-primary">
             Backend
           </div>
-          <div className="mt-2 text-base font-semibold text-text-primary">
-            Express + Node.js
-          </div>
+          <div className="mt-2 text-base font-semibold text-text-primary">Express + Node.js</div>
           <p className="mt-1 text-xs text-text-secondary">
-            Modular route architecture, centralized configuration, structured logging, and safe error handling.
+            Modular route architecture, centralized configuration, structured logging, and safe
+            error handling.
           </p>
         </div>
 
@@ -70,9 +76,7 @@ export function HomePage() {
           <div className="text-xs font-bold uppercase tracking-wider text-brand-primary">
             API Health Check
           </div>
-          <div className="mt-2 text-base font-semibold text-text-primary">
-            GET /api/health
-          </div>
+          <div className="mt-2 text-base font-semibold text-text-primary">GET /api/health</div>
           <p className="mt-1 text-xs text-text-secondary">
             Deterministic endpoint confirming server status, process uptime, and environment mode.
           </p>

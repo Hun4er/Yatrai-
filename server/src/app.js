@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import config from './config/index.js';
 import logger from './utils/logger.js';
 import apiRouter from './routes/index.js';
@@ -18,9 +19,10 @@ export function createApp() {
     })
   );
 
-  // Body parsers
+  // Body and cookie parsers
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+  app.use(cookieParser());
 
   // Development request logger
   app.use((req, res, next) => {

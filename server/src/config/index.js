@@ -13,12 +13,14 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
  */
 function validateConfig() {
   const isProduction = process.env.NODE_ENV === 'production';
-  const requiredInProduction = ['PORT'];
+  const requiredInProduction = ['PORT', 'JWT_ACCESS_SECRET'];
 
   if (isProduction) {
     const missing = requiredInProduction.filter((key) => !process.env[key]);
     if (missing.length > 0) {
-      throw new Error(`[Configuration Error] Missing required production environment variables: ${missing.join(', ')}`);
+      throw new Error(
+        `[Configuration Error] Missing required production environment variables: ${missing.join(', ')}`
+      );
     }
   }
 }
@@ -48,15 +50,27 @@ export const config = Object.freeze({
 
   // Database — Phase 1 (MongoDB)
   database: {
-    mongodbUri: process.env.MONGODB_URI || process.env.DATABASE_URL || 'mongodb://127.0.0.1:27017/yatrai_dev',
+    mongodbUri:
+      process.env.MONGODB_URI || process.env.DATABASE_URL || 'mongodb://127.0.0.1:27017/yatrai_dev',
     url: process.env.DATABASE_URL || null,
   },
   cache: {
     redisUrl: process.env.REDIS_URL || null,
   },
   auth: {
-    jwtSecret: process.env.JWT_SECRET || null,
-    jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    jwtAccessSecret:
+      process.env.JWT_ACCESS_SECRET ||
+      (process.env.NODE_ENV === 'production'
+        ? null
+        : 'yatrai_dev_jwt_access_secret_do_not_use_in_production_987654'),
+    jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
+    jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    cookieName: process.env.AUTH_COOKIE_NAME || 'yatrai_refresh_token',
+    cookieSecure:
+      process.env.AUTH_COOKIE_SECURE !== undefined
+        ? process.env.AUTH_COOKIE_SECURE === 'true'
+        : process.env.NODE_ENV === 'production',
+    cookieSameSite: process.env.AUTH_COOKIE_SAME_SITE || 'lax',
   },
   providers: {
     rail: {

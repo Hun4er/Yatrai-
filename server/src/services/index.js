@@ -8,3 +8,4 @@ export { searchRequestService } from './searchRequestService.js';
 export { searchResultService } from './searchResultService.js';
 export { savedJourneyService } from './savedJourneyService.js';
 export { notificationService } from './notificationService.js';
+export { authService } from './auth.service.js';

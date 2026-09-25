@@ -4,7 +4,8 @@ export const seedProviders = [
     name: 'Indian Railway Catering and Tourism Corporation',
     code: 'IRCTC',
     type: 'rail',
-    description: 'National railway provider connecting broad gauge and express networks across India.',
+    description:
+      'National railway provider connecting broad gauge and express networks across India.',
     website: 'https://www.irctc.co.in',
     supportedModes: ['rail'],
     status: 'active',
@@ -34,7 +35,8 @@ export const seedProviders = [
     name: 'Air India',
     code: 'AIRINDIA',
     type: 'airline',
-    description: 'Full-service Indian flag carrier connecting major domestic and international routes.',
+    description:
+      'Full-service Indian flag carrier connecting major domestic and international routes.',
     website: 'https://www.airindia.com',
     supportedModes: ['flight'],
     status: 'active',
@@ -50,7 +52,8 @@ export const seedProviders = [
     name: 'Uttar Pradesh State Road Transport Corporation',
     code: 'UPSRTC',
     type: 'bus',
-    description: 'State-run intercity bus transit operator in Uttar Pradesh and neighbouring regions.',
+    description:
+      'State-run intercity bus transit operator in Uttar Pradesh and neighbouring regions.',
     website: 'https://www.upsrtc.up.gov.in',
     supportedModes: ['bus'],
     status: 'active',

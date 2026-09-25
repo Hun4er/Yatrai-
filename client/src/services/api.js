@@ -6,7 +6,21 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 /**
- * Standard fetch wrapper with JSON serialization, timeout, and error normalization.
+ * In-memory access token storage.
+ * Never stored in localStorage or sessionStorage for security.
+ */
+let inMemoryAccessToken = null;
+
+export function setAccessToken(token) {
+  inMemoryAccessToken = token;
+}
+
+export function getAccessToken() {
+  return inMemoryAccessToken;
+}
+
+/**
+ * Standard fetch wrapper with JSON serialization, credentials transport, and error normalization.
  */
 async function request(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
@@ -16,7 +30,14 @@ async function request(endpoint, options = {}) {
     Accept: 'application/json',
   };
 
+  // Attach in-memory Bearer token if present and not explicitly overridden
+  if (inMemoryAccessToken && !options.headers?.Authorization && !options.headers?.authorization) {
+    defaultHeaders.Authorization = `Bearer ${inMemoryAccessToken}`;
+  }
+
   const config = {
+    // Automatically include HTTP-only cookies for session transport
+    credentials: 'include',
     ...options,
     headers: {
       ...defaultHeaders,
@@ -69,16 +90,35 @@ export const api = {
     check: () => request('/health'),
   },
 
-  // Future Phases Extension Points (Phase 1+)
-  /*
-  auth: { ... },
-  locations: { ... },
-  journeys: { ... },
-  providers: { ... },
-  savedJourneys: { ... },
-  notifications: { ... },
-  admin: { ... }
-  */
+  // Phase 2: Authentication
+  auth: {
+    register: (name, email, password) =>
+      request('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ name, email, password }),
+      }),
+
+    login: (email, password) =>
+      request('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      }),
+
+    refresh: () =>
+      request('/auth/refresh', {
+        method: 'POST',
+      }),
+
+    logout: () =>
+      request('/auth/logout', {
+        method: 'POST',
+      }),
+
+    me: () =>
+      request('/auth/me', {
+        method: 'GET',
+      }),
+  },
 };
 
 export default api;

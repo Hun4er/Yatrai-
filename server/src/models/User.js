@@ -59,6 +59,11 @@ const UserSchema = new Schema(
       default: 'active',
       index: true,
     },
+    passwordHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
   },
   {
     timestamps: true,
@@ -67,6 +72,7 @@ const UserSchema = new Schema(
       versionKey: false,
       transform: (_doc, ret) => {
         delete ret.id;
+        delete ret.passwordHash;
         return ret;
       },
     },

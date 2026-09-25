@@ -18,7 +18,8 @@ export const journeyLegService = {
       checks.push(TransportProvider.exists({ _id: legData.provider }));
     }
 
-    const [journeyExists, originExists, destinationExists, providerExists] = await Promise.all(checks);
+    const [journeyExists, originExists, destinationExists, providerExists] =
+      await Promise.all(checks);
 
     if (!journeyExists) {
       throw new Error(`Referenced Journey '${legData.journey}' does not exist.`);

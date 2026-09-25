@@ -30,7 +30,9 @@ export async function testConnection() {
     console.error('Database connection: FAILED');
     console.error('========================================');
     console.error(`Reason: ${error.message}`);
-    console.error('Verify that your MongoDB server is running or MONGODB_URI is valid in server/.env.');
+    console.error(
+      'Verify that your MongoDB server is running or MONGODB_URI is valid in server/.env.'
+    );
     console.error('========================================\n');
     return false;
   } finally {
