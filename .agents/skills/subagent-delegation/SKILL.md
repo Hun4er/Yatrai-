@@ -22,26 +22,26 @@ Native subagents require **Antigravity 2.0 or later** (`invoke_subagent`).
 Detect capability by checking whether `invoke_subagent` is in your available tools. Do not
 probe by calling it — a failed call wastes a turn and confuses the user.
 
-| Capability | Behavior |
-|------------|----------|
-| `invoke_subagent` available | Delegate per this protocol |
-| Not available | Inline fallback (see below) |
+| Capability                  | Behavior                    |
+| --------------------------- | --------------------------- |
+| `invoke_subagent` available | Delegate per this protocol  |
+| Not available               | Inline fallback (see below) |
 
 **Plan requirements:** none beyond 2.0. Plain subagents are not plan-gated — only
-*Multi-Agent Teamwork* (`/teamwork-preview`, Agent Teams) is Ultra-exclusive, and GSD never
+_Multi-Agent Teamwork_ (`/teamwork-preview`, Agent Teams) is Ultra-exclusive, and GSD never
 uses it. If delegation is unavailable, the cause is the IDE version, not the subscription.
 
 ---
 
 ## What to Delegate
 
-| Work | Subagent | Why |
-|------|----------|-----|
-| Executing a PLAN.md | `gsd-executor` | One clean context per plan is the core GSD promise |
-| Authoring plans for a phase | `gsd-planner` | Plan authoring reads spec + roadmap + research |
-| Verifying a phase | `gsd-verifier` | Independence requires a context that never saw the work |
-| Codebase mapping / research | `gsd-researcher` | Exploration is the largest single context cost |
-| Diagnosing a bug | `gsd-debugger` | A polluted context repeats its own failed hypotheses |
+| Work                        | Subagent         | Why                                                     |
+| --------------------------- | ---------------- | ------------------------------------------------------- |
+| Executing a PLAN.md         | `gsd-executor`   | One clean context per plan is the core GSD promise      |
+| Authoring plans for a phase | `gsd-planner`    | Plan authoring reads spec + roadmap + research          |
+| Verifying a phase           | `gsd-verifier`   | Independence requires a context that never saw the work |
+| Codebase mapping / research | `gsd-researcher` | Exploration is the largest single context cost          |
+| Diagnosing a bug            | `gsd-debugger`   | A polluted context repeats its own failed hypotheses    |
 
 **Keep in the orchestrator:** argument parsing, file existence checks, wave grouping, reading
 compact subagent results, updating STATE.md and ROADMAP.md, and talking to the user.
@@ -80,13 +80,13 @@ the end that it has no way to produce its artifact.
 
 Every subagent definition in `.agents/agents/` therefore declares its tools explicitly.
 
-| Need | Tools |
-|------|-------|
-| Read and search | `view_file`, `list_dir`, `find_by_name`, `grep_search` |
-| Write artifacts | `write_to_file`, `replace_file_content`, `multi_replace_file_content` |
-| Commits, tests, verification commands | `run_command` |
-| External research | `search_web`, `read_url_content` |
-| Return to the parent | `send_message` |
+| Need                                  | Tools                                                                 |
+| ------------------------------------- | --------------------------------------------------------------------- |
+| Read and search                       | `view_file`, `list_dir`, `find_by_name`, `grep_search`                |
+| Write artifacts                       | `write_to_file`, `replace_file_content`, `multi_replace_file_content` |
+| Commits, tests, verification commands | `run_command`                                                         |
+| External research                     | `search_web`, `read_url_content`                                      |
+| Return to the parent                  | `send_message`                                                        |
 
 **Copy tool names exactly.** An unmapped or misspelled name makes the subagent hang rather
 than fail — the worst possible failure mode, because it looks like slow work.
@@ -98,11 +98,11 @@ and every declared name must exist in the registry above.
 
 ## Workspace Isolation
 
-| Mode | Use when |
-|------|----------|
-| `inherit` | Sequential work — one subagent touching the workspace at a time |
-| `branch` | Two or more subagents writing files concurrently (isolated git worktree) |
-| `share` | Read-only concurrent work — research, mapping, verification |
+| Mode      | Use when                                                                 |
+| --------- | ------------------------------------------------------------------------ |
+| `inherit` | Sequential work — one subagent touching the workspace at a time          |
+| `branch`  | Two or more subagents writing files concurrently (isolated git worktree) |
+| `share`   | Read-only concurrent work — research, mapping, verification              |
 
 **Wave mapping:** a wave with one plan runs `inherit`. A wave with multiple plans runs
 `branch`, one worktree per plan, merged after the wave completes. Concurrent writers sharing

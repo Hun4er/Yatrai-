@@ -11,24 +11,24 @@ This adapter provides optional enhancements for Claude models in Antigravity.
 
 When available, activate extended thinking for:
 
-| Task Type | Recommended |
-|-----------|-------------|
-| Architecture planning | ✅ High effort |
-| Complex debugging | ✅ High effort |
-| Security analysis | ✅ High effort |
-| Simple edits | ❌ Not needed |
-| Quick iterations | ❌ Overhead too high |
+| Task Type             | Recommended          |
+| --------------------- | -------------------- |
+| Architecture planning | ✅ High effort       |
+| Complex debugging     | ✅ High effort       |
+| Security analysis     | ✅ High effort       |
+| Simple edits          | ❌ Not needed        |
+| Quick iterations      | ❌ Overhead too high |
 
 ### Effort Levels
 
 If the model supports effort/budget levels:
 
-| Level | Use Case |
-|-------|----------|
-| `low` | Simple edits, formatting, comments |
-| `medium` | Standard implementation (default) |
-| `high` | Complex logic, refactoring, debugging |
-| `max` | Architecture, security, critical decisions |
+| Level    | Use Case                                   |
+| -------- | ------------------------------------------ |
+| `low`    | Simple edits, formatting, comments         |
+| `medium` | Standard implementation (default)          |
+| `high`   | Complex logic, refactoring, debugging      |
+| `max`    | Architecture, security, critical decisions |
 
 **Default:** `medium` if not specified.
 
@@ -74,4 +74,4 @@ Not required, but if organizing Claude-specific files:
 
 ---
 
-*See PROJECT_RULES.md for canonical requirements.*
+_See PROJECT_RULES.md for canonical requirements._

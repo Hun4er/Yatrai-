@@ -1,7 +1,7 @@
 # GSD Methodology — Mission Control Rules
 
 > **Get Shit Done**: A spec-driven, context-engineered development methodology.
-> 
+>
 > These rules enforce disciplined, high-quality autonomous development.
 
 ---
@@ -39,14 +39,14 @@ Before "Done"    → Empirical proof captured
 
 These rules integrate with the GSD workflows:
 
-| Workflow | Rules Enforced |
-|----------|----------------|
-| `/map` | Updates ARCHITECTURE.md, STACK.md |
-| `/plan` | Enforces Planning Lock, creates ROADMAP |
+| Workflow   | Rules Enforced                             |
+| ---------- | ------------------------------------------ |
+| `/map`     | Updates ARCHITECTURE.md, STACK.md          |
+| `/plan`    | Enforces Planning Lock, creates ROADMAP    |
 | `/execute` | Enforces State Persistence after each task |
-| `/verify` | Enforces Empirical Validation |
-| `/pause` | Triggers Context Hygiene state dump |
-| `/resume` | Loads state from STATE.md |
+| `/verify`  | Enforces Empirical Validation              |
+| `/pause`   | Triggers Context Hygiene state dump        |
+| `/resume`  | Loads state from STATE.md                  |
 
 ---
 
@@ -55,13 +55,13 @@ These rules integrate with the GSD workflows:
 For Gemini-specific enhancements, see [adapters/GEMINI.md](../adapters/GEMINI.md).
 
 Key recommendations:
+
 - **Flash** for quick iterations and simple edits
 - **Pro** for complex planning and analysis
 - Large context is available but **search-first** still applies
 
 ---
 
-*GSD Methodology adapted for Google Antigravity*
-*Canonical rules: [PROJECT_RULES.md](../PROJECT_RULES.md)*
-*Source: https://github.com/glittercowboy/get-shit-done*
-
+_GSD Methodology adapted for Google Antigravity_
+_Canonical rules: [PROJECT_RULES.md](../PROJECT_RULES.md)_
+_Source: https://github.com/glittercowboy/get-shit-done_

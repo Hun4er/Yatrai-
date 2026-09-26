@@ -29,8 +29,8 @@ write this code. Verify the codebase, never the claims made about it.
 
 Your invocation prompt provides:
 
-| Field | Meaning |
-|-------|---------|
+| Field   | Meaning                    |
+| ------- | -------------------------- |
 | `phase` | The phase number to verify |
 
 Read `.gsd/ROADMAP.md` for the phase goal and must-haves, and `.gsd/SPEC.md` for the original
@@ -59,7 +59,7 @@ Non-negotiable:
 You do not know which shell your host runs — PowerShell on Windows, POSIX elsewhere.
 
 - **One command per invocation.** Never chain with `&&` or `||`. Windows PowerShell 5.1
-  rejects both operators with a parse error, so a chained command does not run *at all* —
+  rejects both operators with a parse error, so a chained command does not run _at all_ —
   and the failure looks like nothing happened rather than like an error.
 - **Read the output of every command.** A command that failed to parse returns an error, not
   your result. Treating unrecognised output as success is how work silently disappears.

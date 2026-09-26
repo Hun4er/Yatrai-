@@ -1,6 +1,6 @@
 ---
 description: Systematic debugging with persistent state
-argument-hint: "[description of issue]"
+argument-hint: '[description of issue]'
 ---
 
 # /debug Workflow
@@ -28,11 +28,13 @@ Systematically diagnose an issue using hypothesis-driven debugging, with persist
 
 Check for existing debug state:
 **PowerShell:**
+
 ```powershell
 Test-Path ".gsd/DEBUG.md"
 ```
 
 **Bash:**
+
 ```bash
 test -f ".gsd/DEBUG.md"
 ```
@@ -40,6 +42,7 @@ test -f ".gsd/DEBUG.md"
 If exists, load previous attempts. If not, create new session.
 
 Display banner:
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GSD ► DEBUG SESSION
@@ -82,6 +85,7 @@ Create/update `.gsd/DEBUG.md`:
 # Debug Session: {Issue ID}
 
 ## Symptom
+
 {Exact description of the problem}
 
 **When:** {When does it occur?}
@@ -96,6 +100,7 @@ Create/update `.gsd/DEBUG.md`:
 Collect data BEFORE forming hypotheses:
 
 **PowerShell:**
+
 ```powershell
 # Get error details
 {relevant commands to capture error info}
@@ -108,6 +113,7 @@ Get-Content logs/error.log -Tail 50
 ```
 
 **Bash:**
+
 ```bash
 # Get error details
 {relevant commands to capture error info}
@@ -130,11 +136,11 @@ Based on evidence, list possible causes:
 ```markdown
 ## Hypotheses
 
-| # | Hypothesis | Likelihood | Status |
-|---|------------|------------|--------|
-| 1 | {cause 1} | 80% | UNTESTED |
-| 2 | {cause 2} | 15% | UNTESTED |
-| 3 | {cause 3} | 5% | UNTESTED |
+| #   | Hypothesis | Likelihood | Status   |
+| --- | ---------- | ---------- | -------- |
+| 1   | {cause 1}  | 80%        | UNTESTED |
+| 2   | {cause 2}  | 15%        | UNTESTED |
+| 3   | {cause 3}  | 5%         | UNTESTED |
 ```
 
 ---
@@ -147,6 +153,7 @@ Test highest likelihood first:
 ## Attempts
 
 ### Attempt 1
+
 **Testing:** H1 — {hypothesis}
 **Action:** {what you did to test}
 **Result:** {outcome}
@@ -165,6 +172,7 @@ When root cause confirmed:
 4. Check for regressions
 
 Update DEBUG.md:
+
 ```markdown
 ## Resolution
 
@@ -198,6 +206,7 @@ Update DEBUG.md and recommend next steps.
 ## 8. Commit Resolution
 
 If fixed:
+
 ```bash
 git add -A
 git commit -m "fix: {brief description of fix}"
@@ -210,6 +219,7 @@ Update STATE.md with resolution.
 <offer_next>
 
 **If Resolved:**
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GSD ► BUG FIXED ✓
@@ -224,6 +234,7 @@ Committed: {hash}
 ```
 
 **If Stuck After 3 Attempts:**
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GSD ► DEBUG PAUSED ⏸
@@ -248,15 +259,18 @@ Options:
 ## Related
 
 ### Workflows
-| Command | Relationship |
-|---------|--------------|
-| `/pause` | Use after 3 failed attempts |
+
+| Command   | Relationship                      |
+| --------- | --------------------------------- |
+| `/pause`  | Use after 3 failed attempts       |
 | `/resume` | Start fresh with documented state |
-| `/verify` | Re-verify after fixing issues |
+| `/verify` | Re-verify after fixing issues     |
 
 ### Skills
-| Skill | Purpose |
-|-------|---------|
-| `debugger` | Detailed debugging methodology |
-| `context-health-monitor` | 3-strike rule |
+
+| Skill                    | Purpose                        |
+| ------------------------ | ------------------------------ |
+| `debugger`               | Detailed debugging methodology |
+| `context-health-monitor` | 3-strike rule                  |
+
 </related>

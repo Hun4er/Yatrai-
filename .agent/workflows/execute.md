@@ -1,6 +1,6 @@
 ---
 description: The Engineer — Execute a specific phase with focused context
-argument-hint: "<phase-number> [--gaps-only]"
+argument-hint: '<phase-number> [--gaps-only]'
 ---
 
 # /execute Workflow
@@ -10,6 +10,7 @@ You are a GSD executor orchestrator. You do not execute plans yourself — you d
 plan to a `gsd-executor` subagent and route the results.
 
 **Core responsibilities:**
+
 - Validate phase exists and has plans
 - Discover and group plans by execution wave
 - Delegate each plan to a `gsd-executor` subagent with a clean context
@@ -30,10 +31,12 @@ read compact results, verify against phase goal.
 **Phase:** $ARGUMENTS (required - phase number to execute)
 
 **Flags:**
+
 - `--gaps-only` — Execute only gap closure plans (created by `/verify` when issues found)
 - `--inline` — Force inline execution without subagents (debugging escape hatch)
 
 **Required files:**
+
 - `.gsd/ROADMAP.md` — Phase definitions
 - `.gsd/STATE.md` — Current position
 - `.gsd/phases/{phase}/` — Phase directory with PLAN.md files
@@ -47,12 +50,14 @@ read compact results, verify against phase goal.
 ## 1. Validate Environment
 
 **PowerShell:**
+
 ```powershell
 Test-Path ".gsd/ROADMAP.md"
 Test-Path ".gsd/STATE.md"
 ```
 
 **Bash:**
+
 ```bash
 test -f ".gsd/ROADMAP.md"
 test -f ".gsd/STATE.md"
@@ -65,12 +70,14 @@ test -f ".gsd/STATE.md"
 ## 2. Validate Phase Exists
 
 **PowerShell:**
+
 ```powershell
 # Check phase exists in roadmap
 Select-String -Path ".gsd/ROADMAP.md" -Pattern "Phase $PHASE:"
 ```
 
 **Bash:**
+
 ```bash
 # Check phase exists in roadmap
 grep "Phase $PHASE:" ".gsd/ROADMAP.md"
@@ -83,6 +90,7 @@ grep "Phase $PHASE:" ".gsd/ROADMAP.md"
 ## 3. Ensure Phase Directory Exists
 
 **PowerShell:**
+
 ```powershell
 $PHASE_DIR = ".gsd/phases/$PHASE"
 if (-not (Test-Path $PHASE_DIR)) {
@@ -91,6 +99,7 @@ if (-not (Test-Path $PHASE_DIR)) {
 ```
 
 **Bash:**
+
 ```bash
 PHASE_DIR=".gsd/phases/$PHASE"
 mkdir -p "$PHASE_DIR"
@@ -101,11 +110,13 @@ mkdir -p "$PHASE_DIR"
 ## 4. Discover Plans
 
 **PowerShell:**
+
 ```powershell
 Get-ChildItem "$PHASE_DIR/*-PLAN.md"
 ```
 
 **Bash:**
+
 ```bash
 ls "$PHASE_DIR"/*-PLAN.md 2>/dev/null
 ```
@@ -113,11 +124,13 @@ ls "$PHASE_DIR"/*-PLAN.md 2>/dev/null
 **Check for existing summaries** (completed plans):
 
 **PowerShell:**
+
 ```powershell
 Get-ChildItem "$PHASE_DIR/*-SUMMARY.md"
 ```
 
 **Bash:**
+
 ```bash
 ls "$PHASE_DIR"/*-SUMMARY.md 2>/dev/null
 ```
@@ -145,6 +158,7 @@ wave: 1
 **Group plans by wave number.** Lower waves execute first.
 
 Display wave structure:
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GSD ► EXECUTING PHASE {N}
@@ -164,10 +178,10 @@ Wave 2: {plan-3}
 
 Look for `invoke_subagent` in your available tools.
 
-| Result | Path |
-|--------|------|
+| Result                            | Path                    |
+| --------------------------------- | ----------------------- |
 | Available, and no `--inline` flag | **Delegated mode** — 6b |
-| Unavailable, or `--inline` passed | **Inline mode** — 6e |
+| Unavailable, or `--inline` passed | **Inline mode** — 6e    |
 
 ---
 
@@ -177,10 +191,10 @@ For each wave in order, invoke one `gsd-executor` subagent per plan.
 
 **Workspace mode:**
 
-| Plans in wave | Mode | Reason |
-|---------------|------|--------|
-| 1 | `inherit` | Nothing to collide with |
-| 2+ | `branch` | Concurrent writers need isolated worktrees |
+| Plans in wave | Mode      | Reason                                     |
+| ------------- | --------- | ------------------------------------------ |
+| 1             | `inherit` | Nothing to collide with                    |
+| 2+            | `branch`  | Concurrent writers need isolated worktrees |
 
 **Invocation prompt** — paths only, never file contents:
 
@@ -206,12 +220,12 @@ See `.agents/skills/subagent-delegation/SKILL.md` for the full protocol.
 Each subagent returns a compact block. **Do not read the SUMMARY.md files** — the block is
 enough to route, and reading them re-imports the context delegation just saved.
 
-| `status` | Action |
-|----------|--------|
-| `complete` | Record commits, continue |
-| `checkpoint` | Present the checkpoint to the user, stop the wave, resume with a fresh subagent carrying `completed_tasks` |
-| `blocked` | Report the blocker, stop the wave, do not start the next one |
-| no result / subagent died | Report as failure and stop — do not silently redo the work inline |
+| `status`                  | Action                                                                                                     |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `complete`                | Record commits, continue                                                                                   |
+| `checkpoint`              | Present the checkpoint to the user, stop the wave, resume with a fresh subagent carrying `completed_tasks` |
+| `blocked`                 | Report the blocker, stop the wave, do not start the next one                                               |
+| no result / subagent died | Report as failure and stop — do not silently redo the work inline                                          |
 
 ---
 
@@ -241,6 +255,7 @@ Then, for **one plan only** — never a full wave:
 4. **Commit per task** — separate commands, never chained with `&&`:
 
    **PowerShell:**
+
    ```powershell
    git add -A
    git commit -m "feat(phase-{N}): {task-name}"
@@ -248,6 +263,7 @@ Then, for **one plan only** — never a full wave:
    ```
 
    **Bash:**
+
    ```bash
    git add -A
    git commit -m "feat(phase-{N}): {task-name}"
@@ -256,6 +272,7 @@ Then, for **one plan only** — never a full wave:
 
    Read the `git log` output and confirm it names this task. A commit you did not verify did
    not happen.
+
 5. **Create SUMMARY.md** — Document what was done
 6. **Stop and offer `/pause`** so the next plan starts on a fresh context
 
@@ -278,10 +295,12 @@ inherit the executors' assumptions about their own work.
 3. **Run verification commands** specified in phase
 
 **Create VERIFICATION.md:**
+
 ```markdown
 ## Phase {N} Verification
 
 ### Must-Haves
+
 - [x] Must-have 1 — VERIFIED (evidence: ...)
 - [ ] Must-have 2 — FAILED (reason: ...)
 
@@ -289,6 +308,7 @@ inherit the executors' assumptions about their own work.
 ```
 
 **Route by verdict:**
+
 - `PASS` → Continue to step 8
 - `FAIL` → Create gap closure plans, offer `/execute {N} --gaps-only`
 
@@ -297,26 +317,33 @@ inherit the executors' assumptions about their own work.
 ## 8. Update Roadmap and State
 
 **Update ROADMAP.md:**
+
 ```markdown
 ### Phase {N}: {Name}
+
 **Status**: ✅ Complete
 ```
 
 **Update STATE.md:**
+
 ```markdown
 ## Current Position
+
 - **Phase**: {N} (completed)
 - **Task**: All tasks complete
 - **Status**: Verified
 
 ## Last Session Summary
+
 Phase {N} executed successfully. {X} plans, {Y} tasks completed.
 
 ## Next Steps
+
 1. Proceed to Phase {N+1}
 ```
 
 **Update REQUIREMENTS.md** (if exists):
+
 - Cross-reference completed tasks with requirement IDs
 - Mark requirements satisfied by this phase as `In Progress` or `Complete`
 - Update the traceability matrix with plan references
@@ -386,30 +413,35 @@ Gap closure plans created.
 
 ───────────────────────────────────────────────────────
 ```
+
 </offer_next>
 
 <context_hygiene>
 **After 3 failed debugging attempts:**
+
 1. Stop current approach
 2. Document to `.gsd/STATE.md` what was tried
 3. Recommend `/pause` for fresh session
-</context_hygiene>
+   </context_hygiene>
 
 <related>
 ## Related
 
 ### Workflows
-| Command | Relationship |
-|---------|--------------|
-| `/plan` | Creates PLAN.md files that /execute runs |
-| `/verify` | Validates work after /execute completes |
-| `/debug` | Use when tasks fail verification |
-| `/pause` | Use after 3 debugging failures |
+
+| Command   | Relationship                             |
+| --------- | ---------------------------------------- |
+| `/plan`   | Creates PLAN.md files that /execute runs |
+| `/verify` | Validates work after /execute completes  |
+| `/debug`  | Use when tasks fail verification         |
+| `/pause`  | Use after 3 debugging failures           |
 
 ### Skills
-| Skill | Purpose |
-|-------|---------|
-| `executor` | Detailed execution protocol |
-| `context-health-monitor` | 3-strike rule enforcement |
-| `empirical-validation` | Verification requirements |
+
+| Skill                    | Purpose                     |
+| ------------------------ | --------------------------- |
+| `executor`               | Detailed execution protocol |
+| `context-health-monitor` | 3-strike rule enforcement   |
+| `empirical-validation`   | Verification requirements   |
+
 </related>

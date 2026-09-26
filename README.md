@@ -278,7 +278,38 @@ npm run location:verify
 
 ---
 
-## 12. Code Quality & Linting
+## 12. Journey Search Engine (Phase 4)
+
+Phase 4 establishes the core internal **Journey Search Engine**, orchestrating search requests, candidate gathering, domain validation, and persistence before real transport providers are connected in Phase 5.
+
+### Architecture Highlights
+
+- **Provider-Independent Pipeline:** Zero transport-specific branches in the core search engine; candidate sources connect through an extensible gateway (`journeyProviderRegistry`).
+- **Location Resolution Integration:** Seamlessly resolves place query strings and coordinates via Phase 3 `locationService`.
+- **SearchRequest Lifecycle:** Formally manages states (`pending` &rarr; `processing` &rarr; `completed` / `failed`).
+- **Domain & Continuity Validation:** Strictly validates timestamps, non-negative fares, monotonically ordered legs, and spatial/temporal leg continuity (Leg 1 origin = Journey origin, Leg[i] dest = Leg[i+1] origin, transfer departures &ge; arrival).
+- **Isolated Development Candidate Source:** Proves pipeline functionality without external transport network calls; candidates are explicitly marked `{ source: 'development', isMock: true }`.
+- **Referential Integrity:** Persists `SearchRequest`, canonical `Journey`, ordered `JourneyLeg`s, and `SearchResult` records.
+
+### Endpoints
+
+| Method | Endpoint               | Description                                                                        | Protection             |
+| ------ | ---------------------- | ---------------------------------------------------------------------------------- | ---------------------- |
+| `POST` | `/api/journeys/search` | Core journey discovery endpoint (validates, resolves locations, executes pipeline) | Public / Optional Auth |
+
+### Testing & Verification
+
+```bash
+# Run automated test suite (includes 23 journey search engine tests; 82 total)
+npm test
+
+# Run live journey search verification script against MongoDB
+npm run journey:verify
+```
+
+---
+
+## 13. Code Quality & Linting
 
 ### Linting
 
@@ -306,7 +337,7 @@ npm run build
 
 ---
 
-## 13. Development Conventions
+## 14. Development Conventions
 
 1. **Separation of Concerns:**
    - Routes only bind URLs to Controllers and Middleware.
@@ -320,11 +351,11 @@ npm run build
 4. **Provider-Agnostic Design:**
    - External travel providers will be integrated via standard adapters in later phases.
 5. **No Hardcoded Travel Data:**
-   - No hardcoded routes, stations, availability, or prices are permitted.
+   - No hardcoded routes, stations, availability, or prices are permitted in the core engine.
 
 ---
 
-## 14. Complete Product Roadmap
+## 15. Complete Product Roadmap
 
 | Phase       | Phase Name                                            | Status        |
 | ----------- | ----------------------------------------------------- | ------------- |
@@ -332,7 +363,7 @@ npm run build
 | **PHASE 1** | **Database + Core Models**                            | **Completed** |
 | **PHASE 2** | **Authentication**                                    | **Completed** |
 | **PHASE 3** | **Location & Destination Resolution**                 | **Completed** |
-| PHASE 4     | Journey Search Engine                                 | Upcoming      |
+| **PHASE 4** | **Journey Search Engine**                             | **Completed** |
 | PHASE 5     | Transport Providers Gateway (Rail, Bus, Flight, Road) | Upcoming      |
 | PHASE 6     | Journey Normalization Layer                           | Upcoming      |
 | PHASE 7     | Ranking & Scoring Engine                              | Upcoming      |

@@ -11,11 +11,11 @@ This adapter provides guidance for GPT models and open-source alternatives.
 
 ### Model Selection
 
-| Model | Best For |
-|-------|----------|
-| **GPT-4o** | Balanced speed and quality, multimodal |
-| **GPT-4 Turbo** | Complex reasoning, large context |
-| **GPT-3.5** | Fast iterations, simple tasks |
+| Model           | Best For                               |
+| --------------- | -------------------------------------- |
+| **GPT-4o**      | Balanced speed and quality, multimodal |
+| **GPT-4 Turbo** | Complex reasoning, large context       |
+| **GPT-3.5**     | Fast iterations, simple tasks          |
 
 ---
 
@@ -35,6 +35,7 @@ When function calling is available:
 ```
 
 **Use for:**
+
 - Verification commands
 - File operations
 - External service checks
@@ -57,12 +58,12 @@ GPT models may have smaller context than some alternatives:
 
 Open source models vary widely. General tips:
 
-| Consideration | Guidance |
-|---------------|----------|
-| **Context length** | Verify model's limit; adjust file loading |
-| **Instruction following** | Use explicit, structured prompts |
-| **Code quality** | May need more verification steps |
-| **Speed** | Varies by hardware; plan accordingly |
+| Consideration             | Guidance                                  |
+| ------------------------- | ----------------------------------------- |
+| **Context length**        | Verify model's limit; adjust file loading |
+| **Instruction following** | Use explicit, structured prompts          |
+| **Code quality**          | May need more verification steps          |
+| **Speed**                 | Varies by hardware; plan accordingly      |
 
 ---
 
@@ -82,15 +83,19 @@ For locally-running models:
 
 ```markdown
 ## Task
+
 {clear task description}
 
 ## Context
+
 {relevant code snippets}
 
 ## Expected Output
+
 {what you need back}
 
 ## Constraints
+
 {any limitations or requirements}
 ```
 
@@ -127,4 +132,4 @@ Not required, but if organizing:
 
 ---
 
-*See PROJECT_RULES.md for canonical requirements.*
+_See PROJECT_RULES.md for canonical requirements._

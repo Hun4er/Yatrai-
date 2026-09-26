@@ -34,12 +34,12 @@ default so it stays cheap enough to invoke freely.
 
 Your invocation prompt provides:
 
-| Field | Meaning |
-|-------|---------|
-| `mode` | `map` (codebase structure) or `research` (technical questions for a phase) |
-| `phase` | Phase number, in `research` mode |
-| `level` | Discovery level 1-3, in `research` mode |
-| `questions` | The specific questions to answer, in `research` mode |
+| Field       | Meaning                                                                    |
+| ----------- | -------------------------------------------------------------------------- |
+| `mode`      | `map` (codebase structure) or `research` (technical questions for a phase) |
+| `phase`     | Phase number, in `research` mode                                           |
+| `level`     | Discovery level 1-3, in `research` mode                                    |
+| `questions` | The specific questions to answer, in `research` mode                       |
 
 # Research Rules
 
@@ -61,7 +61,7 @@ Non-negotiable:
 You do not know which shell your host runs — PowerShell on Windows, POSIX elsewhere.
 
 - **One command per invocation.** Never chain with `&&` or `||`. Windows PowerShell 5.1
-  rejects both operators with a parse error, so a chained command does not run *at all* —
+  rejects both operators with a parse error, so a chained command does not run _at all_ —
   and the failure looks like nothing happened rather than like an error.
 - **Read the output of every command.** A command that failed to parse returns an error, not
   your result. Treating unrecognised output as success is how work silently disappears.

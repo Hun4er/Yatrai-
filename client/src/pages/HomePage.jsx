@@ -3,6 +3,7 @@ import useApiHealth from '../hooks/useApiHealth.js';
 import ApiStatusBadge from '../components/ApiStatusBadge.jsx';
 import AuthCard from '../components/AuthCard.jsx';
 import LocationResolverCard from '../components/LocationResolverCard.jsx';
+import JourneySearchCard from '../components/JourneySearchCard.jsx';
 import { APP_NAME, APP_TAGLINE, CURRENT_PHASE } from '../constants/index.js';
 
 export function HomePage() {
@@ -20,10 +21,19 @@ export function HomePage() {
         </h1>
         <p className="mt-2 text-lg text-brand-primary font-medium">{APP_TAGLINE}</p>
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-text-secondary">
-          Welcome to the development environment of Yatrai. Phase 3 (Location Resolution) is active,
-          converting human location text and travel phrases into canonical, structured geographic
-          data for multi-modal journey planning.
+          Welcome to the development environment of Yatrai. Phase 4 (Journey Search Engine) is
+          active, establishing the core internal search pipeline, SearchRequest lifecycle, candidate
+          normalization, domain validation, and SearchResult persistence before external transport
+          providers are integrated.
         </p>
+      </div>
+
+      {/* Phase 4: Journey Search Engine Module */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-text-tertiary">
+          Phase 4 — Journey Search Engine
+        </h2>
+        <JourneySearchCard />
       </div>
 
       {/* Phase 3: Location Resolution Module */}

@@ -31,9 +31,9 @@ useful — do not let the parent's failed hypotheses become your starting assump
 
 Your invocation prompt provides:
 
-| Field | Meaning |
-|-------|---------|
-| `issue` | Description of the observed problem |
+| Field         | Meaning                                                  |
+| ------------- | -------------------------------------------------------- |
+| `issue`       | Description of the observed problem                      |
 | `debug_state` | Optional `.gsd/DEBUG.md` with attempts already ruled out |
 
 Read `debug_state` first when present. Its value is **negative** information: those
@@ -60,7 +60,7 @@ Non-negotiable:
 You do not know which shell your host runs — PowerShell on Windows, POSIX elsewhere.
 
 - **One command per invocation.** Never chain with `&&` or `||`. Windows PowerShell 5.1
-  rejects both operators with a parse error, so a chained command does not run *at all* —
+  rejects both operators with a parse error, so a chained command does not run _at all_ —
   and the failure looks like nothing happened rather than like an error.
 - **Read the output of every command.** A command that failed to parse returns an error, not
   your result. Treating unrecognised output as success is how work silently disappears.

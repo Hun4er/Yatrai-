@@ -11,10 +11,10 @@ This adapter provides optional enhancements for Gemini models in Antigravity.
 
 ### Flash vs Pro
 
-| Model Type | Best For |
-|------------|----------|
-| **Flash** | Quick iterations, simple edits, high-volume tasks |
-| **Pro** | Complex planning, large refactors, deep analysis |
+| Model Type | Best For                                          |
+| ---------- | ------------------------------------------------- |
+| **Flash**  | Quick iterations, simple edits, high-volume tasks |
+| **Pro**    | Complex planning, large refactors, deep analysis  |
 
 **Default recommendation:** Start with Pro for planning, switch to Flash for implementation.
 
@@ -89,4 +89,4 @@ For Gemini-specific tips, see adapters/GEMINI.md.
 
 ---
 
-*See PROJECT_RULES.md for canonical requirements.*
+_See PROJECT_RULES.md for canonical requirements._

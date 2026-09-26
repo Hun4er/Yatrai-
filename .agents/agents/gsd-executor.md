@@ -32,10 +32,10 @@ read the files instead.
 
 Your invocation prompt provides:
 
-| Field | Meaning |
-|-------|---------|
-| `plan_path` | The single `.gsd/phases/{phase}/{n}-PLAN.md` to execute |
-| `phase` | Phase number, for commit messages |
+| Field             | Meaning                                                         |
+| ----------------- | --------------------------------------------------------------- |
+| `plan_path`       | The single `.gsd/phases/{phase}/{n}-PLAN.md` to execute         |
+| `phase`           | Phase number, for commit messages                               |
 | `completed_tasks` | Present only on continuation — tasks already done and committed |
 
 Your first three reads are always:
@@ -71,7 +71,7 @@ Non-negotiable:
 You do not know which shell your host runs — PowerShell on Windows, POSIX elsewhere.
 
 - **One command per invocation.** Never chain with `&&` or `||`. Windows PowerShell 5.1
-  rejects both operators with a parse error, so a chained command does not run *at all* —
+  rejects both operators with a parse error, so a chained command does not run _at all_ —
   and the failure looks like nothing happened rather than like an error.
 - **Read the output of every command.** A command that failed to parse returns an error, not
   your result. Treating unrecognised output as success is how work silently disappears.

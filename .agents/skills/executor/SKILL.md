@@ -28,6 +28,7 @@ Get-Content ".gsd/STATE.md" -ErrorAction SilentlyContinue
 ```
 
 **If file exists:** Parse and internalize:
+
 - Current position (phase, plan, status)
 - Accumulated decisions (constraints on this execution)
 - Blockers/concerns (things to watch for)
@@ -41,6 +42,7 @@ Get-Content ".gsd/STATE.md" -ErrorAction SilentlyContinue
 Read the plan file provided in your prompt context.
 
 Parse:
+
 - Frontmatter (phase, plan, type, autonomous, wave, depends_on)
 - Objective
 - Context files to read
@@ -51,16 +53,19 @@ Parse:
 ### Step 3: Determine Execution Pattern
 
 **Pattern A: Fully autonomous (no checkpoints)**
+
 - Execute all tasks sequentially
 - Create SUMMARY.md
 - Commit and report completion
 
 **Pattern B: Has checkpoints**
+
 - Execute tasks until checkpoint
 - At checkpoint: STOP and return structured checkpoint message
 - Fresh continuation agent resumes
 
 **Pattern C: Continuation (spawned to continue)**
+
 - Check completed tasks in your prompt
 - Verify those commits exist
 - Resume from specified task
@@ -101,6 +106,7 @@ Apply these rules automatically. Track all deviations for Summary documentation.
 **Trigger:** Code doesn't work as intended
 
 **Examples:**
+
 - Wrong SQL query returning incorrect data
 - Logic errors (inverted condition, off-by-one)
 - Type errors, null pointer exceptions
@@ -110,6 +116,7 @@ Apply these rules automatically. Track all deviations for Summary documentation.
 - Memory leaks
 
 **Process:**
+
 1. Fix the bug inline
 2. Add/update tests to prevent regression
 3. Verify fix works
@@ -125,6 +132,7 @@ Apply these rules automatically. Track all deviations for Summary documentation.
 **Trigger:** Code is missing essential features for correctness, security, or basic operation
 
 **Examples:**
+
 - Missing error handling (no try/catch)
 - No input validation
 - Missing null/undefined checks
@@ -135,6 +143,7 @@ Apply these rules automatically. Track all deviations for Summary documentation.
 - Missing database indexes
 
 **Process:**
+
 1. Add the missing functionality
 2. Add tests for the new functionality
 3. Verify it works
@@ -150,6 +159,7 @@ Apply these rules automatically. Track all deviations for Summary documentation.
 **Trigger:** Something prevents you from completing current task
 
 **Examples:**
+
 - Missing dependency
 - Wrong types blocking compilation
 - Broken import paths
@@ -159,6 +169,7 @@ Apply these rules automatically. Track all deviations for Summary documentation.
 - Circular dependency
 
 **Process:**
+
 1. Fix the blocking issue
 2. Verify task can now proceed
 3. Continue task
@@ -173,6 +184,7 @@ Apply these rules automatically. Track all deviations for Summary documentation.
 **Trigger:** Fix/addition requires significant structural modification
 
 **Examples:**
+
 - Adding new database table
 - Major schema changes
 - Introducing new service layer
@@ -182,6 +194,7 @@ Apply these rules automatically. Track all deviations for Summary documentation.
 - Changing API contracts (breaking changes)
 
 **Process:**
+
 1. STOP current task
 2. Return checkpoint with architectural decision
 3. Include: what you found, proposed change, impact, alternatives
@@ -199,6 +212,7 @@ Apply these rules automatically. Track all deviations for Summary documentation.
 3. **If unsure which rule** → Apply Rule 4 (return checkpoint)
 
 **Edge case guidance:**
+
 - "This validation is missing" → Rule 2 (security)
 - "This crashes on null" → Rule 1 (bug)
 - "Need to add table" → Rule 4 (architectural)
@@ -213,11 +227,13 @@ When you encounter authentication errors during `type="auto"` task execution:
 This is NOT a failure. Authentication gates are expected and normal.
 
 **Authentication error indicators:**
+
 - CLI returns: "Not authenticated", "Not logged in", "Unauthorized", "401", "403"
 - API returns: "Authentication required", "Invalid API key"
 - Command fails with: "Please run {tool} login" or "Set {ENV_VAR}"
 
 **Authentication gate protocol:**
+
 1. Recognize it's an auth gate — not a bug
 2. STOP current task execution
 3. Return checkpoint with type `human-action`
@@ -225,6 +241,7 @@ This is NOT a failure. Authentication gates are expected and normal.
 5. Specify verification command
 
 **Example:**
+
 ```
 ## CHECKPOINT REACHED
 
@@ -271,11 +288,13 @@ For visual/functional verification after automation.
 {Description of completed work}
 
 **How to verify:**
+
 1. {Step 1 - exact command/URL}
 2. {Step 2 - what to check}
 3. {Step 3 - expected behavior}
 
 ### Awaiting
+
 Type "approved" or describe issues to fix.
 ```
 
@@ -288,12 +307,14 @@ For implementation choices requiring user input.
 **Decision needed:** {What's being decided}
 
 **Options:**
-| Option | Pros | Cons |
-|--------|------|------|
+
+| Option     | Pros       | Cons        |
+| ---------- | ---------- | ----------- |
 | {option-a} | {benefits} | {tradeoffs} |
 | {option-b} | {benefits} | {tradeoffs} |
 
 ### Awaiting
+
 Select: [option-a | option-b]
 ```
 
@@ -308,6 +329,7 @@ For truly unavoidable manual steps.
 **I'll verify after:** {Verification command}
 
 ### Awaiting
+
 Type "done" when complete.
 ```
 
@@ -325,19 +347,23 @@ When you hit a checkpoint or auth gate, return this EXACT structure:
 **Progress:** {completed}/{total} tasks complete
 
 ### Completed Tasks
-| Task | Name | Commit | Files |
-|------|------|--------|-------|
-| 1 | {task name} | {hash} | {files} |
+
+| Task | Name        | Commit | Files   |
+| ---- | ----------- | ------ | ------- |
+| 1    | {task name} | {hash} | {files} |
 
 ### Current Task
+
 **Task {N}:** {task name}
 **Status:** {blocked | awaiting verification | awaiting decision}
 **Blocked by:** {specific blocker}
 
 ### Checkpoint Details
+
 {Checkpoint-specific content}
 
 ### Awaiting
+
 {What user needs to do/provide}
 ```
 
@@ -348,9 +374,11 @@ When you hit a checkpoint or auth gate, return this EXACT structure:
 If spawned as a continuation agent (prompt has completed tasks):
 
 1. **Verify previous commits exist:**
+
    ```powershell
    git log --oneline -5
    ```
+
    Check that commit hashes from completed tasks appear
 
 2. **DO NOT redo completed tasks** — They're already committed
@@ -369,6 +397,7 @@ If spawned as a continuation agent (prompt has completed tasks):
 After each task completes, run these as **separate commands**, one per invocation:
 
 **PowerShell:**
+
 ```powershell
 git add -A
 git commit -m "feat({phase}-{plan}): {task description}"
@@ -376,6 +405,7 @@ git log -1 --oneline
 ```
 
 **Bash:**
+
 ```bash
 git add -A
 git commit -m "feat({phase}-{plan}): {task description}"
@@ -384,7 +414,7 @@ git log -1 --oneline
 
 **Never chain commands with `&&` or `||`.** You do not know which shell your host runs.
 Windows PowerShell 5.1 rejects both operators outright with a parse error, so a chained
-`git add ... && git commit ...` fails *silently as far as your reasoning is concerned* — you
+`git add ... && git commit ...` fails _silently as far as your reasoning is concerned_ — you
 will believe you committed when nothing happened.
 
 ### Confirm the commit landed
@@ -408,6 +438,7 @@ it into the task that writes the first file inside it. If a task genuinely has n
 that is a defect in the plan: record it as a deviation and say so in the Summary.
 
 **Commit message format:**
+
 - `feat` for new features
 - `fix` for bug fixes
 - `refactor` for restructuring
@@ -423,14 +454,17 @@ that is a defect in the plan: record it as a deviation and say so in the Summary
 Load ONLY what's necessary for current task:
 
 **Always load:**
+
 - The PLAN.md being executed
 - .gsd/STATE.md for position context
 
 **Load if referenced:**
+
 - Files in `<context>` section
 - Files in task `<files>`
 
 **Never load automatically:**
+
 - All previous SUMMARYs
 - All phase plans
 - Full architecture docs
@@ -445,35 +479,40 @@ After plan completion, create `.gsd/phases/{N}/{plan}-SUMMARY.md`:
 
 ```markdown
 ---
-phase: {N}
-plan: {M}
-completed_at: {timestamp}
-duration_minutes: {N}
+phase: { N }
+plan: { M }
+completed_at: { timestamp }
+duration_minutes: { N }
 ---
 
 # Summary: {Plan Name}
 
 ## Results
+
 - {N} tasks completed
 - All verifications passed
 
 ## Tasks Completed
+
 | Task | Description | Commit | Status |
-|------|-------------|--------|--------|
-| 1 | {name} | {hash} | ✅ |
-| 2 | {name} | {hash} | ✅ |
+| ---- | ----------- | ------ | ------ |
+| 1    | {name}      | {hash} | ✅     |
+| 2    | {name}      | {hash} | ✅     |
 
 ## Deviations Applied
+
 {If none: "None — executed as planned."}
 
 - [Rule 1 - Bug] Fixed null check in auth handler
 - [Rule 2 - Missing Critical] Added input validation
 
 ## Files Changed
+
 - {file1} - {what changed}
 - {file2} - {what changed}
 
 ## Verification
+
 - {verification 1}: ✅ Passed
 - {verification 2}: ✅ Passed
 ```
@@ -483,19 +522,25 @@ duration_minutes: {N}
 ## Anti-Patterns
 
 ### ❌ Continuing past checkpoint
+
 Checkpoints mean STOP. Never continue after checkpoint.
 
 ### ❌ Redoing committed work
+
 If continuation agent, verify commits exist, don't redo.
 
 ### ❌ Loading everything
+
 Don't load all SUMMARYs, all plans. Need-to-know only.
 
 ### ❌ Ignoring deviations
+
 Always track and report deviations in Summary.
 
 ### ✅ Atomic commits
+
 One task = one commit. Always.
 
 ### ✅ Verification before done
+
 Run verify step. Confirm done criteria. Then commit.

@@ -30,10 +30,10 @@ written down, not assumed.
 
 Your invocation prompt provides:
 
-| Field | Meaning |
-|-------|---------|
-| `phase` | The phase number to plan |
-| `mode` | `standard` or `gaps` (gap closure from VERIFICATION.md) |
+| Field           | Meaning                                                  |
+| --------------- | -------------------------------------------------------- |
+| `phase`         | The phase number to plan                                 |
+| `mode`          | `standard` or `gaps` (gap closure from VERIFICATION.md)  |
 | `research_path` | Optional `.gsd/phases/{phase}/RESEARCH.md` to read first |
 
 Read in order: `.gsd/SPEC.md` (must be FINALIZED), `.gsd/ROADMAP.md` (the phase goal and

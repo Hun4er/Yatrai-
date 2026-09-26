@@ -2,6 +2,7 @@ import { Router } from 'express';
 import healthRoutes from './health.routes.js';
 import authRoutes from './auth.routes.js';
 import locationRoutes from './location.routes.js';
+import journeyRoutes from './journey.routes.js';
 
 const apiRouter = Router();
 
@@ -26,6 +27,9 @@ apiRouter.get('/', (req, res) => {
         resolve: '/api/locations/resolve',
         getById: '/api/locations/:id',
       },
+      journeys: {
+        search: '/api/journeys/search',
+      },
     },
   });
 });
@@ -38,5 +42,8 @@ apiRouter.use('/auth', authRoutes);
 
 // Mount /api/locations
 apiRouter.use('/locations', locationRoutes);
+
+// Mount /api/journeys
+apiRouter.use('/journeys', journeyRoutes);
 
 export default apiRouter;

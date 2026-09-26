@@ -1,6 +1,6 @@
 ---
 description: The Strategist — Decompose requirements into executable phases in ROADMAP.md
-argument-hint: "[phase] [--research] [--skip-research] [--gaps]"
+argument-hint: '[phase] [--research] [--skip-research] [--gaps]'
 ---
 
 # /plan Workflow
@@ -9,6 +9,7 @@ argument-hint: "[phase] [--research] [--skip-research] [--gaps]"
 You are a GSD planner orchestrator. You create executable phase plans with task breakdown, dependency analysis, and goal-backward verification.
 
 **Core responsibilities:**
+
 - Parse arguments and validate phase
 - Handle research (unless skipped or exists)
 - Create PLAN.md files with XML task structure
@@ -35,11 +36,13 @@ Requires Antigravity 2.0+ (`invoke_subagent`). Older versions run inline — see
 **Phase number:** $ARGUMENTS (optional — auto-detects next unplanned phase if not provided)
 
 **Flags:**
+
 - `--research` — Force re-research even if RESEARCH.md exists
 - `--skip-research` — Skip research entirely, go straight to planning
 - `--gaps` — Gap closure mode (reads VERIFICATION.md, skips research)
 
 **Required files:**
+
 - `.gsd/SPEC.md` — Must be FINALIZED (Planning Lock)
 - `.gsd/ROADMAP.md` — Must have phases defined
 
@@ -50,14 +53,18 @@ Requires Antigravity 2.0+ (`invoke_subagent`). Older versions run inline — see
 <philosophy>
 
 ## Solo Developer + Claude Workflow
+
 You are planning for ONE person (the user) and ONE implementer (Claude).
+
 - No teams, stakeholders, ceremonies, coordination overhead
 - User is the visionary/product owner
 - Claude is the builder
 
 ## Plans Are Prompts
+
 PLAN.md is NOT a document that gets transformed into a prompt.
 PLAN.md IS the prompt. It contains:
+
 - Objective (what and why)
 - Context (@file references)
 - Tasks (with verification criteria)
@@ -65,16 +72,17 @@ PLAN.md IS the prompt. It contains:
 
 ## Quality Degradation Curve
 
-| Context Usage | Quality | State |
-|---------------|---------|-------|
-| 0-30% | PEAK | Thorough, comprehensive |
-| 30-50% | GOOD | Confident, solid work |
-| 50-70% | DEGRADING | Efficiency mode begins |
-| 70%+ | POOR | Rushed, minimal |
+| Context Usage | Quality   | State                   |
+| ------------- | --------- | ----------------------- |
+| 0-30%         | PEAK      | Thorough, comprehensive |
+| 30-50%        | GOOD      | Confident, solid work   |
+| 50-70%        | DEGRADING | Efficiency mode begins  |
+| 70%+          | POOR      | Rushed, minimal         |
 
 **The rule:** Plans should complete within ~50% context. More plans, smaller scope.
 
 ## Aggressive Atomicity
+
 Each plan: **2-3 tasks max**. No exceptions.
 
 </philosophy>
@@ -86,27 +94,32 @@ Each plan: **2-3 tasks max**. No exceptions.
 Discovery is MANDATORY unless you can prove current context exists.
 
 **Level 0 — Skip** (pure internal work)
+
 - ALL work follows established codebase patterns
 - No new external dependencies
 - Pure internal refactoring or feature extension
 
 **Level 1 — Quick Verification** (2-5 min)
+
 - Single known library, confirming syntax/version
 - Low-risk decision (easily changed later)
 - Action: Quick web search, no RESEARCH.md needed
 
 **Level 1.5 — Discovery** (5-15 min)
+
 - Quick library/option comparison (A vs B)
 - Low-to-medium risk, focused question
 - Action: Create DISCOVERY.md using `.gsd/templates/discovery.md` template
 
 **Level 2 — Standard Research** (15-30 min)
+
 - Choosing between 2-3 options
 - New external integration (API, service)
 - Medium-risk decision
 - Action: Create RESEARCH.md with findings
 
 **Level 3 — Deep Dive** (1+ hour)
+
 - Architectural decision with long-term impact
 - Novel problem without clear patterns
 - High-risk, hard to change later
@@ -119,6 +132,7 @@ Discovery is MANDATORY unless you can prove current context exists.
 ## 1. Validate Environment (Planning Lock)
 
 **PowerShell:**
+
 ```powershell
 # Check SPEC.md exists and is finalized
 $spec = Get-Content ".gsd/SPEC.md" -Raw
@@ -129,6 +143,7 @@ if ($spec -notmatch "FINALIZED") {
 ```
 
 **Bash:**
+
 ```bash
 # Check SPEC.md exists and is finalized
 if ! grep -q "FINALIZED" ".gsd/SPEC.md"; then
@@ -144,6 +159,7 @@ fi
 ## 2. Parse and Normalize Arguments
 
 Extract from $ARGUMENTS:
+
 - Phase number (integer)
 - `--research` flag
 - `--skip-research` flag
@@ -156,11 +172,13 @@ Extract from $ARGUMENTS:
 ## 3. Validate Phase
 
 **PowerShell:**
+
 ```powershell
 Select-String -Path ".gsd/ROADMAP.md" -Pattern "Phase $PHASE:"
 ```
 
 **Bash:**
+
 ```bash
 grep "Phase $PHASE:" ".gsd/ROADMAP.md"
 ```
@@ -173,6 +191,7 @@ grep "Phase $PHASE:" ".gsd/ROADMAP.md"
 ## 4. Ensure Phase Directory
 
 **PowerShell:**
+
 ```powershell
 $PHASE_DIR = ".gsd/phases/$PHASE"
 if (-not (Test-Path $PHASE_DIR)) {
@@ -181,6 +200,7 @@ if (-not (Test-Path $PHASE_DIR)) {
 ```
 
 **Bash:**
+
 ```bash
 PHASE_DIR=".gsd/phases/$PHASE"
 mkdir -p "$PHASE_DIR"
@@ -196,22 +216,26 @@ mkdir -p "$PHASE_DIR"
 
 **Check for existing research:**
 **PowerShell:**
+
 ```powershell
 Test-Path "$PHASE_DIR/RESEARCH.md"
 ```
 
 **Bash:**
+
 ```bash
 test -f "$PHASE_DIR/RESEARCH.md"
 ```
 
 **If RESEARCH.md exists AND `--research` flag NOT set:**
+
 - Display: `Using existing research: $PHASE_DIR/RESEARCH.md`
 - Skip to step 6
 
 **If research needed:**
 
 Display banner:
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GSD ► RESEARCHING PHASE {N}
@@ -243,6 +267,7 @@ create `$PHASE_DIR/RESEARCH.md` with findings.
 ## 6. Create Plans
 
 Display banner:
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GSD ► PLANNING PHASE {N}
@@ -268,7 +293,9 @@ Steps 6a-6c below describe what the planner does; run them yourself only in inli
 ---
 
 ### 6a. Gather Context
+
 Load:
+
 - `.gsd/SPEC.md` — Requirements
 - `.gsd/REQUIREMENTS.md` — Formal requirements tracking (if exists)
 - `.gsd/ROADMAP.md` — Phase description
@@ -276,7 +303,9 @@ Load:
 - `.gsd/ARCHITECTURE.md` — If exists
 
 ### 6b. Decompose into Tasks
+
 For the phase goal:
+
 1. Identify all deliverables
 2. Break into atomic tasks (2-3 per plan)
 3. Determine dependencies between tasks
@@ -288,7 +317,7 @@ Create `$PHASE_DIR/{N}-PLAN.md`:
 
 ```markdown
 ---
-phase: {N}
+phase: { N }
 plan: 1
 wave: 1
 ---
@@ -296,9 +325,11 @@ wave: 1
 # Plan {N}.1: {Plan Name}
 
 ## Objective
+
 {What this plan delivers and why}
 
 ## Context
+
 - .gsd/SPEC.md
 - .gsd/ARCHITECTURE.md
 - {relevant source files}
@@ -322,6 +353,7 @@ wave: 1
 </task>
 
 ## Success Criteria
+
 - [ ] {Measurable outcome 1}
 - [ ] {Measurable outcome 2}
 ```
@@ -331,6 +363,7 @@ wave: 1
 ## 7. Verify Plans (Checker Logic)
 
 For each plan, verify:
+
 - [ ] All files specified exist or will be created
 - [ ] Actions are specific (no "implement X")
 - [ ] Verify commands are executable
@@ -344,28 +377,31 @@ For each plan, verify:
 
 Tests must verify real behavior, not just pass. Reject plans with tests that:
 
-| Anti-pattern | Example | Fix |
-|-------------|---------|-----|
-| **Mock everything** | Mocking the DB then asserting the mock was called | Use real DB or integration test |
-| **Tautological assert** | `assert mock.called` with no behavior check | Assert actual output or side effect |
-| **Always-pass test** | `assert True` or `assert response is not None` | Assert specific expected values |
-| **Testing the framework** | Asserting that Express returns 200 on a stub | Test your logic, not the framework |
-| **No negative cases** | Only testing the happy path | Include at least one failure/edge case |
+| Anti-pattern              | Example                                           | Fix                                    |
+| ------------------------- | ------------------------------------------------- | -------------------------------------- |
+| **Mock everything**       | Mocking the DB then asserting the mock was called | Use real DB or integration test        |
+| **Tautological assert**   | `assert mock.called` with no behavior check       | Assert actual output or side effect    |
+| **Always-pass test**      | `assert True` or `assert response is not None`    | Assert specific expected values        |
+| **Testing the framework** | Asserting that Express returns 200 on a stub      | Test your logic, not the framework     |
+| **No negative cases**     | Only testing the happy path                       | Include at least one failure/edge case |
 
-**Rule:** Every `<verify>` command must test the *actual behavior* of the code, not just that it runs without errors. If a test would still pass with the implementation deleted, it is not a valid test.
+**Rule:** Every `<verify>` command must test the _actual behavior_ of the code, not just that it runs without errors. If a test would still pass with the implementation deleted, it is not a valid test.
 
 ---
 
 ## 8. Update State
 
 Update `.gsd/STATE.md`:
+
 ```markdown
 ## Current Position
+
 - **Phase**: {N}
 - **Task**: Planning complete
 - **Status**: Ready for execution
 
 ## Next Steps
+
 1. /execute {N}
 ```
 
@@ -412,11 +448,11 @@ Plans:
 
 <task_types>
 
-| Type | Use For | Autonomy |
-|------|---------|----------|
-| `auto` | Everything Claude can do independently | Fully autonomous |
-| `checkpoint:human-verify` | Visual/functional verification | Pauses for user |
-| `checkpoint:decision` | Implementation choices | Pauses for user |
+| Type                      | Use For                                | Autonomy         |
+| ------------------------- | -------------------------------------- | ---------------- |
+| `auto`                    | Everything Claude can do independently | Fully autonomous |
+| `checkpoint:human-verify` | Visual/functional verification         | Pauses for user  |
+| `checkpoint:decision`     | Implementation choices                 | Pauses for user  |
 
 **Automation-first rule:** If Claude CAN do it, Claude MUST do it. Checkpoints are for verification AFTER automation.
 
@@ -426,15 +462,18 @@ Plans:
 ## Related
 
 ### Workflows
-| Command | Relationship |
-|---------|--------------|
-| `/map` | Run before /plan to get codebase context |
-| `/execute` | Runs PLAN.md files created by /plan |
-| `/verify` | Validates executed plans |
+
+| Command    | Relationship                             |
+| ---------- | ---------------------------------------- |
+| `/map`     | Run before /plan to get codebase context |
+| `/execute` | Runs PLAN.md files created by /plan      |
+| `/verify`  | Validates executed plans                 |
 
 ### Skills
-| Skill | Purpose |
-|-------|---------|
-| `planner` | Detailed planning methodology |
+
+| Skill          | Purpose                          |
+| -------------- | -------------------------------- |
+| `planner`      | Detailed planning methodology    |
 | `plan-checker` | Validates plans before execution |
+
 </related>

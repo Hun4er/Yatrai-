@@ -133,6 +133,31 @@ export const api = {
 
     getById: (id) => request(`/locations/${id}`),
   },
+
+  // Phase 4: Journey Search Engine
+  journeys: {
+    search: ({
+      origin,
+      destination,
+      departureDate,
+      returnDate,
+      passengers,
+      requestedModes,
+      preferences,
+    }) =>
+      request('/journeys/search', {
+        method: 'POST',
+        body: JSON.stringify({
+          origin,
+          destination,
+          departureDate,
+          returnDate,
+          passengers,
+          requestedModes,
+          preferences,
+        }),
+      }),
+  },
 };
 
 export default api;

@@ -1,6 +1,6 @@
 ---
 description: Create and manage a time-boxed sprint for quick focused work
-argument-hint: "[new|status|close] [sprint-name]"
+argument-hint: '[new|status|close] [sprint-name]'
 ---
 
 # /sprint Workflow
@@ -15,6 +15,7 @@ Sprints are ideal for bug fixes, small features, or exploratory work that doesn'
 ## 1. Parse Arguments
 
 Extract from $ARGUMENTS:
+
 - **Action**: `new` (default), `status`, or `close`
 - **Sprint name**: identifier for the sprint
 
@@ -27,6 +28,7 @@ Extract from $ARGUMENTS:
 ### Gather Sprint Information
 
 Ask for:
+
 - **Name** — Sprint identifier (e.g., "bugfix-auth", "spike-caching")
 - **Goal** — One sentence describing the sprint goal
 - **Duration** — Timeframe (e.g., "2 days", "1 week")
@@ -43,27 +45,31 @@ Create `.gsd/SPRINT.md` using the template from `.gsd/templates/sprint.md`:
 > **Status**: In Progress
 
 ## Goal
+
 {One sentence goal}
 
 ## Scope
 
 ### Included
+
 - {Task 1}
 - {Task 2}
 
 ### Explicitly Excluded
+
 - {Out of scope item}
 
 ## Tasks
 
-| Task | Assignee | Status | Est. Hours |
-|------|----------|--------|------------|
-| {Task 1} | Claude | ⬜ Todo | — |
-| {Task 2} | Claude | ⬜ Todo | — |
+| Task     | Assignee | Status  | Est. Hours |
+| -------- | -------- | ------- | ---------- |
+| {Task 1} | Claude   | ⬜ Todo | —          |
+| {Task 2} | Claude   | ⬜ Todo | —          |
 
 ## Daily Log
 
 ### {today's date}
+
 - Sprint created
 ```
 
@@ -71,6 +77,7 @@ Create `.gsd/SPRINT.md` using the template from `.gsd/templates/sprint.md`:
 
 ```markdown
 ## Current Position
+
 - **Sprint**: {name}
 - **Status**: Sprint in progress
 - **Milestone**: (paused if active)
@@ -119,24 +126,29 @@ Append to `.gsd/SPRINT.md`:
 ## Retrospective ({date})
 
 ### What Went Well
+
 - {auto-extract from daily log}
 
 ### What Could Improve
+
 - {identify blockers or friction}
 
 ### Action Items
+
 - [ ] {carry-forward items}
 ```
 
 ### Archive Sprint
 
 **PowerShell:**
+
 ```powershell
 New-Item -ItemType Directory -Force ".gsd/sprints"
 Move-Item ".gsd/SPRINT.md" ".gsd/sprints/{name}-SPRINT.md"
 ```
 
 **Bash:**
+
 ```bash
 mkdir -p .gsd/sprints
 mv .gsd/SPRINT.md ".gsd/sprints/{name}-SPRINT.md"
@@ -179,14 +191,17 @@ Tasks completed: {N}/{total}
 ## Related
 
 ### Workflows
-| Command | Relationship |
-|---------|--------------|
-| `/plan` | Full planning cycle (use for milestone work) |
+
+| Command    | Relationship                                  |
+| ---------- | --------------------------------------------- |
+| `/plan`    | Full planning cycle (use for milestone work)  |
 | `/execute` | Full execution cycle (use for milestone work) |
-| `/pause` | Pause current work for handoff |
+| `/pause`   | Pause current work for handoff                |
 
 ### Templates
-| Template | Purpose |
-|----------|---------|
+
+| Template    | Purpose                   |
+| ----------- | ------------------------- |
 | `sprint.md` | Sprint document structure |
+
 </related>

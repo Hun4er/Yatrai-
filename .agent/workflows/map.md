@@ -8,6 +8,7 @@ description: The Architect — Analyze codebase and update ARCHITECTURE.md and S
 You are a GSD codebase mapper. You analyze existing codebases to understand structure, patterns, and technical debt.
 
 **Core responsibilities:**
+
 - Scan project structure and identify components
 - Analyze dependencies and versions
 - Map data flow and integration points
@@ -25,6 +26,7 @@ This workflow should be run BEFORE `/plan` on brownfield projects to give the pl
 **No arguments required.** Operates on current project directory.
 
 **Outputs:**
+
 - `.gsd/ARCHITECTURE.md` — System design documentation
 - `.gsd/STACK.md` — Technology inventory
 
@@ -61,22 +63,25 @@ Steps 1-7 describe what the researcher does. Run them yourself only in inline mo
 Check this is a valid project:
 
 **PowerShell:**
+
 ```powershell
 # Look for common project indicators
 $indicators = @(
-    "package.json", "requirements.txt", "Cargo.toml", 
+    "package.json", "requirements.txt", "Cargo.toml",
     "go.mod", "pom.xml", "*.csproj", "Gemfile"
 )
 ```
 
 **Bash:**
+
 ```bash
 # Look for common project indicators
-indicators=("package.json" "requirements.txt" "Cargo.toml" 
+indicators=("package.json" "requirements.txt" "Cargo.toml"
     "go.mod" "pom.xml" "*.csproj" "Gemfile")
 ```
 
 Display banner:
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  GSD ► MAPPING CODEBASE
@@ -90,18 +95,21 @@ Display banner:
 ### 2a. Directory Analysis
 
 **PowerShell:**
+
 ```powershell
-Get-ChildItem -Recurse -Directory | 
+Get-ChildItem -Recurse -Directory |
     Where-Object { $_.Name -notmatch "node_modules|\.git|__pycache__|dist|build" }
 ```
 
 **Bash:**
+
 ```bash
 find . -type d -not -path '*/node_modules/*' -not -path '*/.git/*' \
     -not -path '*/__pycache__/*' -not -path '*/dist/*' -not -path '*/build/*'
 ```
 
 Identify:
+
 - Source directories (`src/`, `lib/`, `app/`)
 - Test directories (`tests/`, `__tests__/`, `spec/`)
 - Configuration locations
@@ -111,12 +119,14 @@ Identify:
 
 Find main files:
 **PowerShell:**
+
 ```powershell
 # Example for Node.js
 Get-Content "package.json" | ConvertFrom-Json | Select-Object -ExpandProperty main
 ```
 
 **Bash:**
+
 ```bash
 # Example for Node.js (requires jq)
 cat package.json | jq -r '.main'
@@ -125,6 +135,7 @@ cat package.json | jq -r '.main'
 ### 2c. Component Detection
 
 Scan for common patterns:
+
 - React components (`*.tsx`, `*.jsx`)
 - API routes (`routes/`, `api/`)
 - Database models (`models/`, `entities/`)
@@ -138,19 +149,22 @@ Scan for common patterns:
 ### 3a. Production Dependencies
 
 **PowerShell:**
+
 ```powershell
 # Node.js example
-Get-Content "package.json" | ConvertFrom-Json | 
+Get-Content "package.json" | ConvertFrom-Json |
     Select-Object -ExpandProperty dependencies
 ```
 
 **Bash:**
+
 ```bash
 # Node.js example (requires jq)
 cat package.json | jq '.dependencies'
 ```
 
 For each dependency, note:
+
 - Name and version
 - Purpose (infer from name/usage)
 - Is it actively used?
@@ -158,6 +172,7 @@ For each dependency, note:
 ### 3b. Development Dependencies
 
 Same for devDependencies, noting:
+
 - Build tools
 - Test frameworks
 - Linters/formatters
@@ -178,6 +193,7 @@ pip list --outdated
 
 Search for:
 **PowerShell:**
+
 ```powershell
 # API calls
 Select-String -Path "src/**/*" -Pattern "fetch\(|axios\.|http\."
@@ -190,6 +206,7 @@ Select-String -Path "**/*" -Pattern "stripe|sendgrid|twilio|aws-sdk"
 ```
 
 **Bash:**
+
 ```bash
 # API calls
 grep -rE 'fetch\(|axios\.|http\.' src/
@@ -204,6 +221,7 @@ grep -rE 'stripe|sendgrid|twilio|aws-sdk' .
 ### 4b. Internal Flow
 
 Trace how data moves:
+
 - Entry point → Business logic → Data layer → Output
 - Identify shared state (context, stores, singletons)
 
@@ -215,6 +233,7 @@ Trace how data moves:
 
 Search for indicators:
 **PowerShell:**
+
 ```powershell
 # TODOs and FIXMEs
 Select-String -Path "src/**/*" -Pattern "TODO|FIXME|HACK|XXX"
@@ -224,6 +243,7 @@ Select-String -Path "**/*" -Pattern "@deprecated|DEPRECATED"
 ```
 
 **Bash:**
+
 ```bash
 # TODOs and FIXMEs
 grep -rE 'TODO|FIXME|HACK|XXX' src/
@@ -235,6 +255,7 @@ grep -rE '@deprecated|DEPRECATED' .
 ### 5b. Pattern Inconsistencies
 
 Note where patterns differ:
+
 - Naming conventions
 - File organization
 - Error handling approaches
@@ -242,6 +263,7 @@ Note where patterns differ:
 ### 5c. Missing Elements
 
 Identify gaps:
+
 - No tests for critical paths
 - Missing error boundaries
 - No input validation
@@ -259,15 +281,16 @@ Identify gaps:
 ## Overview
 
 {High-level description of what this system does}
-
 ```
+
 ┌─────────────────────────────────────────┐
-│              [Entry Point]              │
+│ [Entry Point] │
 ├─────────────────────────────────────────┤
-│         [Business Logic Layer]          │
+│ [Business Logic Layer] │
 ├─────────────────────────────────────────┤
-│            [Data Layer]                 │
+│ [Data Layer] │
 └─────────────────────────────────────────┘
+
 ```
 
 ## Components
@@ -315,39 +338,41 @@ Identify gaps:
 
 ## Runtime
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| {runtime} | {version} | Core runtime |
+| Technology | Version   | Purpose      |
+| ---------- | --------- | ------------ |
+| {runtime}  | {version} | Core runtime |
 
 ## Dependencies
 
 ### Production
-| Package | Version | Purpose |
-|---------|---------|---------|
-| {pkg} | {ver} | {purpose} |
+
+| Package | Version | Purpose   |
+| ------- | ------- | --------- |
+| {pkg}   | {ver}   | {purpose} |
 
 ### Development
-| Package | Version | Purpose |
-|---------|---------|---------|
-| {pkg} | {ver} | {purpose} |
+
+| Package | Version | Purpose   |
+| ------- | ------- | --------- |
+| {pkg}   | {ver}   | {purpose} |
 
 ## Infrastructure
 
-| Service | Provider | Purpose |
-|---------|----------|---------|
+| Service   | Provider   | Purpose   |
+| --------- | ---------- | --------- |
 | {service} | {provider} | {purpose} |
 
 ## Configuration
 
-| Variable | Purpose | Location |
-|----------|---------|----------|
-| {var} | {purpose} | {file} |
+| Variable | Purpose   | Location |
+| -------- | --------- | -------- |
+| {var}    | {purpose} | {file}   |
 
 ## Outdated Packages
 
-| Package | Current | Latest | Risk |
-|---------|---------|--------|------|
-| {pkg} | {cur} | {new} | {risk} |
+| Package | Current | Latest | Risk   |
+| ------- | ------- | ------ | ------ |
+| {pkg}   | {cur}   | {new}  | {risk} |
 ```
 
 ---
@@ -355,9 +380,12 @@ Identify gaps:
 ## 8. Update State
 
 Update `.gsd/STATE.md`:
+
 ```markdown
 ## Last Session Summary
+
 Codebase mapping complete.
+
 - {N} components identified
 - {M} dependencies analyzed
 - {K} technical debt items found
@@ -408,12 +436,15 @@ Files updated:
 ## Related
 
 ### Workflows
-| Command | Relationship |
-|---------|--------------|
+
+| Command | Relationship                                       |
+| ------- | -------------------------------------------------- |
 | `/plan` | Use ARCHITECTURE.md from /map for planning context |
 
 ### Skills
-| Skill | Purpose |
-|-------|---------|
+
+| Skill             | Purpose                      |
+| ----------------- | ---------------------------- |
 | `codebase-mapper` | Detailed mapping methodology |
+
 </related>

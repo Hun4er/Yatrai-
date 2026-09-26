@@ -49,4 +49,39 @@ export function authenticate(req, res, next) {
   }
 }
 
+/**
+ * Optional Authentication Middleware
+ * Extracts identity from Bearer token if present and valid.
+ * Does not reject unauthenticated requests.
+ */
+export function optionalAuthenticate(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    req.user = null;
+    req.auth = null;
+    return next();
+  }
+
+  const token = authHeader.slice(7).trim();
+  if (!token) {
+    req.user = null;
+    req.auth = null;
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(token, config.auth.jwtAccessSecret);
+    if (decoded && decoded.sub) {
+      req.user = { id: decoded.sub };
+      req.auth = { userId: decoded.sub };
+    }
+  } catch {
+    req.user = null;
+    req.auth = null;
+  }
+
+  return next();
+}
+
 export default authenticate;
