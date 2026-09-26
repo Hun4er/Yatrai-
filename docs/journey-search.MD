@@ -334,3 +334,87 @@ Possible statuses: `'success'`, `'empty'`, `'failed'`, `'unavailable'`.
 ### 7.7 Phase 6 Boundary
 Provider adapters package candidates into structured legs, but do NOT execute final journey deduplication, scoring, or multi-modal synthesis. That responsibility remains strictly reserved for **Phase 6 — Journey Normalization** and **Phase 7 — Journey Ranking**.
 
+---
+
+## 8. Phase 6 — Journey Normalization Architecture
+
+Phase 6 implements the **Journey Normalization Engine**, transforming disparate provider-specific payload schemas into a unified, canonical Yatrai domain representation (`Journey` and sequential `JourneyLeg`s).
+
+```text
+Provider-Specific API Response
+              ↓
+  Provider Result Envelope
+              ↓
+     JOURNEY NORMALIZER
+              ↓
+   Normalization Strategy
+   ├── Rail Normalizer Strategy
+   ├── Flight Normalizer Strategy
+   ├── Bus Normalizer Strategy
+   └── Road Normalizer Strategy
+              ↓
+   Canonical Journey Candidate
+   + Sequential Canonical JourneyLegs
+              ↓
+ Strict Domain & Continuity Validator
+              ↓
+ Referential Persistence Layer
+ (Journey + JourneyLeg + SearchResult)
+              ↓
+     Phase 7 Ranking Engine
+```
+
+### 8.1 Provider-to-Canonical Field Mapping
+Each transport provider uses different naming conventions and payload shapes. The normalization strategy layer isolates these variations:
+
+| Concern | Rail Provider (IRCTC) | Flight Provider (GDS) | Bus Provider (RedBus) | Road Provider (OSRM) | Canonical Domain Model |
+|---|---|---|---|---|---|
+| **Departure** | `departure_time` / `departureTime` | `departure` / `departureTime` | `departureTime` / `departure_time` | `departureTime` (from route) | `departureTime` (UTC ISO Date) |
+| **Arrival** | `arrival_time` / `arrivalTime` | `arrival` / `arrivalTime` | `arrivalTime` / `arrival_time` | `arrivalTime` (from route) | `arrivalTime` (UTC ISO Date) |
+| **Identifier** | `train_number` / `trainNumber` | `flight_number` / `number` | `busNumber` / `operator` | `'Road Transit'` | `service.number` & `vehicle.identifier` |
+| **Service Name**| `train_name` (e.g. Rajdhani) | `airline` + flight number | `operator` (e.g. Zingbus) | `'Highway Driving Route'` | `service.name` |
+| **Operator** | `operator` (Indian Railways) | `airline` (Air India, IndiGo) | `operator` (RedBus, HRTC) | `'Road Transit Service'` | `service.operator` |
+| **Class** | `class` (`3A`, `2A`, `SL`) | `cabinClass` (`Economy`) | `busType` (`AC Sleeper`) | `'Standard'` | `service.class` |
+| **Fare** | `price` / `fare` / `totalFare` | `price` / `fare` | `price` / `fare` | estimated / raw price | `price` / `totalPrice` (clean non-negative Number) |
+| **Currency** | `currency` (`INR`, `₹`) | `currency` | `currency` | `currency` | `currency` (`'INR'` uppercase 3-letter) |
+| **Mode** | `train`, `railway`, `rail` | `air`, `airline`, `flight` | `bus`, `coach` | `driving`, `car`, `road` | `mode` (`'rail'`, `'flight'`, `'bus'`, `'road'`) |
+
+### 8.2 Critical Domain Distinction: Journey vs. JourneyLeg
+Yatrai maintains a strict architectural separation between a trip and its segments:
+- **`Journey`**: Represents the complete trip from starting origin to final destination (e.g., Sonipat → Patna). Contains aggregated metrics (`totalPrice`, `duration`, `totalDistance`, `numberOfTransfers`, `transportModes`, `status`).
+- **`JourneyLeg`**: Represents one atomic physical transport segment (e.g., Leg 1: Sonipat → Delhi via Road, Leg 2: Delhi → Patna via Rail).
+- **Authoritative Relationship**: `JourneyLeg.journey` foreign reference is the single source of truth. Leg details are not duplicated into the parent `Journey` document.
+
+### 8.3 Time & Timezone Normalization
+- All timestamps are converted to UTC `Date` objects.
+- Time strings without declared offsets (e.g., `"2026-10-01 06:00"`) or time-of-day strings (`"06:00"`) are interpreted within the context of Indian Standard Time (`+05:30` IST), preserving schedule accuracy without relying on the host server's local timezone.
+- Explicit ISO offsets (`+05:30`, `Z`) are strictly respected.
+
+### 8.4 Price & Currency Normalization
+- Formatted price strings (`"₹ 1,250.00"`, `"INR 850"`, `"850"`) are parsed into clean floating-point numbers.
+- Negative prices are rejected.
+- Road travel does not invent arbitrary pricing if external routing engines do not provide cost data.
+- Currencies are standardized to uppercase ISO codes (defaulting to `'INR'`).
+
+### 8.5 Stops vs. Transfers
+- Intermediate station stops (e.g., a train stopping at 8 intermediate stations) are preserved in metadata and do NOT count as transfers.
+- `numberOfTransfers` strictly represents transport interchanges: `Math.max(0, legs.length - 1)`.
+
+### 8.6 Spatial & Temporal Continuity Rules
+Every normalized multi-leg journey candidate must pass strict validation before persistence:
+1. **First Leg Origin**: `legs[0].origin == journey.origin`
+2. **Last Leg Destination**: `legs[last].destination == journey.destination`
+3. **Sequential Connection**: For all `i`, `legs[i].destination == legs[i + 1].origin`
+4. **Temporal Ordering**: `legs[i].departureTime <= legs[i].arrivalTime`
+5. **Transfer Feasibility**: `legs[i + 1].departureTime >= legs[i].arrivalTime` (no negative layovers)
+
+### 8.7 Fault Tolerance & Malformed Candidates
+- Provider envelopes with multiple candidates are processed independently.
+- If candidate A is valid, candidate B is corrupted (e.g., arrival before departure), and candidate C is valid:
+  - Candidate B is rejected and logged safely.
+  - Candidates A and C survive and are successfully persisted.
+- One corrupted record never crashes the search pipeline.
+
+### 8.8 Downstream Ranking Boundary (Phase 7)
+Post-Phase 6, downstream systems (such as the Phase 7 Ranking Engine) interact exclusively with canonical `Journey` and `JourneyLeg` models. They never parse or branch on provider-specific fields (`train_number`, `flight_number`, or provider API schemas).
+

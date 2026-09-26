@@ -585,28 +585,35 @@ The user should not receive an empty result simply because one provider failed.
 
 20. Journey Normalizer
 
-The Journey Normalizer converts provider-specific data into the Yatrai internal model.
+The Journey Normalizer converts provider-specific data and Provider Result Envelopes into the unified Yatrai canonical domain model (`Journey` and `JourneyLeg`).
 
-Example:
+```text
+Provider-Specific API Response
+              ↓
+  Provider Result Envelope
+              ↓
+     JOURNEY NORMALIZER
+              ↓
+    Normalization Strategy
+    ├── Rail Normalizer
+    ├── Flight Normalizer
+    ├── Bus Normalizer
+    └── Road Normalizer
+              ↓
+  Canonical Journey Candidate
+  + Sequential Canonical JourneyLegs
+              ↓
+ Strict Domain & Continuity Validator
+              ↓
+        Ranking Engine
+```
 
-Provider Response
-       ↓
-Provider Adapter
-       ↓
-Normalized Segment
-       ↓
-Normalized Journey
-
-Normalized data should contain consistent:
-
-location,
-departure,
-arrival,
-duration,
-price,
-provider,
-mode,
-availability.
+Architecture Principles:
+- **Strategy Pattern Isolation**: Provider-specific response parsing remains isolated inside specialized normalization strategies (`RailNormalizerStrategy`, `FlightNormalizerStrategy`, `BusNormalizerStrategy`, `RoadNormalizerStrategy`).
+- **Domain Independence**: Downstream components (Transportation Graph, Route Discovery, Ranking) operate strictly on canonical domain properties and remain agnostic to external provider schemas.
+- **Trip vs Segment**: `Journey` represents the holistic multi-modal trip from origin to destination. `JourneyLeg` represents an individual physical transit segment. `JourneyLeg.journey` foreign reference is the single source of truth.
+- **Temporal & Spatial Continuity**: Every normalized journey candidate undergoes strict verification ensuring sequence order, origin/destination connection, monotonic positive layovers, and non-negative fares.
+- **Fault-Tolerant Resilience**: Envelopes containing malformed candidates discard only invalid elements without terminating valid journey options.
 21. Internal Journey Model
 
 Example:

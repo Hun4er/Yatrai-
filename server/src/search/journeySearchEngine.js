@@ -106,6 +106,7 @@ export class JourneySearchEngine {
         const normalized = normalizeJourneyCandidate(raw, {
           origin: origin?._id,
           destination: destination?._id,
+          departureDate,
         });
         normalizedCandidates.push(normalized);
       } catch (normErr) {
@@ -138,9 +139,10 @@ export class JourneySearchEngine {
     const persistedJourneys = [];
 
     for (const candidate of validCandidates) {
+      let createdJourney = null;
       try {
         // A. Create normalized Journey
-        const journey = await journeyService.create({
+        createdJourney = await journeyService.create({
           origin: candidate.origin,
           destination: candidate.destination,
           departureTime: candidate.departureTime,
@@ -157,33 +159,42 @@ export class JourneySearchEngine {
 
         // B. Create authoritative sequential JourneyLegs
         const persistedLegs = [];
-        for (const legData of candidate.legs) {
-          const leg = await journeyLegService.create({
-            journey: journey._id,
-            sequence: legData.sequence,
-            origin: legData.origin,
-            destination: legData.destination,
-            mode: legData.mode,
-            provider: legData.provider || null,
-            departureTime: legData.departureTime,
-            arrivalTime: legData.arrivalTime,
-            duration: legData.duration,
-            distance: legData.distance,
-            price: legData.price,
-            currency: legData.currency,
-            vehicle: legData.vehicle,
-            service: legData.service,
-            booking: legData.booking,
-            metadata: legData.metadata,
-          });
-          persistedLegs.push(leg);
+        try {
+          for (const legData of candidate.legs) {
+            const leg = await journeyLegService.create({
+              journey: createdJourney._id,
+              sequence: legData.sequence,
+              origin: legData.origin,
+              destination: legData.destination,
+              mode: legData.mode,
+              provider: legData.provider || null,
+              departureTime: legData.departureTime,
+              arrivalTime: legData.arrivalTime,
+              duration: legData.duration,
+              distance: legData.distance,
+              price: legData.price,
+              currency: legData.currency,
+              vehicle: legData.vehicle,
+              service: legData.service,
+              booking: legData.booking,
+              metadata: legData.metadata,
+            });
+            persistedLegs.push(leg);
+          }
+        } catch (legErr) {
+          // Atomicity rollback: delete parent journey if leg persistence fails
+          logger.error(
+            `[JourneySearchEngine] Leg creation failed for journey ${createdJourney._id}. Rolling back: ${legErr.message}`
+          );
+          await journeyService.delete(createdJourney._id).catch(() => {});
+          throw legErr;
         }
 
         // C. Persist SearchResult record associating SearchRequest with Journey
         if (searchRequest && searchRequest._id) {
           await searchResultService.create({
             searchRequest: searchRequest._id,
-            journey: journey._id,
+            journey: createdJourney._id,
             provider: candidate.legs[0]?.provider || null,
             source: candidate.source || candidate.metadata?.source || 'development',
             status: 'active',
@@ -198,8 +209,8 @@ export class JourneySearchEngine {
         }
 
         // D. Populate journey and legs for stable response
-        const populatedJourney = await journeyService.findById(journey._id);
-        const populatedLegs = await JourneyLeg.find({ journey: journey._id })
+        const populatedJourney = await journeyService.findById(createdJourney._id);
+        const populatedLegs = await JourneyLeg.find({ journey: createdJourney._id })
           .sort({ sequence: 1 })
           .populate('origin')
           .populate('destination')
