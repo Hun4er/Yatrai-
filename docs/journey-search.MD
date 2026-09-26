@@ -418,3 +418,156 @@ Every normalized multi-leg journey candidate must pass strict validation before 
 ### 8.8 Downstream Ranking Boundary (Phase 7)
 Post-Phase 6, downstream systems (such as the Phase 7 Ranking Engine) interact exclusively with canonical `Journey` and `JourneyLeg` models. They never parse or branch on provider-specific fields (`train_number`, `flight_number`, or provider API schemas).
 
+---
+
+## 9. Journey Ranking Engine Architecture (Phase 7)
+
+Phase 7 introduces the **Pluggable Ranking Engine**, taking canonical, normalized journeys produced by Phase 6 and sorting them into separate recommendation categories using isolated, replaceable strategy modules.
+
+### 9.1 Ranking Pipeline
+
+```text
+POST /api/journeys/search
+         │
+         ▼
+Location Resolution (Phase 3)
+         │
+         ▼
+Transport Provider Search (Phase 5)
+         │
+         ▼
+Journey Normalization & Validation (Phase 6)
+         │
+         ▼
+Canonical Journeys
+         │
+         ▼
+Ranking Engine (`rankingEngine.js`)
+         │
+   Strategy Lookup via Registry (`rankingRegistry.js`)
+         │
+   ┌─────┼─────────────┬──────────────────┬─────────────────┐
+   ▼     ▼             ▼                  ▼                 ▼
+Overall Fastest       Cheapest           Fewest            Most
+Strategy Strategy     Strategy           Transfers         Convenient
+(0.35/   (Duration)   (Cost + Currency)  Strategy          Strategy
+ 0.30/                                   (Transfers count) (Schedule +
+ 0.20/                                                     Transfers)
+ 0.15)
+   └─────┼─────────────┴──────────────────┴─────────────────┘
+         ▼
+Ranked Canonical Journeys (with ephemeral ranking metadata)
+         │
+         ▼
+API Response Envelope (`meta.ranking` & `journey.ranking`)
+```
+
+### 9.2 Strategy Interface & Invariants
+
+All ranking strategies inherit from `BaseRankingStrategy` and implement the standard conceptual contract:
+
+```javascript
+strategy.rank(journeys, context)
+```
+
+**Key Architectural Invariants:**
+1. **Canonical Input Only:** Consumes only canonical `Journey` and `JourneyLeg` properties (`duration`, `totalPrice`, `currency`, `numberOfTransfers`, `departureTime`, `transportModes`). Zero provider-specific fields are inspected.
+2. **Immutability:** Input journeys are never mutated. Ranking metadata is decorated on a shallow-cloned working set.
+3. **No Persistent Contamination:** Ranks and scores are derived and contextual; they are never saved into MongoDB models.
+4. **Deterministic Tie-Breaking:** Every strategy applies a secondary and tertiary hierarchy before falling back to `_originalIndex` to ensure rock-solid stability.
+5. **Score Normalization:** Continuous metrics are scaled to `[0.0, 1.0]` using safe deterministic formulas protecting against division by zero and equal values.
+
+### 9.3 Supported Recommendation Strategies
+
+| Strategy ID | Display Label | Primary Metric | Secondary Tie-Breakers | Description |
+|:---|:---|:---|:---|:---|
+| `overall` | Best Overall | Multi-attribute composite score | Transfers → Duration → Price → Index | Balanced compromise across travel time, fare, interchanges, and convenience. |
+| `fastest` | Fastest | `duration` (minutes, ascending) | Transfers → Price → Index | Minimizes total travel duration (departure to final arrival). |
+| `cheapest` | Cheapest | `totalPrice` (ascending) | Duration → Transfers → Index | Minimizes monetary fare; partitions multi-currency results to protect cross-currency sanity. |
+| `fewest_transfers` | Fewest Transfers | `numberOfTransfers` (ascending) | Duration → Price → Index | Minimizes boarding changes and connection friction. |
+| `most_convenient` | Most Convenient | Multi-factor convenience score | Duration → Transfers → Index | Balances departure schedule window, transfers, duration, and mode simplicity. |
+
+### 9.4 Scoring Formulas & Configurations
+
+All weights and thresholds are centralized in `server/src/ranking/rankingConfig.js`:
+
+#### 1. Best Overall Composite Scoring
+$$\text{Overall Score} = (w_d \times S_{\text{duration}}) + (w_p \times S_{\text{price}}) + (w_t \times S_{\text{transfers}}) + (w_c \times S_{\text{convenience}})$$
+* **Duration Weight ($w_d$):** `0.35`
+* **Price Weight ($w_p$):** `0.30`
+* **Transfers Weight ($w_t$):** `0.20`
+* **Convenience Weight ($w_c$):** `0.15`
+*(Weights sum strictly to `1.0`)*
+
+#### 2. Most Convenient Scoring
+$$\text{Convenience Score} = (w_t \times S_{\text{transfers}}) + (w_d \times S_{\text{duration}}) + (w_s \times S_{\text{schedule}}) + (w_m \times S_{\text{mode}})$$
+* **Transfers Weight ($w_t$):** `0.40`
+* **Duration Weight ($w_d$):** `0.30`
+* **Schedule Window Weight ($w_s$):** `0.20` (Morning/Daytime: `1.0`, Evening: `0.85`, Early Morning: `0.70`, Red-eye/Midnight: `0.40`)
+* **Mode Simplicity Weight ($w_m$):** `0.10` (Single mode: `1.0`, Multiple transitions: scaled down)
+
+#### 3. Score Normalization (Lower is Better)
+For metrics where lower values represent better outcomes (duration, price, transfers):
+$$S(v) = \begin{cases} 1.0 & \text{if } \min = \max \\ 1.0 - \frac{v - \min}{\max - \min} & \text{otherwise} \end{cases}$$
+Clamped strictly to $[0.0, 1.0]$. Zero division, null values, and single candidate sets are handled safely without generating `NaN` or `Infinity`.
+
+### 9.5 Currency Safety Rule
+- The ranking engine never compares raw numeric values across different currencies (e.g. `$20` vs `₹850`).
+- If multiple currencies exist in a candidate set without a conversion layer, the engine establishes a base currency from the predominant group and safely partitions non-conforming currencies to the end of the ranking with a logged warning.
+
+### 9.6 Missing Value Policy
+- Missing price (`null`/`undefined`) is strictly distinguished from free transit (`price === 0`). Journeys with unknown prices are placed after known prices in the Cheapest strategy, never promoted to rank 1.
+- Missing duration or transfers receive zero normalized contribution in composite strategies rather than crashing the algorithm.
+
+### 9.7 API Request & Response Contracts
+
+#### Request Payload
+The search endpoint accepts optional `ranking` or `sortBy` parameters:
+```json
+POST /api/journeys/search
+{
+  "origin": "Sonipat",
+  "destination": "Patna",
+  "departureDate": "2026-10-01",
+  "ranking": "fastest"
+}
+```
+*Aliases supported:* `sortBy` (maps to `ranking`), `balanced` (maps to `overall`), `fewestTransfers` (maps to `fewest_transfers`), `mostConvenient` (maps to `most_convenient`).
+*Validation:* Any unrecognized strategy (e.g. `"random"`, `"best_train"`) is rejected immediately with HTTP `400 VALIDATION_ERROR`.
+
+#### Response Payload
+```json
+{
+  "success": true,
+  "message": "Journeys retrieved successfully",
+  "data": {
+    "searchRequestId": "6ab7a52731a1c20001473af4",
+    "origin": { "id": "...", "name": "Sonipat Junction Railway Station" },
+    "destination": { "id": "...", "name": "Patna Junction Railway Station" },
+    "totalResults": 3,
+    "ranking": {
+      "strategy": "fastest",
+      "label": "Fastest"
+    },
+    "journeys": [
+      {
+        "id": "...",
+        "totalPrice": 850,
+        "duration": 600,
+        "numberOfTransfers": 0,
+        "ranking": {
+          "rank": 1,
+          "score": 1.0,
+          "strategy": "fastest",
+          "label": "Fastest"
+        },
+        "legs": [...]
+      }
+    ]
+  }
+}
+```
+
+### 9.8 Downstream Multi-Modal Boundary (Phase 8)
+Phase 7 only ranks journeys that have already been discovered and normalized. Synthesizing new multi-modal journeys across independent provider legs (e.g. stitching a Rail leg to an unconnected Bus leg) belongs exclusively to **Phase 8 — Multi-Modal Journey Orchestration**.
+

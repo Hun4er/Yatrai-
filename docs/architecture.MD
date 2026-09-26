@@ -922,44 +922,61 @@ A train journey may receive a ranking advantage.
 
 A bus journey can still be returned if no suitable train journey exists.
 
-35. Ranking Engine
+35. Ranking Engine (Phase 7 Architecture)
 
-The Ranking Engine receives feasible journeys.
+The Ranking Engine receives canonical, normalized journeys from Phase 6 and applies pluggable ranking strategies to produce deterministic recommendation categories:
 
-Candidate Journeys
-        ↓
-Constraint Satisfaction
-        ↓
-Preference Evaluation
-        ↓
-Journey Scoring
-        ↓
-Result Categories
+```text
+Canonical Journeys (Phase 6)
+             ↓
+       Ranking Engine
+             ↓
+     Strategy Selection
+             ↓
+┌─────────────────────────┐
+│ Best Overall Strategy   │
+│ Fastest Strategy        │
+│ Cheapest Strategy       │
+│ Transfers Strategy      │
+│ Convenience Strategy    │
+└─────────────────────────┘
+             ↓
+Ranked Canonical Journeys (with ephemeral ranking metadata)
+```
 
-Potential internal dimensions:
+Core Architecture Principles:
+- **Strategy Pattern Isolation**: Every ranking algorithm implements `strategy.rank(journeys, context)` inheriting from `BaseRankingStrategy`. The core engine has zero scattered provider- or category-specific conditionals.
+- **Dynamic Strategy Registry**: Strategies register with stable identifiers (`overall`, `fastest`, `cheapest`, `fewest_transfers`, `most_convenient`) and optional aliases (`balanced`, `fewestTransfers`, `mostConvenient`). Adding future strategies requires zero modifications to the core engine.
+- **Strict Canonical Ingestion**: Consumes exclusively normalized domain fields (`duration`, `totalPrice`, `currency`, `numberOfTransfers`, `departureTime`, `transportModes`). Zero inspection of raw provider structures.
+- **Immutability & Stateless Decoration**: Canonical journeys are never mutated. Ranking metadata (`{ rank, score, strategy, label }`) is decorated on a shallow-cloned working set. Ranking is ephemeral and never persisted to MongoDB models.
+- **Deterministic Tie-Breaking**: All strategies enforce a deterministic secondary/tertiary criteria chain (`tieBreaker.js`) ending in original sequence preservation (`_originalIndex`).
+- **Currency Safety**: Raw numeric price comparison across differing currencies is prohibited. Differing currencies are safely partitioned with a logged warning.
+- **Score Normalization**: Continuous dimensions are normalized to $[0.0, 1.0]$ with edge-case protection against division by zero, out-of-bounds metrics, and single-journey collections.
 
-costScore
-durationScore
-transferScore
-availabilityScore
-preferenceScore
-convenienceScore
+36. Ranking Categories & Scoring Formulas
 
-The exact scoring implementation should remain configurable.
+The system independently produces 5 distinct recommendation categories from a single search candidate set (`rankAll`):
 
-36. Ranking Categories
+1. **Best Overall (`overall`)**:
+   - Composite weighted score:
+     $$\text{Score} = (0.35 \times S_{\text{duration}}) + (0.30 \times S_{\text{price}}) + (0.20 \times S_{\text{transfers}}) + (0.15 \times S_{\text{convenience}})$$
+   - Balanced trade-off across travel time, financial cost, physical transfer count, and departure schedule comfort.
+2. **Fastest (`fastest`)**:
+   - Primary metric: `duration` in minutes (ascending).
+   - Evaluates total elapsed journey time from origin departure to final destination arrival (not departure time of day).
+3. **Cheapest (`cheapest`)**:
+   - Primary metric: `totalPrice` (ascending) with currency homogeneity verification.
+   - Missing price (`null`/`undefined`) is strictly distinguished from free transit (`price === 0`) and placed at the end.
+4. **Fewest Transfers (`fewest_transfers`)**:
+   - Primary metric: `numberOfTransfers` (ascending).
+   - Evaluates physical mode/vehicle connection friction ($legs - 1$), distinct from intermediate rail/bus station stops.
+5. **Most Convenient (`most_convenient`)**:
+   - Multi-factor convenience score:
+     $$\text{Score} = (0.40 \times S_{\text{transfers}}) + (0.30 \times S_{\text{duration}}) + (0.20 \times S_{\text{schedule}}) + (0.10 \times S_{\text{mode}})$$
+   - Schedule scoring rewards daytime travel ($09:00 - 18:00$) with a $1.0$ multiplier, while penalizing midnight red-eye departures ($00:00 - 05:00$) with $0.40$.
 
-The system can generate:
-
-Best Overall
-Fastest
-Cheapest
-Fewest Transfers
-Most Convenient
-
-Each category should use a different optimization objective.
-
-The categories must be generated from actual candidate journeys.
+Phase 8 Boundary:
+Ranking evaluates only pre-existing canonical journeys. Stitching disconnected provider results into novel multimodal journeys is strictly deferred to Phase 8 (Multi-Modal Journey Orchestration).
 
 37. Explainability Engine
 

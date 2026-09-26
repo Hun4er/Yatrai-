@@ -1,5 +1,6 @@
 import config from '../config/index.js';
 import { errorResponse } from '../utils/apiResponse.js';
+import rankingRegistry from '../ranking/rankingRegistry.js';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -197,6 +198,16 @@ export function validateJourneySearch(req, res, next) {
           errors.push('maxTransfers must be a non-negative integer');
         }
       }
+    }
+  }
+
+  // 8. Ranking strategy validation (optional)
+  const rankingParam = req.body?.ranking !== undefined ? req.body.ranking : req.body?.sortBy;
+  if (rankingParam !== undefined) {
+    if (typeof rankingParam !== 'string' || !rankingRegistry.has(rankingParam)) {
+      errors.push(
+        `Invalid ranking strategy "${rankingParam}". Supported: ${rankingRegistry.getRegisteredIds().join(', ')}`
+      );
     }
   }
 

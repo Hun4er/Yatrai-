@@ -4,6 +4,7 @@ import locationService from './locationService.js';
 import searchRequestService from './searchRequestService.js';
 import journeySearchEngine from '../search/journeySearchEngine.js';
 import Location from '../models/Location.js';
+import rankingEngine from '../ranking/rankingEngine.js';
 
 /**
  * Resolves a location input into a canonical Location Mongoose document.
@@ -99,6 +100,8 @@ export const journeySearchService = {
       passengers = 1,
       requestedModes = [],
       preferences = {},
+      ranking,
+      sortBy,
       userId = null,
       candidateSources,
     } = params;
@@ -222,14 +225,27 @@ export const journeySearchService = {
         candidateSources,
       });
 
-      // 7. Advance SearchRequest status to 'completed'
+      // 7. Execute Phase 7 Ranking Engine
+      const rankingStrategy = ranking || sortBy || preferences.priority || 'overall';
+      const rankedJourneys = rankingEngine.rank(journeys, rankingStrategy, {
+        preferences,
+        passengers: Number(passengers) || 1,
+      });
+
+      // 8. Advance SearchRequest status to 'completed'
       await searchRequestService.updateStatus(searchRequest._id, 'completed');
+
+      const strategyInstance = rankingEngine.registry.get(rankingStrategy);
 
       return {
         searchRequest,
         origin: originLocation,
         destination: destLocation,
-        journeys,
+        ranking: {
+          strategy: strategyInstance ? strategyInstance.id : rankingStrategy,
+          label: strategyInstance ? strategyInstance.name : 'Best Overall',
+        },
+        journeys: rankedJourneys,
       };
     } catch (pipelineError) {
       logger.error('[JourneySearchService] Search pipeline failed:', pipelineError);

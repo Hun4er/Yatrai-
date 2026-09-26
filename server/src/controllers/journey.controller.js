@@ -21,6 +21,8 @@ export const journeyController = {
         passengers,
         requestedModes,
         preferences,
+        ranking,
+        sortBy,
       } = req.body || {};
 
       const userId = req.user?.id || null;
@@ -33,6 +35,8 @@ export const journeyController = {
         passengers,
         requestedModes,
         preferences,
+        ranking,
+        sortBy,
         userId,
       });
 
@@ -40,6 +44,7 @@ export const journeyController = {
         searchRequestId: result.searchRequest?._id || null,
         status: result.searchRequest?.status || 'completed',
         count: result.journeys.length,
+        ranking: result.ranking || null,
         journeys: result.journeys,
       });
 
