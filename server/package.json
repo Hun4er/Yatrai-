@@ -15,6 +15,7 @@
     "auth:verify": "node scripts/verifyAuthFlow.js",
     "location:verify": "node scripts/verifyLocationResolution.js",
     "journey:verify": "node scripts/verifyJourneySearch.js",
+    "providers:verify": "node scripts/verifyTransportProviders.js",
     "test": "node --test tests/**/*.test.js"
   },
   "dependencies": {

@@ -1,3 +1,5 @@
+process.env.NODE_ENV = 'test';
+
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose from 'mongoose';
 

@@ -249,4 +249,88 @@ The internal development candidate source (`server/src/providers/journey/develop
 | **Search Pipeline & Persistence** | 3 | Full pipeline execution, status progression, referential integrity across 4 collections, empty results handling, failure handling |
 | **End-to-End API** | 4 | `POST /api/journeys/search` unauthenticated, authenticated with Bearer JWT, empty results, `/api` discovery document |
 | **Total Phase 4 Tests** | **23** | **100% Pass Rate** |
-| **Total Test Suite** | **82** | **Zero Regressions across Phases 1–4** |
+| **Total Test Suite (Phase 4)** | **82** | **Zero Regressions across Phases 1–4** |
+
+---
+
+## 7. Phase 5 — Transport Providers Integration
+
+Phase 5 introduces the external transport provider layer behind a strictly decoupled, provider-agnostic interface:
+
+```text
+External Provider API
+        ↓
+Provider Adapter (Road / Rail / Bus / Flight)
+        ↓
+Provider-Specific Raw Response (Validated)
+        ↓
+Provider Boundary (Credentials Redacted)
+        ↓
+Common Provider Result Envelope
+        ↓
+Phase 6 — Journey Normalization
+        ↓
+Canonical Yatrai Journey & JourneyLeg
+```
+
+### 7.1 Common Provider Interface
+Every transport provider adapter extends `BaseTransportProvider` (`server/src/providers/transport/interface.js`) and implements:
+```javascript
+async search(request, options = {})
+```
+Where `request` is a provider-independent contract containing:
+- `origin`: Canonical Location document or `{ id, name, city, latitude, longitude }`
+- `destination`: Canonical Location document or `{ id, name, city, latitude, longitude }`
+- `departureDate`: Travel date
+- `passengers`: Passenger count (default 1)
+- `requestedModes`: Array of modes (`['road', 'rail', 'bus', 'flight']`)
+- `preferences`: Optional user preferences
+
+### 7.2 Transport Provider Registry
+`TransportProviderRegistry` (`server/src/providers/transport/registry.js`) manages active adapters:
+- `register(mode, provider)`
+- `getProvider(mode)`
+- `getProviders({ requestedModes })`: Dynamic filtering by requested mode
+- `searchAll(request, options)`: Queries matched providers in parallel with full fault-isolation via `Promise.allSettled`
+
+### 7.3 Implemented Transport Adapters
+| Mode | Adapter Class | External Service / Format | Responsibilities |
+|---|---|---|---|
+| **Road** | `RoadTransportProvider` | OSRM Driving Routing Gateway | Coordinate extraction, waypoint routing, driving duration & distance parsing, vehicle leg construction |
+| **Rail** | `RailTransportProvider` | Indian Railways / IRCTC Format | Station code translation, train schedule & class parsing, fare computation, schedule timestamp validation |
+| **Bus** | `BusTransportProvider` | Intercity Bus Search Format | City query translation, bus operator & seat parsing, schedule/fare validation |
+| **Flight** | `FlightTransportProvider` | Aviation GDS / Airline Format | Airport translation, flight number, airline, cabin class, stops parsing, fare extraction |
+
+### 7.4 Provider Result Envelope
+All provider results are returned inside a common envelope (`server/src/providers/transport/envelope.js`):
+```json
+{
+  "provider": "rail",
+  "providerCode": "IRCTC",
+  "status": "success",
+  "requestedAt": "2026-09-26T10:15:00.000Z",
+  "source": "rail",
+  "candidates": [ ... ],
+  "rawData": { ... },
+  "metadata": { "durationMs": 142 },
+  "error": null
+}
+```
+Possible statuses: `'success'`, `'empty'`, `'failed'`, `'unavailable'`.
+
+### 7.5 Error Normalization & Fault Isolation
+- Provider errors are normalized into `ProviderError` with standard codes:
+  - `PROVIDER_TIMEOUT`: Network timeout exceeded
+  - `PROVIDER_RATE_LIMITED`: HTTP 429 rate limit received (non-retryable)
+  - `PROVIDER_MALFORMED_RESPONSE`: Missing identifiers or corrupted schema
+  - `PROVIDER_AUTH_ERROR`: Authentication or API key rejected
+  - `PROVIDER_UNAVAILABLE`: Disabled or missing configuration
+- **Fault-Isolation:** Individual provider failures never crash the search pipeline. Results from other successful providers are retained and returned to the caller.
+
+### 7.6 Security & Credential Redaction Invariants
+- Deep recursive redaction via `sanitizeCredentials()` strips all keys matching `/api[-_]?key|secret|token|auth|password|bearer|cookie/i` to `'[REDACTED]'`.
+- Provider credentials are NEVER exposed to the frontend, NEVER logged in application logs, and NEVER saved unredacted into `SearchResult.rawData`.
+
+### 7.7 Phase 6 Boundary
+Provider adapters package candidates into structured legs, but do NOT execute final journey deduplication, scoring, or multi-modal synthesis. That responsibility remains strictly reserved for **Phase 6 — Journey Normalization** and **Phase 7 — Journey Ranking**.
+

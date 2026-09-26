@@ -76,16 +76,29 @@ export const config = Object.freeze({
     rail: {
       apiKey: process.env.RAIL_API_KEY || null,
       apiUrl: process.env.RAIL_API_URL || null,
+      timeoutMs: parseInt(process.env.RAIL_TIMEOUT_MS || '5000', 10),
+      enabled: process.env.RAIL_ENABLED !== 'false',
     },
     bus: {
       apiKey: process.env.BUS_API_KEY || null,
       apiUrl: process.env.BUS_API_URL || null,
+      timeoutMs: parseInt(process.env.BUS_TIMEOUT_MS || '5000', 10),
+      enabled: process.env.BUS_ENABLED !== 'false',
     },
     flight: {
       apiKey: process.env.FLIGHT_API_KEY || null,
       apiUrl: process.env.FLIGHT_API_URL || null,
+      timeoutMs: parseInt(process.env.FLIGHT_TIMEOUT_MS || '5000', 10),
+      enabled: process.env.FLIGHT_ENABLED !== 'false',
+    },
+    road: {
+      apiKey: process.env.ROAD_API_KEY || process.env.MAP_API_KEY || null,
+      apiUrl: process.env.ROAD_API_URL || 'https://router.project-osrm.org',
+      timeoutMs: parseInt(process.env.ROAD_TIMEOUT_MS || '5000', 10),
+      enabled: process.env.ROAD_ENABLED !== 'false',
     },
   },
+
   maps: {
     provider: process.env.MAP_PROVIDER || 'default',
     apiKey: process.env.MAP_API_KEY || null,

@@ -56,7 +56,9 @@ export class JourneySearchEngine {
     const sources =
       Array.isArray(candidateSources) && candidateSources.length > 0
         ? candidateSources
-        : this.registry.getAll();
+        : typeof this.registry.getProviders === 'function'
+          ? this.registry.getProviders({ requestedModes })
+          : this.registry.getAll();
 
     logger.debug(`[JourneySearchEngine] Active candidate sources: ${sources.length}`);
 
@@ -76,6 +78,8 @@ export class JourneySearchEngine {
 
         if (Array.isArray(results)) {
           rawCandidates.push(...results);
+        } else if (results && Array.isArray(results.candidates)) {
+          rawCandidates.push(...results.candidates);
         }
       } catch (err) {
         // Individual provider failure must NOT abort the overall search
@@ -181,7 +185,7 @@ export class JourneySearchEngine {
             searchRequest: searchRequest._id,
             journey: journey._id,
             provider: candidate.legs[0]?.provider || null,
-            source: candidate.metadata?.source || 'development',
+            source: candidate.source || candidate.metadata?.source || 'development',
             status: 'active',
             rawData: candidate.rawData || { isMock: true },
             normalizedData: {
