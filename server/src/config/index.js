@@ -112,6 +112,13 @@ export const config = Object.freeze({
       'Yatrai-Platform/1.0 (contact: engineering@yatrai.internal)',
     timeoutMs: parseInt(process.env.GEOCODING_TIMEOUT_MS || '6000', 10),
   },
+  ai: {
+    provider: process.env.NATURAL_LANGUAGE_MODEL_PROVIDER || 'mock',
+    model: process.env.NATURAL_LANGUAGE_MODEL || 'gemini-1.5-flash',
+    apiKey: process.env.NATURAL_LANGUAGE_API_KEY || process.env.GEMINI_API_KEY || null,
+    maxQueryLength: parseInt(process.env.NATURAL_LANGUAGE_MAX_QUERY_LENGTH || '500', 10),
+    timezone: process.env.DEFAULT_TIMEZONE || 'Asia/Kolkata',
+  },
 });
 
 export default config;

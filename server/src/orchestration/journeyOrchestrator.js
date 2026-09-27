@@ -14,6 +14,7 @@ import journeyNormalizer from '../normalization/journeyNormalizer.js';
 import journeyDeduplicator from '../deduplication/journeyDeduplicator.js';
 import rankingEngine from '../ranking/rankingEngine.js';
 import resultAssembler from './resultAssembler.js';
+import { matchesTimeWindow } from '../services/naturalLanguage/timeWindowResolver.js';
 
 /**
  * Resolves a location input into a canonical Location Mongoose document or object.
@@ -917,9 +918,25 @@ export class JourneyOrchestrator {
       // 11. Persist unique canonical journeys, legs, and search results
       const persistedJourneys = await this.persistJourneys(uniqueJourneys, searchContext);
 
+      // 11.5 Apply deterministic search constraints (Budget & Time Window - Phase 11)
+      let candidateJourneys = persistedJourneys;
+      if (
+        preferences.maxBudget !== undefined &&
+        preferences.maxBudget !== null &&
+        Number(preferences.maxBudget) > 0
+      ) {
+        const budgetLimit = Number(preferences.maxBudget);
+        candidateJourneys = candidateJourneys.filter((j) => Number(j.totalPrice) <= budgetLimit);
+      }
+      if (preferences.departureWindow) {
+        candidateJourneys = candidateJourneys.filter((j) =>
+          matchesTimeWindow(j.departureTime, preferences.departureWindow)
+        );
+      }
+
       // 12. Rank canonical journeys (Phase 7)
       const rankingStrategyId = ranking || sortBy || preferences.priority || 'overall';
-      const rankedJourneys = this.rank(persistedJourneys, rankingStrategyId, searchContext);
+      const rankedJourneys = this.rank(candidateJourneys, rankingStrategyId, searchContext);
 
       // 13. Advance SearchRequest status to 'completed'
       await this.searchRequestService.updateStatus(searchRequest._id, 'completed');

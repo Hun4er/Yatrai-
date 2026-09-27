@@ -744,3 +744,73 @@ ResultsPage (/results?from=...&to=...&date=...&ranking=...)
 - Separate state: Clearing filters restores original backend results without re-triggering API search.
 - Dual empty states: Distinguishes between backend 0-results (`EmptyState`) and filter exclusion (`FilterEmptyState` with `[ Clear Filters ]`).
 
+---
+
+## 13. Phase 11 — Natural Language Search + Deterministic Search Execution
+
+### 13.1 Endpoint Specification: `POST /api/journeys/search/natural`
+- **Purpose:** Converts freeform natural language queries into canonical structured search requests and invokes the Phase 8 `JourneyOrchestrator`.
+- **Request Body:**
+  ```json
+  {
+    "query": "I need to reach Patna from Sonipat tomorrow morning and I don't want to spend more than ₹1500.",
+    "referenceDate": "2026-09-28",
+    "timezone": "Asia/Kolkata"
+  }
+  ```
+- **Responses:**
+  - **Success / Search Executed (200):**
+    ```json
+    {
+      "status": "completed",
+      "query": "...",
+      "parsedRequest": {
+        "origin": "Sonipat",
+        "destination": "Patna",
+        "departureDate": "2026-09-29",
+        "departureWindow": { "name": "morning", "start": "06:00", "end": "12:00" },
+        "maxBudget": 1500,
+        "ranking": "overall"
+      },
+      "data": {
+        "searchRequestId": "...",
+        "count": 2,
+        "totalResults": 2,
+        "origin": { "name": "Sonipat" },
+        "destination": { "name": "Patna" },
+        "journeys": [ ... ]
+      }
+    }
+    ```
+  - **Clarification Required (200):**
+    ```json
+    {
+      "status": "needs_clarification",
+      "message": "Where are you travelling from?",
+      "missingFields": ["origin"],
+      "parsedRequest": {
+        "destination": "Patna",
+        "departureDate": "2026-09-29"
+      }
+    }
+    ```
+  - **Validation Error (400):**
+    ```json
+    {
+      "error": "Travel query exceeds maximum allowed length of 500 characters."
+    }
+    ```
+
+### 13.2 Deterministic Execution Guarantees
+1. **The LLM never queries transport providers:** No provider adapter (OSRM, IRCTC, RedBus, airlines) or provider registry is accessible to the parser.
+2. **Two-Stage Validation:**
+   - Model structured output is validated against `parserSchema.js`.
+   - Business constraints (e.g. Origin != Destination, valid future date) are enforced deterministically.
+3. **Deterministic Constraint Enforcement:**
+   - `maxBudget`: journeys exceeding the budget are filtered deterministically in `JourneyOrchestrator` before ranking.
+   - `departureWindow`: journeys outside the window boundary are filtered deterministically before ranking.
+4. **Resilience & Fallback:**
+   - If the LLM provider fails, structured search remains 100% available and unaffected.
+   - The frontend allows instantaneous switching between natural language and structured search forms.
+
+

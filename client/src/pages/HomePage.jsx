@@ -1,23 +1,30 @@
-import React from 'react';
+import React, { useState } from 'react';
 import SearchForm from '../components/search/SearchForm.jsx';
+import NaturalSearchForm from '../components/search/NaturalSearchForm.jsx';
 import { APP_NAME, APP_TAGLINE } from '../constants/index.js';
-import { Compass, Sparkles, Shield } from 'lucide-react';
+import { Compass, Sparkles, Shield, SlidersHorizontal } from 'lucide-react';
 
 /**
  * HomePage Component
  *
  * Dedicated search discovery page for Yatrai.
- * Focuses purely on one primary task: Finding a journey.
+ * Supports both Natural Language Intent Discovery (Phase 11) and
+ * Deterministic Structured Form Search.
  */
 export function HomePage({
   initialOrigin = '',
   initialDestination = '',
   initialDate = '',
   onSearch,
+  onNaturalSearch,
   isLoading = false,
+  clarificationState = null,
+  onResolveClarification,
 }) {
+  const [activeTab, setActiveTab] = useState('natural'); // 'natural' | 'structured'
+
   return (
-    <div className="flex flex-col items-center justify-center space-y-10 py-6 sm:py-12">
+    <div className="flex flex-col items-center justify-center space-y-8 py-6 sm:py-10">
       {/* Brand Hero Heading */}
       <div className="text-center space-y-4 max-w-2xl px-4">
         <div className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-3.5 py-1 text-xs font-semibold text-brand-primary border border-brand-primary/20">
@@ -34,20 +41,61 @@ export function HomePage({
         </p>
 
         <p className="text-sm sm:text-base text-text-secondary leading-relaxed max-w-lg mx-auto">
-          Enter your starting point and destination. Yatrai explores all direct and connected routes
-          across transport networks to get you there seamlessly.
+          Describe where you want to go in plain English, or use structured criteria.
+          Yatrai resolves your travel intent and discovers connected routes across all transport modes.
         </p>
       </div>
 
-      {/* Primary Journey Search Form */}
+      {/* Mode Switcher Tabs */}
+      <div className="flex items-center rounded-xl bg-surface-secondary/80 p-1 border border-white/10 shadow-inner">
+        <button
+          type="button"
+          onClick={() => setActiveTab('natural')}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+            activeTab === 'natural'
+              ? 'bg-brand-primary text-white shadow-sm'
+              : 'text-text-secondary hover:text-text-primary'
+          }`}
+          aria-pressed={activeTab === 'natural'}
+        >
+          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Natural Language</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('structured')}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+            activeTab === 'structured'
+              ? 'bg-brand-primary text-white shadow-sm'
+              : 'text-text-secondary hover:text-text-primary'
+          }`}
+          aria-pressed={activeTab === 'structured'}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Structured Search</span>
+        </button>
+      </div>
+
+      {/* Search Input Container */}
       <div className="w-full flex justify-center px-2">
-        <SearchForm
-          initialOrigin={initialOrigin}
-          initialDestination={initialDestination}
-          initialDate={initialDate}
-          onSearch={onSearch}
-          isLoading={isLoading}
-        />
+        {activeTab === 'natural' ? (
+          <NaturalSearchForm
+            onSearch={onNaturalSearch}
+            onSwitchToStructured={() => setActiveTab('structured')}
+            isLoading={isLoading}
+            clarificationState={clarificationState}
+            onResolveClarification={onResolveClarification}
+          />
+        ) : (
+          <SearchForm
+            initialOrigin={initialOrigin}
+            initialDestination={initialDestination}
+            initialDate={initialDate}
+            onSearch={onSearch}
+            isLoading={isLoading}
+          />
+        )}
       </div>
 
       {/* Core Highlights / Trust Indicators */}

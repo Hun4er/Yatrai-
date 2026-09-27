@@ -159,6 +159,17 @@ export const api = {
           ranking,
         }),
       }),
+
+    // Phase 11: Natural Language Journey Search
+    searchNatural: ({ query, referenceDate, timezone }) =>
+      request('/journeys/search/natural', {
+        method: 'POST',
+        body: JSON.stringify({
+          query,
+          referenceDate,
+          timezone,
+        }),
+      }),
   },
 };
 

@@ -77,6 +77,71 @@ export const journeyService = {
       throw formattedError;
     }
   },
+
+  /**
+   * Search for journeys using natural language query (Phase 11).
+   *
+   * @param {Object} params
+   * @param {string} params.query
+   * @param {string} [params.referenceDate] - YYYY-MM-DD
+   * @param {string} [params.timezone]
+   * @returns {Promise<Object>}
+   */
+  async searchNaturalJourneys({ query, referenceDate, timezone }) {
+    if (!query || !query.trim()) {
+      const err = new Error('Query string is required.');
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+
+    try {
+      const response = await api.journeys.searchNatural({
+        query: query.trim(),
+        referenceDate,
+        timezone,
+      });
+
+      // Handle clarification state returned from parser
+      if (response?.status === 'needs_clarification') {
+        return {
+          status: 'needs_clarification',
+          message: response.message || 'Please clarify your travel details.',
+          missingFields: response.missingFields || [],
+          parsedRequest: response.parsedRequest || {},
+          journeys: [],
+        };
+      }
+
+      const resultData = response?.data || {};
+      const journeys = Array.isArray(resultData.journeys)
+        ? resultData.journeys
+        : Array.isArray(response?.journeys)
+          ? response.journeys
+          : [];
+
+      return {
+        status: 'completed',
+        parsedRequest: response.parsedRequest || {},
+        query: response.query || query,
+        searchRequestId: resultData.searchRequestId || null,
+        count: resultData.count ?? journeys.length,
+        totalResults: resultData.totalResults ?? journeys.length,
+        origin: resultData.origin || null,
+        destination: resultData.destination || null,
+        ranking: resultData.ranking || { strategy: 'overall', label: 'Best Overall' },
+        meta: resultData.meta || {},
+        journeys,
+      };
+    } catch (error) {
+      const formattedError = new Error(
+        error.message || 'Unable to interpret travel request. Please try again.'
+      );
+      formattedError.code = error.code || 'NATURAL_SEARCH_ERROR';
+      formattedError.status = error.status || 500;
+      formattedError.details = error.details || null;
+      throw formattedError;
+    }
+  },
 };
 
 export default journeyService;

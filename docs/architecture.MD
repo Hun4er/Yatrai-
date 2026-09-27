@@ -2927,3 +2927,96 @@ Filtered Journey Cards (`JourneyResultCard`)
 ## 122.5 Strict Phase 11 Boundary
 Phase 10 is strictly restricted to Journey Results and Filtering. Booking flows, payments, user accounts, and notifications remain strictly in future phases.
 
+---
+
+# 123. Phase 11 — Natural Language Search + Deterministic Search Execution
+
+## 123.1 Fundamental Architectural Invariant
+```text
+                    USER
+                      │
+                      ▼
+             Natural Language
+                      │
+                      ▼
+               Parser / LLM
+                      │
+                      ▼
+          Structured SearchRequest
+                      │
+                      ▼
+            Deterministic Validation
+                      │
+                      ▼
+            Location Resolution
+                      │
+                      ▼
+          Journey Orchestrator
+                      │
+          ┌───────────┼───────────┐
+          ▼           ▼           ▼
+        Rail         Bus       Flight/Road
+          │           │           │
+          └───────────┼───────────┘
+                      ▼
+                 Normalizer
+                      │
+                      ▼
+                Deduplication
+                      │
+                      ▼
+                   Ranking
+                      │
+                      ▼
+                Journey Results
+                      │
+                      ▼
+              Phase 10 UI/Filters
+```
+
+> **CRITICAL RULE:**
+> **THE LLM MUST NEVER DIRECTLY SEARCH TRANSPORT PROVIDERS.**
+> The LLM interprets the user's travel intent into a structured `SearchRequest`.
+> The deterministic Yatrai backend executes the resulting structured request.
+> The LLM never crosses the boundary into provider APIs, databases, journey ranking, journey generation, booking, or payments.
+
+## 123.2 Components and Responsibilities
+
+### 1. `NaturalLanguageParser` (`server/src/services/naturalLanguage/naturalLanguageParser.js`)
+- Sanitizes incoming query strings against length and content constraints.
+- Injects deterministic contextual reference dates (`YYYY-MM-DD`) and timezone (`Asia/Kolkata`).
+- Calls the model provider adapter (`ModelAdapter`).
+- Validates model output using the two-stage parser schema.
+- Flags missing fields (`origin`, `destination`, `departureDate`) for clarification without executing searches prematurely.
+
+### 2. `ModelAdapter` (`server/src/services/naturalLanguage/modelAdapter.js`)
+- Abstract adapter supporting LLM providers (Google Gemini / Anthropic / OpenAI) via environment configuration.
+- Includes a deterministic, offline-capable intent parser for testing and environments where LLMs are unreachable.
+- Applies strict non-location stopword pruning to avoid misidentifying pronouns/verbs as stations.
+
+### 3. `DateResolver` (`server/src/services/naturalLanguage/dateResolver.js`)
+- Resolves relative temporal terms (`today`, `tomorrow`, `day after tomorrow`, `next monday`, etc.) against explicit reference date and timezone context.
+- Returns canonical `YYYY-MM-DD` strings.
+
+### 4. `TimeWindowResolver` (`server/src/services/naturalLanguage/timeWindowResolver.js`)
+- Maps natural time expressions to canonical windows:
+  - `early_morning`: 00:00 → 06:00
+  - `morning`: 06:00 → 12:00
+  - `afternoon`: 12:00 → 17:00
+  - `evening`: 17:00 → 21:00
+  - `night`: 21:00 → 24:00
+
+### 5. `ParserSchema` (`server/src/services/naturalLanguage/parserSchema.js`)
+- **Stage 1 (Schema Validation):** Validates field types, formats, string lengths, and ranges.
+- **Stage 2 (Business Validation):** Ensures origin != destination, dates are non-past, budget is positive, and identifies missing requirements.
+
+### 6. Deterministic Constraint Enforcement (`server/src/orchestration/journeyOrchestrator.js`)
+- `maxBudget` constraint: Filters journeys whose total cost exceeds the maximum budget.
+- `departureWindow` constraint: Filters journeys whose initial leg departure falls outside the window.
+- Applied deterministically before ranking; the LLM never inspects or filters actual journeys.
+
+### 7. Dual Frontend Search Modes (`client/src/pages/HomePage.jsx`)
+- Mode Switcher: Users can toggle between **Natural Language** discovery (`NaturalSearchForm`) and **Structured Search** (`SearchForm`).
+- Clarification UX: Prompts the traveler directly when critical journey fields are omitted, resuming search once clarified.
+
+

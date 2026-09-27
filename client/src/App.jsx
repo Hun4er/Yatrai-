@@ -99,6 +99,41 @@ export function App() {
     [searchParams.ranking, searchState]
   );
 
+  // Execute natural language search intent discovery (Phase 11)
+  const handlePerformNaturalSearch = useCallback(
+    async (query) => {
+      try {
+        const result = await searchState.searchNatural(query);
+
+        // If clarification is required, remain on home page to collect missing fields
+        if (result?.status === 'needs_clarification') {
+          return;
+        }
+
+        // Search executed and returned parsed request & journeys: transition to results page
+        if (result?.parsedRequest) {
+          const params = {
+            origin: result.parsedRequest.origin || '',
+            destination: result.parsedRequest.destination || '',
+            departureDate: result.parsedRequest.departureDate || '',
+            ranking: result.parsedRequest.ranking || 'overall',
+          };
+          setSearchParams(params);
+          setCurrentPath('/results');
+
+          const queryString = buildQueryString(params);
+          const targetUrl = `/results${queryString}`;
+          if (window.location.pathname + window.location.search !== targetUrl) {
+            window.history.pushState(null, '', targetUrl);
+          }
+        }
+      } catch {
+        // Search state will hold the error
+      }
+    },
+    [searchState]
+  );
+
   // Switch ranking strategy on results page
   const handleRankingChange = useCallback(
     async (newRanking) => {
@@ -142,7 +177,10 @@ export function App() {
             initialDestination={searchParams.destination}
             initialDate={searchParams.departureDate}
             onSearch={handlePerformSearch}
+            onNaturalSearch={handlePerformNaturalSearch}
             isLoading={searchState.isLoading}
+            clarificationState={searchState.clarification}
+            onResolveClarification={searchState.resolveClarification}
           />
         )}
       </MainLayout>
