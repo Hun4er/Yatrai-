@@ -58,7 +58,7 @@ export function getModeIcon(mode) {
  *
  * Renders an individual journey leg timeline item and transfer interval.
  */
-export function JourneyLeg({ leg, isLast = false, nextLeg = null }) {
+export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = false, onSelect = null }) {
   const Icon = getModeIcon(leg.mode);
 
   const originName = leg.origin?.name || leg.origin?.city || 'Origin';
@@ -82,10 +82,25 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null }) {
     }
   }
 
+  const handleClick = () => {
+    if (onSelect) {
+      onSelect(leg.sequence);
+    }
+  };
+
   return (
     <div className="relative">
       {/* Leg Container */}
-      <div className="flex items-start gap-4 rounded-xl border border-white/5 bg-surface-secondary/70 p-4 transition-all">
+      <div
+        onClick={handleClick}
+        className={`flex items-start gap-4 rounded-xl border p-4 transition-all ${
+          onSelect ? 'cursor-pointer' : ''
+        } ${
+          isSelected
+            ? 'border-brand-primary bg-surface-elevated shadow-lg ring-1 ring-brand-primary/50'
+            : 'border-white/5 bg-surface-secondary/70 hover:border-white/15'
+        }`}
+      >
         {/* Mode Icon Badge */}
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-elevated text-brand-primary border border-white/10">
           <Icon className="h-5 w-5" aria-hidden="true" />

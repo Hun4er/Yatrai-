@@ -3019,4 +3019,63 @@ Phase 10 is strictly restricted to Journey Results and Filtering. Booking flows,
 - Mode Switcher: Users can toggle between **Natural Language** discovery (`NaturalSearchForm`) and **Structured Search** (`SearchForm`).
 - Clarification UX: Prompts the traveler directly when critical journey fields are omitted, resuming search once clarified.
 
+---
+
+# 124. Phase 12 — Maps + Journey Route Visualization
+
+## 124.1 Fundamental Architecture
+```text
+User
+ ↓
+Natural Language / Structured Search
+ ↓
+SearchRequest
+ ↓
+Location Resolver
+ ↓
+Journey Orchestrator
+ ↓
+Providers
+ ↓
+Normalizer
+ ↓
+Deduplication
+ ↓
+Ranking
+ ↓
+Canonical Journey
+ ↓
+Frontend
+ ↓
+Map Visualization
+```
+
+> **CRITICAL RULE:**
+> Mapbox sits **AFTER** the canonical journey has been produced.
+> Mapbox is strictly a **VISUALIZATION** layer.
+> It must NEVER search transport providers, determine journey alternatives, calculate ranking, replace the journey engine or location resolver, invent coordinates/stops, or determine availability.
+
+## 124.2 Component Architecture (`client/src/components/map/`)
+1. **`journeyGeoJson.js`**: Pure, deterministic adapter converting canonical `Journey` and `JourneyLeg` records into GeoJSON `FeatureCollection`s for routes and stops.
+   - **Level 1 (Exact Geometry):** If verified route coordinates exist on the leg, renders the actual LineString.
+   - **Level 2 (Verified Stop Connection):** Connects verified canonical origin/destination endpoints with a clear connection visualizer without falsely claiming it is physical road geometry.
+   - **Level 3 (Missing Coordinates):** Gracefully returns empty geometry and triggers topological fallback without crashing.
+2. **`mapUtils.js`**: Pure utilities for coordinate validation (longitude: -180 to 180, latitude: -90 to 90), dynamic bounding-box calculation (`calculateBounds`), and transport-mode color/dash tokens following the Yatrai Design System.
+3. **`JourneyMap.jsx`**: Mapbox GL JS component with lifecycle cleanup, auto-fitting bounds, mode-styled vector line layers, interactive stop popups, and click-to-highlight leg synchronization.
+4. **`SchematicRouteFallback.jsx`**: High-fidelity topological fallback visualizer that renders if Mapbox GL JS is unsupported, WebGL is disabled, or a Mapbox access token is unconfigured.
+5. **`JourneyDetailModal.jsx`**: Top-half journey route visualization paired with interactive step-by-step itinerary leg selection.
+
+## 124.3 Fault Isolation & Resilience Invariant
+```text
+Journey Data
+     │
+     ├──────────────► Journey Details
+     │
+     └──────────────► Map Visualization
+                            │
+                            └── can fail independently
+```
+Map failure never breaks journey discovery, results viewing, or leg inspection.
+
+
 

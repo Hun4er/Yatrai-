@@ -34,7 +34,7 @@ export function MainLayout({ children, onNavigateHome }) {
       <footer className="border-t border-white/10 bg-background-secondary py-6">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-6 text-xs text-text-tertiary sm:flex-row">
           <span>&copy; {new Date().getFullYear()} {APP_NAME} Platform. All rights reserved.</span>
-          <span>Phase 11: Natural Language Search</span>
+          <span>Phase 12: Maps & Journey Visualization</span>
         </div>
       </footer>
     </div>

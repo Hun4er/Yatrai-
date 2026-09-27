@@ -813,4 +813,28 @@ ResultsPage (/results?from=...&to=...&date=...&ranking=...)
    - If the LLM provider fails, structured search remains 100% available and unaffected.
    - The frontend allows instantaneous switching between natural language and structured search forms.
 
+---
+
+## 14. Phase 12 — Maps + Journey Route Visualization
+
+### 14.1 Visualization Boundary
+- Mapbox GL JS operates exclusively as a **client-side geographic renderer** for canonical `Journey` and `JourneyLeg` data.
+- Mapbox never determines journey routes, alternative routes, rankings, fares, or vehicle schedules.
+- All geographic coordinates originate from the canonical Phase 3 Location Resolver or verified route geometries.
+
+### 14.2 Pure GeoJSON Adapter (`journeyGeoJson.js`)
+- **Route LineStrings:** Produced on a per-leg basis with properties (`sequence`, `mode`, `duration`, `distance`, `price`, `isSelected`).
+- **Stop Points:** Distinct GeoJSON points for `origin`, intermediate `transfer` connections, and final `destination`.
+- **Mode Styling:**
+  - Rail: `#32D583` (Emerald green, solid line)
+  - Road: `#F5B942` (Amber gold, solid line)
+  - Bus: `#4EA1FF` (Blue, solid line)
+  - Flight: `#FF5C67` (Coral pink, dashed line `[2, 2]`)
+- **Bounds Fitting:** Dynamic geographic bounding box calculation (`calculateBounds`) with zero hardcoded center coordinates.
+
+### 14.3 Resilient Degradation
+- If Mapbox public access token (`VITE_MAPBOX_ACCESS_TOKEN`) is unconfigured, or WebGL is unsupported, the UI automatically renders `SchematicRouteFallback`.
+- Map errors or tile failures never crash the results page or journey detail modal.
+
+
 

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Clock, ShieldCheck } from 'lucide-react';
 import {
   formatDuration,
@@ -9,15 +9,19 @@ import {
   formatTransfers,
 } from '../../utils/formatters.js';
 import { JourneyLeg } from './JourneyLeg.jsx';
+import { JourneyMap } from '../map/JourneyMap.jsx';
 
 /**
  * JourneyDetailModal Component
  *
  * Dedicated inspection modal for selected journey.
- * Displays canonical itinerary, transfer details, service providers, and summary.
+ * Integrates Mapbox GL JS route visualization (Phase 12), canonical itinerary,
+ * transfer details, service providers, and summary metrics.
  * Contains ZERO raw provider payloads or payment forms.
  */
 export function JourneyDetailModal({ journey, onClose }) {
+  const [selectedLegSequence, setSelectedLegSequence] = useState(null);
+
   // Handle ESC key press to close modal
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -88,6 +92,17 @@ export function JourneyDetailModal({ journey, onClose }) {
           </button>
         </div>
 
+        {/* Journey Map Route Visualization (Phase 12) */}
+        <div className="w-full">
+          <JourneyMap
+            journey={journey}
+            selectedLegSequence={selectedLegSequence}
+            onSelectLeg={(seq) =>
+              setSelectedLegSequence((prev) => (prev === seq ? null : seq))
+            }
+          />
+        </div>
+
         {/* Quick Metrics Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="rounded-xl border border-white/5 bg-surface-secondary p-3.5">
@@ -151,9 +166,20 @@ export function JourneyDetailModal({ journey, onClose }) {
 
         {/* Step-by-Step Itinerary Legs */}
         <div className="space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">
-            Itinerary Segments ({legs.length} {legs.length === 1 ? 'Leg' : 'Legs'})
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">
+              Itinerary Segments ({legs.length} {legs.length === 1 ? 'Leg' : 'Legs'})
+            </h3>
+            {selectedLegSequence && (
+              <button
+                type="button"
+                onClick={() => setSelectedLegSequence(null)}
+                className="text-[11px] text-brand-primary hover:underline cursor-pointer"
+              >
+                Clear leg selection
+              </button>
+            )}
+          </div>
           <div className="space-y-3">
             {legs.map((leg, idx) => (
               <JourneyLeg
@@ -161,6 +187,10 @@ export function JourneyDetailModal({ journey, onClose }) {
                 leg={leg}
                 isLast={idx === legs.length - 1}
                 nextLeg={legs[idx + 1] || null}
+                isSelected={selectedLegSequence === leg.sequence}
+                onSelect={(seq) =>
+                  setSelectedLegSequence((prev) => (prev === seq ? null : seq))
+                }
               />
             ))}
           </div>

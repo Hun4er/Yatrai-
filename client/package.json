@@ -9,10 +9,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src/",
-    "test": "node --test ../scripts/test_journey_filters.mjs"
+    "test": "node --test ../scripts/test_journey_filters.mjs ../scripts/test_journey_map.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.475.0",
+    "mapbox-gl": "^3.31.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
