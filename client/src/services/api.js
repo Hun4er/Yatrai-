@@ -171,6 +171,76 @@ export const api = {
         }),
       }),
   },
+
+  // Phase 13: User Profile & Preferences
+  users: {
+    me: () => request('/users/me'),
+  },
+
+  // Phase 13: Saved Journeys
+  savedJourneys: {
+    list: () => request('/saved-journeys'),
+    save: ({ journeyId, name, notes }) =>
+      request('/saved-journeys', {
+        method: 'POST',
+        body: JSON.stringify({ journeyId, name, notes }),
+      }),
+    remove: (journeyId) =>
+      request(`/saved-journeys/${journeyId}`, {
+        method: 'DELETE',
+      }),
+    check: (journeyId) => request(`/saved-journeys/check/${journeyId}`),
+  },
+
+  // Phase 13: Recent Searches
+  recentSearches: {
+    list: (limit = 20) => request(`/searches/recent?limit=${limit}`),
+    record: (searchData) =>
+      request('/searches/recent', {
+        method: 'POST',
+        body: JSON.stringify(searchData),
+      }),
+    remove: (id) =>
+      request(`/searches/recent/${id}`, {
+        method: 'DELETE',
+      }),
+    clear: () =>
+      request('/searches/recent', {
+        method: 'DELETE',
+      }),
+  },
+
+  // Phase 13: Favorite Routes
+  favoriteRoutes: {
+    list: () => request('/favorite-routes'),
+    add: ({ origin, destination, preferredModes, label }) =>
+      request('/favorite-routes', {
+        method: 'POST',
+        body: JSON.stringify({ origin, destination, preferredModes, label }),
+      }),
+    remove: (id) =>
+      request(`/favorite-routes/${id}`, {
+        method: 'DELETE',
+      }),
+    check: (origin, destination) =>
+      request(
+        `/favorite-routes/check?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`
+      ),
+  },
+
+  // Phase 13: Journey History
+  journeyHistory: {
+    list: (limit = 30) => request(`/journey-history?limit=${limit}`),
+    record: (journeyId) =>
+      request('/journey-history', {
+        method: 'POST',
+        body: JSON.stringify({ journeyId }),
+      }),
+    clear: () =>
+      request('/journey-history', {
+        method: 'DELETE',
+      }),
+  },
 };
 
 export default api;

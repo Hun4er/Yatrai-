@@ -3,6 +3,11 @@ import { AuthProvider } from './context/AuthContext.jsx';
 import MainLayout from './layouts/MainLayout.jsx';
 import HomePage from './pages/HomePage.jsx';
 import ResultsPage from './pages/ResultsPage.jsx';
+import SavedJourneysPage from './pages/SavedJourneysPage.jsx';
+import RecentSearchesPage from './pages/RecentSearchesPage.jsx';
+import FavoriteRoutesPage from './pages/FavoriteRoutesPage.jsx';
+import JourneyHistoryPage from './pages/JourneyHistoryPage.jsx';
+import ProfilePage from './pages/ProfilePage.jsx';
 import useJourneySearch from './hooks/useJourneySearch.js';
 
 /**
@@ -76,6 +81,14 @@ export function App() {
       searchState.search(initialParams);
     }
   }, [searchState]);
+
+  // Navigate to arbitrary path
+  const handleNavigate = useCallback((path) => {
+    setCurrentPath(path);
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, '', path);
+    }
+  }, []);
 
   // Navigate to results page with fresh search criteria
   const handlePerformSearch = useCallback(
@@ -162,8 +175,12 @@ export function App() {
 
   return (
     <AuthProvider>
-      <MainLayout onNavigateHome={handleNavigateHome}>
-        {currentPath === '/results' ? (
+      <MainLayout
+        currentPath={currentPath}
+        onNavigate={handleNavigate}
+        onNavigateHome={handleNavigateHome}
+      >
+        {currentPath === '/results' && (
           <ResultsPage
             searchState={searchState}
             searchParams={searchParams}
@@ -171,18 +188,57 @@ export function App() {
             onRankingChange={handleRankingChange}
             onRetry={searchState.retry}
           />
-        ) : (
-          <HomePage
-            initialOrigin={searchParams.origin}
-            initialDestination={searchParams.destination}
-            initialDate={searchParams.departureDate}
-            onSearch={handlePerformSearch}
-            onNaturalSearch={handlePerformNaturalSearch}
-            isLoading={searchState.isLoading}
-            clarificationState={searchState.clarification}
-            onResolveClarification={searchState.resolveClarification}
+        )}
+
+        {currentPath === '/saved' && (
+          <SavedJourneysPage
+            onNavigateHome={handleNavigateHome}
           />
         )}
+
+        {currentPath === '/recent' && (
+          <RecentSearchesPage
+            onNavigateHome={handleNavigateHome}
+            onSearchAgain={handlePerformSearch}
+          />
+        )}
+
+        {currentPath === '/favorites' && (
+          <FavoriteRoutesPage
+            onNavigateHome={handleNavigateHome}
+            onSearchRoute={handlePerformSearch}
+          />
+        )}
+
+        {currentPath === '/history' && (
+          <JourneyHistoryPage
+            onNavigateHome={handleNavigateHome}
+          />
+        )}
+
+        {currentPath === '/profile' && (
+          <ProfilePage
+            onNavigate={handleNavigate}
+          />
+        )}
+
+        {currentPath !== '/results' &&
+          currentPath !== '/saved' &&
+          currentPath !== '/recent' &&
+          currentPath !== '/favorites' &&
+          currentPath !== '/history' &&
+          currentPath !== '/profile' && (
+            <HomePage
+              initialOrigin={searchParams.origin}
+              initialDestination={searchParams.destination}
+              initialDate={searchParams.departureDate}
+              onSearch={handlePerformSearch}
+              onNaturalSearch={handlePerformNaturalSearch}
+              isLoading={searchState.isLoading}
+              clarificationState={searchState.clarification}
+              onResolveClarification={searchState.resolveClarification}
+            />
+          )}
       </MainLayout>
     </AuthProvider>
   );

@@ -836,5 +836,29 @@ ResultsPage (/results?from=...&to=...&date=...&ranking=...)
 - If Mapbox public access token (`VITE_MAPBOX_ACCESS_TOKEN`) is unconfigured, or WebGL is unsupported, the UI automatically renders `SchematicRouteFallback`.
 - Map errors or tile failures never crash the results page or journey detail modal.
 
+---
+
+## 15. Phase 13 — User Features & Journey Integration
+
+### 15.1 Integration with Search Pipeline
+1. **Automatic Search Logging (`RecentSearch`):**
+   - Both structured search (`POST /api/journeys/search`) and natural language search (`POST /api/journeys/search/natural`) accept optional authentication (`optionalAuthenticate`).
+   - When an authenticated request is detected, the structured `SearchRequest` parameters (`origin`, `destination`, `departureDate`, `ranking`, `maxBudget`, etc.) are automatically recorded.
+   - Repeated searches for identical corridor and departure date update the `searchedAt` timestamp and collapse duplicate entries.
+   - Searches are capped per user at 20 items to prevent unbounded database growth.
+2. **Deterministic "Search Again" Execution:**
+   - Selecting `[ Search Again ]` on a recent search retrieves the canonical `SearchRequest` snapshot.
+   - The frontend forwards this directly to `handlePerformSearch(params)` which executes the existing Phase 8 Journey Orchestrator without invoking the LLM or duplicating the search engine.
+3. **Favorite Corridors (`FavoriteRoute`):**
+   - Users can bookmark origin → destination corridor pairs (e.g. `Sonipat -> Patna`).
+   - Clicking `[ Search Route ]` populates today's date and executes search through the existing orchestrator pipeline.
+4. **Canonical Journey Bookmarks (`SavedJourney`):**
+   - Users bookmark specific canonical journeys produced by the orchestrator.
+   - The database stores an ObjectId reference (`user`, `journey`) with a unique compound index, preventing redundant snapshotting of multi-modal routes.
+   - List operations populate canonical journeys and sequential `JourneyLeg` records, rendering identically with `JourneyResultCard` and `JourneyDetailModal`.
+5. **Viewed Journey History (`JourneyHistory`):**
+   - When a user inspects a journey's details on the results page or detail modal, the journey ID is recorded to history.
+   - Re-inspecting an existing journey updates the `viewedAt` timestamp and promotes it to the top.
+
 
 

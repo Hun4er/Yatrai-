@@ -47,6 +47,7 @@ export class NaturalLanguageParser {
     }
 
     // Strip control characters (except common whitespace)
+    // eslint-disable-next-line no-control-regex
     return trimmed.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
   }
 

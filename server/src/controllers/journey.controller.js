@@ -1,5 +1,6 @@
 import journeyOrchestrator from '../orchestration/journeyOrchestrator.js';
 import naturalLanguageParser from '../services/naturalLanguage/naturalLanguageParser.js';
+import recentSearchService from '../services/recentSearchService.js';
 import { successResponse } from '../utils/apiResponse.js';
 
 /**
@@ -31,6 +32,21 @@ export const journeyController = {
       } = req.body || {};
 
       const userId = req.user?.id || null;
+
+      // Automatically record search for authenticated users
+      if (userId && origin && destination && departureDate) {
+        recentSearchService
+          .recordSearch({
+            userId,
+            origin: typeof origin === 'string' ? origin : origin?.name,
+            destination: typeof destination === 'string' ? destination : destination?.name,
+            departureDate,
+            ranking: ranking || sortBy || 'overall',
+            passengers,
+            transportTypes: requestedModes,
+          })
+          .catch(() => {});
+      }
 
       const result = await journeyOrchestrator.orchestrateSearch({
         origin,
@@ -103,6 +119,24 @@ export const journeyController = {
       // Step 3: Execute deterministic search via the Journey Orchestrator
       const userId = req.user?.id || null;
       const structured = parseResult.structuredRequest;
+
+      // Automatically record search for authenticated users
+      if (userId && structured?.origin && structured?.destination && structured?.departureDate) {
+        recentSearchService
+          .recordSearch({
+            userId,
+            origin: structured.origin,
+            destination: structured.destination,
+            departureDate: structured.departureDate,
+            ranking: structured.ranking || 'overall',
+            departureWindow: structured.departureWindow,
+            maxBudget: structured.maxBudget,
+            transportTypes: structured.transportTypes,
+            passengers: structured.passengers,
+            query,
+          })
+          .catch(() => {});
+      }
 
       const result = await journeyOrchestrator.orchestrateSearch({
         origin: structured.origin,

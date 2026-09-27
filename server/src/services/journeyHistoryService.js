@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import SavedJourney from '../models/SavedJourney.js';
+import JourneyHistory from '../models/JourneyHistory.js';
 import Journey from '../models/Journey.js';
 import JourneyLeg from '../models/JourneyLeg.js';
 
@@ -74,32 +74,20 @@ function formatJourneyPayload(journeyDoc, legs = []) {
 }
 
 /**
- * Saved Journey Service (Phase 13)
- * Scoped strictly to authenticated users with complete IDOR protection.
+ * Journey History Service (Phase 13)
+ * Records and retrieves verified journey viewings for authenticated users.
  */
-export const savedJourneyService = {
+export const journeyHistoryService = {
   /**
-   * Save a canonical journey for an authenticated user.
+   * Record viewing of a journey.
+   * Updates viewedAt timestamp if already viewed to prevent unlimited row growth.
    *
    * @param {Object} params
    * @param {string|mongoose.Types.ObjectId} params.userId
    * @param {string|mongoose.Types.ObjectId} params.journeyId
-   * @param {string} [params.name]
-   * @param {string} [params.notes]
    * @returns {Promise<Object>}
    */
-  async saveJourney(firstArg, secondArg, thirdArg, fourthArg) {
-    const isObjectInvocation =
-      typeof firstArg === 'object' &&
-      !mongoose.Types.ObjectId.isValid(firstArg) &&
-      firstArg !== null &&
-      firstArg?.userId;
-
-    const userId = isObjectInvocation ? firstArg.userId : firstArg;
-    const journeyId = isObjectInvocation ? firstArg.journeyId : secondArg;
-    const name = (isObjectInvocation ? firstArg.name : thirdArg) || '';
-    const notes = (isObjectInvocation ? firstArg.notes : fourthArg) || '';
-
+  async recordJourneyView({ userId, journeyId }) {
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       const err = new Error('Invalid user identifier.');
       err.statusCode = 400;
@@ -113,7 +101,6 @@ export const savedJourneyService = {
       throw err;
     }
 
-    // Ensure journey actually exists
     const journeyExists = await Journey.exists({ _id: journeyId });
     if (!journeyExists) {
       const err = new Error('Journey not found.');
@@ -122,88 +109,27 @@ export const savedJourneyService = {
       throw err;
     }
 
-    // Check if already saved for object-based API invocations
-    if (isObjectInvocation) {
-      const existing = await SavedJourney.findOne({ user: userId, journey: journeyId });
-      if (existing) {
-        return {
-          _id: existing._id,
-          saved: true,
-          alreadySaved: true,
-          savedJourneyId: existing._id.toString(),
-          message: 'Journey is already saved.',
-        };
-      }
-    }
-
-    const savedDoc = await SavedJourney.create({
-      user: userId,
-      journey: journeyId,
-      name: name?.trim() || '',
-      notes: notes?.trim() || '',
-    });
-
-    if (isObjectInvocation) {
-      return {
-        _id: savedDoc._id,
-        saved: true,
-        alreadySaved: false,
-        savedJourneyId: savedDoc._id.toString(),
-        message: 'Journey saved successfully.',
-      };
-    }
-
-    return savedDoc;
-  },
-
-  /**
-   * Remove a saved journey for an authenticated user.
-   *
-   * @param {Object} params
-   * @param {string|mongoose.Types.ObjectId} params.userId
-   * @param {string|mongoose.Types.ObjectId} params.journeyId - Either SavedJourney _id or Journey _id
-   * @returns {Promise<Object>}
-   */
-  async removeSavedJourney({ userId, journeyId }) {
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
-      const err = new Error('Invalid user identifier.');
-      err.statusCode = 400;
-      err.code = 'INVALID_USER_ID';
-      throw err;
-    }
-    if (!journeyId || !mongoose.Types.ObjectId.isValid(journeyId)) {
-      const err = new Error('Invalid identifier.');
-      err.statusCode = 400;
-      err.code = 'INVALID_IDENTIFIER';
-      throw err;
-    }
-
-    // Delete matching user and either journey reference or saved journey document id
-    const result = await SavedJourney.findOneAndDelete({
-      user: userId,
-      $or: [{ _id: journeyId }, { journey: journeyId }],
-    });
-
-    if (!result) {
-      const err = new Error('Saved journey record not found or not owned by user.');
-      err.statusCode = 404;
-      err.code = 'SAVED_JOURNEY_NOT_FOUND';
-      throw err;
-    }
+    const historyDoc = await JourneyHistory.findOneAndUpdate(
+      { user: userId, journey: journeyId },
+      { $set: { viewedAt: new Date() } },
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+    );
 
     return {
-      saved: false,
-      message: 'Saved journey removed successfully.',
+      recorded: true,
+      historyId: historyDoc._id.toString(),
+      viewedAt: historyDoc.viewedAt,
     };
   },
 
   /**
-   * List all saved journeys for an authenticated user.
+   * List journey history for an authenticated user.
    *
    * @param {string|mongoose.Types.ObjectId} userId
+   * @param {number} [limit=30]
    * @returns {Promise<Array<Object>>}
    */
-  async listSavedJourneys(userId) {
+  async listJourneyHistory(userId, limit = 30) {
     if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
       const err = new Error('Invalid user identifier.');
       err.statusCode = 400;
@@ -211,8 +137,10 @@ export const savedJourneyService = {
       throw err;
     }
 
-    const savedRecords = await SavedJourney.find({ user: userId })
-      .sort({ createdAt: -1 })
+    const maxLimit = Math.min(Number(limit) || 30, 50);
+    const historyRecords = await JourneyHistory.find({ user: userId })
+      .sort({ viewedAt: -1 })
+      .limit(maxLimit)
       .populate({
         path: 'journey',
         populate: [
@@ -221,9 +149,8 @@ export const savedJourneyService = {
         ],
       });
 
-    // Populate legs for each journey
     const results = [];
-    for (const record of savedRecords) {
+    for (const record of historyRecords) {
       if (!record.journey) continue;
 
       const legs = await JourneyLeg.find({ journey: record.journey._id })
@@ -235,10 +162,8 @@ export const savedJourneyService = {
       const formattedJourney = formatJourneyPayload(record.journey, legs);
       if (formattedJourney) {
         results.push({
-          savedJourneyId: record._id.toString(),
-          savedAt: record.createdAt,
-          name: record.name,
-          notes: record.notes,
+          historyId: record._id.toString(),
+          viewedAt: record.viewedAt,
           journey: formattedJourney,
         });
       }
@@ -248,20 +173,22 @@ export const savedJourneyService = {
   },
 
   /**
-   * Check if a specific journey is saved by the user.
+   * Clear journey history for an authenticated user.
    *
-   * @param {Object} params
-   * @param {string|mongoose.Types.ObjectId} params.userId
-   * @param {string|mongoose.Types.ObjectId} params.journeyId
-   * @returns {Promise<{ isSaved: boolean }>}
+   * @param {string|mongoose.Types.ObjectId} userId
+   * @returns {Promise<Object>}
    */
-  async checkIsSaved({ userId, journeyId }) {
-    if (!userId || !journeyId || !mongoose.Types.ObjectId.isValid(journeyId)) {
-      return { isSaved: false };
+  async clearJourneyHistory(userId) {
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      const err = new Error('Invalid user identifier.');
+      err.statusCode = 400;
+      err.code = 'INVALID_USER_ID';
+      throw err;
     }
-    const exists = await SavedJourney.exists({ user: userId, journey: journeyId });
-    return { isSaved: Boolean(exists) };
+
+    await JourneyHistory.deleteMany({ user: userId });
+    return { cleared: true };
   },
 };
 
-export default savedJourneyService;
+export default journeyHistoryService;

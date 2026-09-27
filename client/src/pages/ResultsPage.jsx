@@ -23,6 +23,8 @@ import {
   countActiveFilters,
 } from '../utils/journeyFilters.js';
 import { formatDateDisplay } from '../utils/formatters.js';
+import { useAuth } from '../context/AuthContext.jsx';
+import api from '../services/api.js';
 
 /**
  * ResultsPage Component
@@ -43,6 +45,7 @@ export function ResultsPage({
   onRetry,
 }) {
   const { status, data, error, isLoading } = searchState;
+  const { isAuthenticated } = useAuth();
   const [activeRanking, setActiveRanking] = useState(searchParams?.ranking || 'overall');
 
   // Filter state (separate from backend search state)
@@ -51,6 +54,13 @@ export function ResultsPage({
 
   // Selected journey for detail modal inspection
   const [selectedJourney, setSelectedJourney] = useState(null);
+
+  const handleViewJourney = (journey) => {
+    setSelectedJourney(journey);
+    if (isAuthenticated && journey?.id) {
+      api.journeyHistory.record(journey.id).catch(() => {});
+    }
+  };
 
   // Sync active ranking when backend ranking changes or props update
   useEffect(() => {
@@ -273,7 +283,7 @@ export function ResultsPage({
                   key={journey.id || idx}
                   journey={journey}
                   isTopPick={idx === 0 && activeFilterCount === 0}
-                  onViewJourney={setSelectedJourney}
+                  onViewJourney={handleViewJourney}
                 />
               ))
             )}

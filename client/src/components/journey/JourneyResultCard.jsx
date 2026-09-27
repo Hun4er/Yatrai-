@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Clock,
   ArrowRight,
@@ -6,7 +6,10 @@ import {
   ChevronUp,
   ShieldCheck,
   Eye,
+  Bookmark,
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext.jsx';
+import api from '../../services/api.js';
 import {
   formatDuration,
   formatPrice,
@@ -23,8 +26,56 @@ import { JourneyLeg, getModeIcon } from './JourneyLeg.jsx';
  * Displays canonical route, composite modes, departure/arrival schedules,
  * duration, transfers, localized price, compact leg breakdown, and [ View Journey ] CTA.
  */
-export function JourneyResultCard({ journey, isTopPick = false, onViewJourney }) {
+export function JourneyResultCard({
+  journey,
+  isTopPick = false,
+  onViewJourney,
+  isSaved: initialSaved,
+  onRemoveSaved,
+}) {
+  const { isAuthenticated } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [saved, setSaved] = useState(initialSaved || false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (initialSaved !== undefined) {
+      setSaved(initialSaved);
+      return;
+    }
+    if (isAuthenticated && journey?.id) {
+      api.savedJourneys
+        .check(journey.id)
+        .then((res) => {
+          if (res?.data?.saved !== undefined) {
+            setSaved(res.data.saved);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isAuthenticated, journey?.id, initialSaved]);
+
+  const handleToggleSave = async (e) => {
+    e.stopPropagation();
+    if (!isAuthenticated) return;
+    if (!journey?.id || saving) return;
+
+    setSaving(true);
+    try {
+      if (saved) {
+        await api.savedJourneys.remove(journey.id);
+        setSaved(false);
+        if (onRemoveSaved) onRemoveSaved(journey.id);
+      } else {
+        await api.savedJourneys.save(journey.id);
+        setSaved(true);
+      }
+    } catch {
+      // Keep previous state on error
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (!journey) return null;
 
@@ -174,6 +225,24 @@ export function JourneyResultCard({ journey, isTopPick = false, onViewJourney })
               >
                 <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>View Journey</span>
+              </button>
+            )}
+
+            {isAuthenticated && (
+              <button
+                type="button"
+                onClick={handleToggleSave}
+                disabled={saving}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-medium transition-all cursor-pointer ${
+                  saved
+                    ? 'border-brand-primary/40 bg-brand-primary/10 text-brand-primary'
+                    : 'border-white/10 bg-surface-secondary text-text-secondary hover:text-text-primary hover:border-white/20'
+                }`}
+                title={saved ? 'Remove from saved journeys' : 'Save journey for later'}
+                aria-label={saved ? 'Remove saved journey' : 'Save journey'}
+              >
+                <Bookmark className={`h-3.5 w-3.5 ${saved ? 'fill-brand-primary' : ''}`} aria-hidden="true" />
+                <span className="hidden sm:inline">{saved ? 'Saved' : 'Save'}</span>
               </button>
             )}
 

@@ -3077,5 +3077,67 @@ Journey Data
 ```
 Map failure never breaks journey discovery, results viewing, or leg inspection.
 
+---
+
+# 125. Phase 13 — User Features (Profile, Saved Journeys, Recent Searches, Favorite Routes, Journey History)
+
+## 125.1 Fundamental Architecture
+```text
+User
+ ↓
+Authentication (Phase 2 JWT / HTTP-only Refresh Token)
+ ↓
+Authenticated Request (authenticate middleware -> req.user.id)
+ ↓
+User-owned Feature
+ ├── Profile           -> GET /api/users/me (strips passwordHash)
+ ├── Saved Journeys    -> POST/GET/DELETE /api/saved-journeys (references canonical Journey)
+ ├── Recent Searches   -> POST/GET/DELETE /api/searches/recent (persists SearchRequest snapshot)
+ ├── Favorite Routes   -> POST/GET/DELETE /api/favorite-routes (Origin -> Destination pairs)
+ └── Journey History   -> POST/GET/DELETE /api/journey-history (viewed journeys log)
+ ↓
+Database (MongoDB scoped strictly by user: req.user.id)
+ ↓
+Frontend (Client-side user hub with 1-click Search Again & Mapbox details)
+```
+
+> **CRITICAL SECURITY INVARIANT:**
+> All user-owned data is scoped to the authenticated user via verified tokens (`req.user.id`).
+> The frontend never supplies user IDs for authorization.
+> Database unique constraints protect `(user, journey)` and `(user, origin, destination)` invariants.
+> IDOR protection ensures User B can never read, modify, or delete User A's resources.
+
+## 125.2 Models & Database Schema
+1. **`SavedJourney` (`server/src/models/SavedJourney.js`)**
+   - References canonical `User` and `Journey` by ObjectId.
+   - Unique compound index on `{ user: 1, journey: 1 }`.
+   - Never duplicates entire journey documents.
+2. **`RecentSearch` (`server/src/models/RecentSearch.js`)**
+   - Preserves canonical `SearchRequest` snapshots (`origin`, `destination`, `departureDate`, `ranking`, `maxBudget`, etc.).
+   - Indexes on `{ user: 1, searchedAt: -1 }` and compound index on `{ user: 1, origin: 1, destination: 1, departureDate: 1 }`.
+   - Automatically collapses duplicate queries and trims excess past 20 records.
+3. **`FavoriteRoute` (`server/src/models/FavoriteRoute.js`)**
+   - Represents an origin → destination corridor pair.
+   - Unique compound index on `{ user: 1, origin: 1, destination: 1 }`.
+4. **`JourneyHistory` (`server/src/models/JourneyHistory.js`)**
+   - Represents viewed travel itineraries.
+   - Compound index on `{ user: 1, journey: 1 }` (unique) and `{ user: 1, viewedAt: -1 }`.
+   - Repeatedly inspecting a journey updates `viewedAt` and moves the record to the top.
+
+## 125.3 Service & API Layer
+- **`userService` (`server/src/services/userService.js`)**: Safe profile retrieval stripping passwords and internal security fields.
+- **`savedJourneyService` (`server/src/services/savedJourneyService.js`)**: Save, check, list, and delete saved journeys with populated canonical journeys and sequential legs.
+- **`recentSearchService` (`server/src/services/recentSearchService.js`)**: Record, list, remove, and clear search requests with duplicate collapsing and 20-item retention.
+- **`favoriteRouteService` (`server/src/services/favoriteRouteService.js`)**: Add, list, remove, and check favorite routes.
+- **`journeyHistoryService` (`server/src/services/journeyHistoryService.js`)**: Record inspection, list, and clear viewed journey history.
+
+## 125.4 Frontend Integration
+- **`ProfilePage.jsx`**: Traveler summary, verified status, member tenure, and quick navigation.
+- **`SavedJourneysPage.jsx`**: Displays bookmarked trips using canonical `JourneyResultCard` and detail modal with Mapbox.
+- **`RecentSearchesPage.jsx`**: Displays recent searches with 1-click `[ Search Again ]` button restoring search state.
+- **`FavoriteRoutesPage.jsx`**: Displays favorite corridors with 1-click `[ Search Route ]` button and corridor creator.
+- **`JourneyHistoryPage.jsx`**: Displays previously viewed journeys with timestamps and modal review.
+- **`MainLayout.jsx`**: Top header navigation with active tabs, authenticated user avatar pill, sign in/out, and mobile drawer.
+
 
 
