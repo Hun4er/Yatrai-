@@ -571,3 +571,112 @@ POST /api/journeys/search
 ### 9.8 Downstream Multi-Modal Boundary (Phase 8)
 Phase 7 only ranks journeys that have already been discovered and normalized. Synthesizing new multi-modal journeys across independent provider legs (e.g. stitching a Rail leg to an unconnected Bus leg) belongs exclusively to **Phase 8 — Multi-Modal Journey Orchestration**.
 
+---
+
+## 10. Phase 8 — Journey Orchestrator & Deduplication Architecture
+
+Phase 8 implements the **Journey Orchestrator** and **Journey Deduplicator**, establishing the central backend integration pipeline for journey discovery.
+
+```text
+                    USER REQUEST
+                         │
+                         ▼
+                Journey Search API
+                         │
+                         ▼
+                Journey Orchestrator
+                         │
+          ┌──────────────┼──────────────┐
+          ▼              ▼              ▼
+   Location Resolver  Provider       Search Context
+                     Registry
+                          │
+          ┌───────────────┼───────────────┐
+          ▼               ▼               ▼
+        Rail             Bus            Flight
+          │               │               │
+          └───────────────┼───────────────┘
+                          │
+                          ▼
+                  Provider Results
+                          │
+                          ▼
+                 Journey Normalizer
+                          │
+                          ▼
+                 Canonical Journeys
+                          │
+                          ▼
+                 Journey Deduplicator
+                          │
+                          ▼
+                    Ranking Engine
+                          │
+                          ▼
+                 Final Journey Results
+```
+
+### 10.1 Orchestrator Responsibilities & Anti-Monolith Invariant
+
+The Journey Orchestrator acts purely as a **coordinator/brain** connecting decoupled subsystems. It adheres to strict architectural boundaries:
+- **No Provider API Logic:** The orchestrator never inspects or constructs provider-specific HTTP headers, endpoints, or query parameters.
+- **No Normalization Mappings:** The orchestrator never normalizes date/time strings or maps vendor field names.
+- **No Ranking Formulas:** The orchestrator never computes ranking weights, composite scores, or sorting criteria.
+- **Decoupled Interfaces:** All interactions occur via standard interfaces (`LocationResolver`, `TransportProviderRegistry`, `JourneyNormalizer`, `JourneyDeduplicator`, `RankingEngine`, and `ResultAssembler`).
+
+### 10.2 Complete Request Lifecycle
+
+```text
+1. POST /api/journeys/search received
+2. Request validation (origin, destination, departureDate, passengers, modes, ranking strategy)
+3. Location resolution via Phase 3 Location Resolution (origin != destination verified)
+4. Immutable canonical SearchContext constructed
+5. SearchRequest record created in MongoDB (status: 'pending' -> 'processing')
+6. Provider selection via Provider Registry matching requested modes
+7. Concurrent provider search execution with bounded timeout budget via Promise.allSettled
+8. Partial provider failure handling (failed providers isolated; errors recorded in metadata)
+9. Normalization of successful provider envelopes into canonical Journey candidates
+10. Strict domain validation & candidate-level fault isolation (malformed candidates rejected; valid survive)
+11. Deduplication: semantic cross-provider deduplication using layered equivalence & deterministic retention
+12. Atomic database persistence of unique canonical Journeys, sequential JourneyLegs, and SearchResults
+13. Pluggable ranking via Phase 7 Ranking Engine
+14. SearchRequest status updated to 'completed'
+15. Final response assembly with safe provider metadata and deduplication diagnostics
+```
+
+### 10.3 Concurrency & Timeout Budget
+
+- **Parallel Provider Execution:** Independent transport providers execute concurrently using `Promise.allSettled()`.
+- **Bounded Timeout Budget:** Every provider query is wrapped in a racing timeout promise (`options.timeoutMs`, default `10000ms`). Slow or unresponsive providers are aborted with `PROVIDER_TIMEOUT` without blocking overall search.
+- **Fault-Isolation:** One provider timing out or failing (e.g. Bus connection timeout) does not invalidate results from successful providers (e.g. Rail and Flight).
+- **All-Providers Failed State:** If all queried providers fail without any successful results, the orchestrator throws HTTP 502 `ALL_PROVIDERS_FAILED` and updates `SearchRequest.status` to `'failed'`.
+
+### 10.4 Journey Deduplication Architecture
+
+The **Journey Deduplicator** (`server/src/deduplication/journeyDeduplicator.js`) prevents identical or duplicate travel options from multiple providers from cluttering results:
+
+#### Layered Identity & Equivalence Strategy
+Two canonical journeys represent the same underlying physical trip if:
+1. **Mode Sequence Match:** Exact match on transport mode (`['rail']` vs `['flight']` are never duplicates).
+2. **Spatial Connection:** Same origin and destination (by canonical ID or coordinates).
+3. **Temporal Schedule:** Same departure time and arrival time (minute-level UTC precision). Different departures (e.g. 06:00 vs 08:00) or arrivals are preserved as legitimate options.
+4. **Service / Operator Identity:** Same train number / flight code / bus number across providers.
+
+#### Deterministic Retention Policy
+When duplicates are detected:
+1. **Data Completeness Score:** Evaluates presence of price (>0), leg count, service identifiers, booking links, and distance metrics.
+2. **Missing Field Enrichment:** Retains the richer candidate while enriching it with non-empty fields (such as booking URLs or operator names) from the duplicate.
+3. **Audit Reporting:** Generates internal deduplication metadata (`totalBefore`, `totalAfter`, `duplicatesRemoved`, `durationMs`).
+4. **Pre-Persistence Deduplication:** Eliminates duplicates *before* database insertion, preventing redundant `Journey` documents in MongoDB.
+
+### 10.5 Result Assembly & Metadata Contract
+
+The response assembler (`server/src/orchestration/resultAssembler.js`) enforces zero credential leakage:
+- Redacts authorization headers, API keys, tokens, and raw stack traces.
+- Exposes safe provider summaries (`status`, `resultCount`, `error.message`).
+- Returns standard envelope with `searchRequestId`, `status`, `count`, `totalResults`, `origin`, `destination`, `ranking`, `meta`, and `journeys`.
+
+### 10.6 Phase 9 Boundary
+
+Phase 8 completes the **backend journey discovery brain**. It intentionally excludes user-facing UI, maps visualization, bookings, payments, and natural-language search. Those capabilities are strictly reserved for Phase 9 and beyond.
+

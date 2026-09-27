@@ -1,15 +1,19 @@
-import journeySearchService from '../services/journeySearchService.js';
+import journeyOrchestrator from '../orchestration/journeyOrchestrator.js';
 import { successResponse } from '../utils/apiResponse.js';
 
 /**
  * Journey Search Controller
- * Handles HTTP requests for journey discovery.
+ *
+ * Thin HTTP controller for journey discovery.
+ * Parses and validates HTTP request input and delegates discovery
+ * completely to the Journey Orchestrator.
  */
 export const journeyController = {
   /**
    * POST /api/journeys/search
    * Coordinates validating input, resolving locations, creating search requests,
-   * querying candidate sources, and returning normalized journeys.
+   * executing transport providers, normalizing, deduplicating, ranking, and returning
+   * canonical journey recommendations.
    */
   async search(req, res, next) {
     try {
@@ -27,7 +31,7 @@ export const journeyController = {
 
       const userId = req.user?.id || null;
 
-      const result = await journeySearchService.searchJourneys({
+      const result = await journeyOrchestrator.orchestrateSearch({
         origin,
         destination,
         departureDate,
@@ -40,15 +44,9 @@ export const journeyController = {
         userId,
       });
 
-      const response = successResponse('Journeys retrieved successfully', {
-        searchRequestId: result.searchRequest?._id || null,
-        status: result.searchRequest?.status || 'completed',
-        count: result.journeys.length,
-        ranking: result.ranking || null,
-        journeys: result.journeys,
-      });
+      const response = successResponse('Journeys retrieved successfully', result);
 
-      // Expose journeys array at the top level to support the canonical contract
+      // Expose journeys array at top-level to support the canonical contract
       response.journeys = result.journeys;
 
       return res.status(200).json(response);

@@ -338,47 +338,60 @@ The frontend should not depend on undocumented backend response structures.
 
 10. Journey Orchestrator
 
-The Journey Orchestrator is the central application component.
+The Journey Orchestrator (`server/src/orchestration/journeyOrchestrator.js`) is the central integration coordinator for journey discovery.
 
-It coordinates the complete journey search.
+It coordinates the complete journey search across Phase 3 through Phase 7 subsystems without becoming a monolithic business-logic class.
 
 Responsibilities:
-
-Receive journey request.
-Validate request.
-Resolve locations.
-Interpret constraints.
-Determine relevant providers.
-Query providers.
-Normalize responses.
-Generate candidate routes.
-Validate routes.
-Rank routes.
-Return journey results.
+1. Receive and validate search request payload.
+2. Resolve origin and destination via Phase 3 Location Resolution.
+3. Build immutable canonical SearchContext.
+4. Manage SearchRequest lifecycle (pending -> processing -> completed / failed).
+5. Determine applicable providers via TransportProviderRegistry.
+6. Execute provider searches concurrently using Promise.allSettled with bounded timeout budgets.
+7. Isolate individual provider failures while preserving successful candidate sets.
+8. Normalize candidates via Phase 6 JourneyNormalizer.
+9. Validate canonical candidates and legs against strict domain constraints.
+10. Deduplicate canonical journeys via dedicated JourneyDeduplicator using layered equivalence and deterministic retention.
+11. Atomically persist unique Journey, JourneyLeg, and SearchResult records.
+12. Rank unique journeys using Phase 7 RankingEngine strategies (overall, fastest, cheapest, fewest_transfers, most_convenient).
+13. Assemble safe canonical API response via ResultAssembler with safe provider metadata.
 
 Architecture:
 
-Journey Request
-      ↓
-Journey Orchestrator
-      ↓
-Intent
-      ↓
-Location
-      ↓
-Constraints
-      ↓
-Providers
-      ↓
-Normalization
-      ↓
-Route Discovery
-      ↓
-Feasibility
-      ↓
-Ranking
-      ↓
-Journey Response
+```text
+User Request
+     ↓
+Location Resolver (Phase 3)
+     ↓
+Journey Orchestrator (Phase 8)
+     ↓
+Provider Registry (Phase 5)
+     ↓
+┌────────┬────────┬────────┬────────┐
+│  Rail  │  Bus   │ Flight │  Road  │
+└────────┴────────┴────────┴────────┘
+     ↓
+Provider Results Envelope
+     ↓
+Journey Normalizer (Phase 6)
+     ↓
+Canonical Journeys
+     ↓
+Journey Deduplicator (Phase 8)
+     ↓
+Ranking Engine (Phase 7)
+     ↓
+Final Journey Response (Phase 8)
+```
+
+10.1 Journey Deduplication Architecture:
+The Journey Deduplicator (`server/src/deduplication/journeyDeduplicator.js`) executes layered semantic deduplication:
+- Multi-dimensional fingerprinting: transport mode sequence, origin, destination, minute-level departure/arrival schedule, service/train/flight identifier.
+- Preserves distinct departures, arrivals, operators, and modes.
+- Deterministic retention policy: retains candidate with richer data completeness, enriches missing fields (e.g. booking URLs), and tracks duplicates in audit reports.
+- Pre-persistence execution: eliminates redundant records before database insertion, preserving referential integrity.
+
 11. Intent Parser
 
 The Intent Parser converts natural-language requests into structured input.
