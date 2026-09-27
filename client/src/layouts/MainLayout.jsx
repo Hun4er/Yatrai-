@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
+import api from '../services/api.js';
 import { APP_NAME, APP_VERSION } from '../constants/index.js';
 import {
   Search,
@@ -7,6 +8,7 @@ import {
   History,
   Heart,
   Clock,
+  Bell,
   LogIn,
   LogOut,
   Menu,
@@ -16,6 +18,24 @@ import {
 export function MainLayout({ children, currentPath = '/', onNavigate, onNavigateHome }) {
   const { user, isAuthenticated, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnreadCount = useCallback(() => {
+    if (!isAuthenticated) {
+      setUnreadCount(0);
+      return;
+    }
+    api.notifications
+      .unreadCount()
+      .then((res) => {
+        setUnreadCount(res?.data?.count || 0);
+      })
+      .catch(() => {});
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    fetchUnreadCount();
+  }, [fetchUnreadCount, currentPath]);
 
   const handleNav = (path) => {
     setMobileMenuOpen(false);
@@ -32,6 +52,7 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
     { label: 'Recent', path: '/recent', icon: History },
     { label: 'Favorites', path: '/favorites', icon: Heart },
     { label: 'History', path: '/history', icon: Clock },
+    { label: 'Alerts', path: '/notifications', icon: Bell, badge: unreadCount },
   ];
 
   return (
@@ -69,7 +90,7 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
                   key={link.path}
                   type="button"
                   onClick={() => handleNav(link.path)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                  className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                     isActive
                       ? 'bg-brand-primary/10 text-brand-primary font-semibold'
                       : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
@@ -77,6 +98,11 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
                 >
                   <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>{link.label}</span>
+                  {Boolean(link.badge) && link.badge > 0 && (
+                    <span className="ml-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-primary px-1 text-[9px] font-extrabold text-white">
+                      {link.badge > 99 ? '99+' : link.badge}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -124,9 +150,12 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden rounded-lg p-1.5 text-text-secondary hover:text-text-primary hover:bg-white/5 cursor-pointer"
+              className="md:hidden rounded-lg p-1.5 text-text-secondary hover:text-text-primary hover:bg-white/5 cursor-pointer relative"
               aria-label="Toggle navigation menu"
             >
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-brand-primary" />
+              )}
               {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
           </div>
@@ -143,14 +172,21 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
                   key={link.path}
                   type="button"
                   onClick={() => handleNav(link.path)}
-                  className={`flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                  className={`flex w-full items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                     isActive
                       ? 'bg-brand-primary/10 text-brand-primary font-semibold'
                       : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
                   }`}
                 >
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                  <span>{link.label}</span>
+                  <div className="flex items-center gap-2.5">
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                    <span>{link.label}</span>
+                  </div>
+                  {Boolean(link.badge) && link.badge > 0 && (
+                    <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-primary px-1.5 text-[9px] font-extrabold text-white">
+                      {link.badge > 99 ? '99+' : link.badge}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -165,7 +201,7 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
       <footer className="border-t border-white/10 bg-background-secondary py-6">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-6 text-xs text-text-tertiary sm:flex-row">
           <span>&copy; {new Date().getFullYear()} {APP_NAME} Platform. All rights reserved.</span>
-          <span>Phase 13: User Features</span>
+          <span>Phase 14: Notifications</span>
         </div>
       </footer>
     </div>

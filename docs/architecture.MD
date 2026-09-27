@@ -3139,5 +3139,64 @@ Frontend (Client-side user hub with 1-click Search Again & Mapbox details)
 - **`JourneyHistoryPage.jsx`**: Displays previously viewed journeys with timestamps and modal review.
 - **`MainLayout.jsx`**: Top header navigation with active tabs, authenticated user avatar pill, sign in/out, and mobile drawer.
 
+---
+
+# 126. Phase 14 — Notifications (Reminders, Price Changes, Schedule Changes, Saved Journey Updates)
+
+## 126.1 Fundamental Architecture
+```text
+Canonical Journey / Saved Journey / Change Events
+                      │
+                      ▼
+               Domain Event
+                      │
+                      ▼
+              Notification Service
+                      │
+               ┌──────┴──────┐
+               ▼             ▼
+       In-App Alerts   Idempotency Store
+               │       (Unique Sparse Key)
+               ▼
+       Authenticated User
+```
+
+> **CRITICAL RULE:**
+> Notifications consume deterministic Yatrai events and do not search providers or determine journey data.
+> The notification system reacts to observed differences or scheduled departure windows.
+> All notifications are strictly scoped to the authenticated user with database-enforced authorization.
+
+## 126.2 Notification Categories
+1. **`JOURNEY_REMINDER` (`'journey_reminder'`)**:
+   - Sent for upcoming departures on saved journeys within the lead-time window (`config.notifications.reminderLeadTimeHours`, default 24h).
+   - Idempotency key: `reminder:${user}:${savedJourney}:${departureDate}`.
+2. **`PRICE_CHANGE` (`'price_change'`)**:
+   - Generated when canonical journey fare drops or increases.
+   - Enforces currency safety (never compares disparate currencies).
+   - Idempotency key: `price:${user}:${journeyId}:${oldPrice}:${newPrice}`.
+3. **`SCHEDULE_CHANGE` (`'schedule_change'`)**:
+   - Generated when canonical departure or arrival times shift.
+   - Idempotency key: `sched:${user}:${journeyId}:${newDepartureTime}`.
+4. **`SAVED_JOURNEY_UPDATE` (`'saved_journey_update'`)**:
+   - Broader notification for general itinerary or status shifts.
+   - Idempotency key: `update:${user}:${journeyId}:${reason}`.
+
+## 126.3 Database Schema & Invariants (`Notification`)
+- `user`: ObjectId reference to recipient `User`.
+- `type`: String enum of supported notification categories.
+- `title`, `message`: Deterministically formatted via standardized templates.
+- `journey`: Optional reference to canonical `Journey`.
+- `savedJourney`: Optional reference to `SavedJourney`.
+- `metadata`: Key-value structured payload (prices, dates, cities).
+- `read`: Boolean flag (default `false`).
+- `readAt`: Timestamp of read event (default `null`).
+- `idempotencyKey`: String with unique sparse index `{ idempotencyKey: 1 }`, ensuring multiple sweeps produce zero duplicates.
+- Retention: Automatically caps per-user notification volume (`config.notifications.maxPerUser`, default 100).
+
+## 126.4 In-App Notification Center
+- **`NotificationsPage.jsx`**: Responsive notification center with category badges, unread indicators, mark-as-read, mark-all-read, and 1-click [ View Journey ] integration with Phase 12 Mapbox visualizer.
+- **`MainLayout.jsx`**: Unread count indicator on navigation bell.
+- **Graceful degradation**: If a referenced journey is deleted or unavailable, the UI presents an accessible notice without crashing.
+
 
 

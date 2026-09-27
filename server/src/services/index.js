@@ -8,5 +8,7 @@ export { searchRequestService } from './searchRequestService.js';
 export { searchResultService } from './searchResultService.js';
 export { savedJourneyService } from './savedJourneyService.js';
 export { notificationService } from './notificationService.js';
+export { reminderService } from './notifications/reminderService.js';
+export { changeDetectionService } from './notifications/changeDetectionService.js';
 export { authService } from './auth.service.js';
 export { journeySearchService } from './journeySearchService.js';

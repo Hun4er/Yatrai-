@@ -8,6 +8,7 @@ import savedJourneyRoutes from './savedJourney.routes.js';
 import recentSearchRoutes from './recentSearch.routes.js';
 import favoriteRouteRoutes from './favoriteRoute.routes.js';
 import journeyHistoryRoutes from './journeyHistory.routes.js';
+import notificationRoutes from './notification.routes.js';
 
 const apiRouter = Router();
 
@@ -43,6 +44,7 @@ apiRouter.get('/', (req, res) => {
       recentSearches: '/api/searches/recent',
       favoriteRoutes: '/api/favorite-routes',
       journeyHistory: '/api/journey-history',
+      notifications: '/api/notifications',
     },
   });
 });
@@ -73,6 +75,9 @@ apiRouter.use('/favorite-routes', favoriteRouteRoutes);
 
 // Mount /api/journey-history
 apiRouter.use('/journey-history', journeyHistoryRoutes);
+
+// Mount /api/notifications
+apiRouter.use('/notifications', notificationRoutes);
 
 export default apiRouter;
 

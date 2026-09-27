@@ -1,14 +1,7 @@
 import mongoose from 'mongoose';
+import { ALL_NOTIFICATION_TYPES } from '../constants/notificationTypes.js';
 
 const { Schema } = mongoose;
-
-export const NOTIFICATION_TYPES = [
-  'journey_update',
-  'price_change',
-  'departure_reminder',
-  'booking_update',
-  'system',
-];
 
 const NotificationSchema = new Schema(
   {
@@ -22,7 +15,7 @@ const NotificationSchema = new Schema(
       type: String,
       required: [true, 'Notification type is required'],
       enum: {
-        values: NOTIFICATION_TYPES,
+        values: ALL_NOTIFICATION_TYPES,
         message: '{VALUE} is not a valid notification type',
       },
       index: true,
@@ -39,6 +32,22 @@ const NotificationSchema = new Schema(
       trim: true,
       maxlength: [500, 'Message cannot exceed 500 characters'],
     },
+    journey: {
+      type: Schema.Types.ObjectId,
+      ref: 'Journey',
+      default: null,
+      index: true,
+    },
+    savedJourney: {
+      type: Schema.Types.ObjectId,
+      ref: 'SavedJourney',
+      default: null,
+      index: true,
+    },
+    metadata: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
     data: {
       type: Schema.Types.Mixed,
       default: {},
@@ -51,6 +60,11 @@ const NotificationSchema = new Schema(
     readAt: {
       type: Date,
       default: null,
+    },
+    idempotencyKey: {
+      type: String,
+      trim: true,
+      default: undefined,
     },
     scheduledFor: {
       type: Date,
@@ -67,15 +81,22 @@ const NotificationSchema = new Schema(
       virtuals: true,
       versionKey: false,
       transform: (_doc, ret) => {
-        delete ret.id;
+        ret.id = ret._id ? ret._id.toString() : ret.id;
         return ret;
       },
     },
   }
 );
 
-NotificationSchema.index({ user: 1, read: 1 });
+// Query indexes
 NotificationSchema.index({ user: 1, createdAt: -1 });
+NotificationSchema.index({ user: 1, read: 1, createdAt: -1 });
+
+// Idempotency constraint ensuring duplicate notifications are never persisted
+NotificationSchema.index(
+  { idempotencyKey: 1 },
+  { unique: true, sparse: true }
+);
 
 export const Notification = mongoose.model('Notification', NotificationSchema);
 export default Notification;

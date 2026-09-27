@@ -241,6 +241,31 @@ export const api = {
         method: 'DELETE',
       }),
   },
+
+  // Phase 14: Notifications
+  notifications: {
+    list: ({ page = 1, limit = 20, unreadOnly = false } = {}) =>
+      request(
+        `/notifications?page=${page}&limit=${limit}${unreadOnly ? '&unreadOnly=true' : ''}`
+      ),
+    unreadCount: () => request('/notifications/unread-count'),
+    markRead: (id) =>
+      request(`/notifications/${id}/read`, {
+        method: 'PATCH',
+      }),
+    markAllRead: () =>
+      request('/notifications/read-all', {
+        method: 'PATCH',
+      }),
+    delete: (id) =>
+      request(`/notifications/${id}`, {
+        method: 'DELETE',
+      }),
+    sweep: () =>
+      request('/notifications/reminders/sweep', {
+        method: 'POST',
+      }),
+  },
 };
 
 export default api;

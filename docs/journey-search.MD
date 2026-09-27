@@ -860,5 +860,18 @@ ResultsPage (/results?from=...&to=...&date=...&ranking=...)
    - When a user inspects a journey's details on the results page or detail modal, the journey ID is recorded to history.
    - Re-inspecting an existing journey updates the `viewedAt` timestamp and promotes it to the top.
 
+---
+
+## 16. Phase 14 — Notifications & Journey Change Events
+
+### 16.1 Event Ingestion
+1. **Departure Reminders:** Evaluates saved journeys with future departures within the configured lead window (24h). Reminders link directly to canonical journey detail and Mapbox visualization.
+2. **Price Movements:** Detects fluctuations in canonical trip pricing while verifying currency uniformity.
+3. **Schedule Changes:** Alerts users to departure or arrival adjustments on bookmarked travel options.
+4. **Saved Updates:** Communicates updates or cancellations to saved itineraries.
+
+### 16.2 Idempotency Contract
+Every automated notification generated from events or background sweeps contains a deterministic `idempotencyKey` indexed with `{ idempotencyKey: 1, sparse: true }`. Recurring sweeps never produce duplicate notifications for the same event.
+
 
 

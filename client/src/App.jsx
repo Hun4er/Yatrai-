@@ -7,6 +7,7 @@ import SavedJourneysPage from './pages/SavedJourneysPage.jsx';
 import RecentSearchesPage from './pages/RecentSearchesPage.jsx';
 import FavoriteRoutesPage from './pages/FavoriteRoutesPage.jsx';
 import JourneyHistoryPage from './pages/JourneyHistoryPage.jsx';
+import NotificationsPage from './pages/NotificationsPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import useJourneySearch from './hooks/useJourneySearch.js';
 
@@ -216,6 +217,12 @@ export function App() {
           />
         )}
 
+        {currentPath === '/notifications' && (
+          <NotificationsPage
+            onNavigateHome={handleNavigateHome}
+          />
+        )}
+
         {currentPath === '/profile' && (
           <ProfilePage
             onNavigate={handleNavigate}
@@ -227,6 +234,7 @@ export function App() {
           currentPath !== '/recent' &&
           currentPath !== '/favorites' &&
           currentPath !== '/history' &&
+          currentPath !== '/notifications' &&
           currentPath !== '/profile' && (
             <HomePage
               initialOrigin={searchParams.origin}

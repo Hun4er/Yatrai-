@@ -119,6 +119,12 @@ export const config = Object.freeze({
     maxQueryLength: parseInt(process.env.NATURAL_LANGUAGE_MAX_QUERY_LENGTH || '500', 10),
     timezone: process.env.DEFAULT_TIMEZONE || 'Asia/Kolkata',
   },
+  notifications: {
+    reminderLeadTimeHours: parseInt(process.env.JOURNEY_REMINDER_LEAD_TIME_HOURS || '24', 10),
+    priceChangeMinPercent: parseFloat(process.env.PRICE_CHANGE_MIN_PERCENT || '0'),
+    maxPerUser: parseInt(process.env.NOTIFICATIONS_MAX_PER_USER || '100', 10),
+    retentionDays: parseInt(process.env.NOTIFICATIONS_RETENTION_DAYS || '30', 10),
+  },
 });
 
 export default config;
