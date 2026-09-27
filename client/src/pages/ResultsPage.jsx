@@ -1,42 +1,39 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Calendar, MapPin, AlertCircle } from 'lucide-react';
+import React, { useEffect, useState, useMemo } from 'react';
+import {
+  ArrowLeft,
+  Calendar,
+  MapPin,
+  AlertCircle,
+  SlidersHorizontal,
+  X,
+  RotateCcw,
+} from 'lucide-react';
 import RankingSelector from '../components/journey/RankingSelector.jsx';
 import JourneyResultCard from '../components/journey/JourneyResultCard.jsx';
+import JourneyFilters from '../components/journey/JourneyFilters.jsx';
+import JourneyDetailModal from '../components/journey/JourneyDetailModal.jsx';
 import LoadingState from '../components/common/LoadingState.jsx';
 import ErrorState from '../components/common/ErrorState.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
-
-/**
- * Format ISO date (YYYY-MM-DD) into user-friendly display (e.g. 01 Oct 2026)
- */
-function formatDateDisplay(dateStr) {
-  if (!dateStr) return '';
-  try {
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      const year = parseInt(parts[0], 10);
-      const monthIndex = parseInt(parts[1], 10) - 1;
-      const day = parseInt(parts[2], 10);
-      const d = new Date(year, monthIndex, day);
-      if (!isNaN(d.getTime())) {
-        return d.toLocaleDateString('en-GB', {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-        });
-      }
-    }
-    return dateStr;
-  } catch {
-    return dateStr;
-  }
-}
+import FilterEmptyState from '../components/common/FilterEmptyState.jsx';
+import {
+  filterJourneys,
+  deriveFilterBounds,
+  getDefaultFilters,
+  countActiveFilters,
+} from '../utils/journeyFilters.js';
+import { formatDateDisplay } from '../utils/formatters.js';
 
 /**
  * ResultsPage Component
  *
- * Renders the journey search results page, ranking tabs, and handles
- * loading, error, and empty result states.
+ * Coordinates journey discovery presentation:
+ * - Search header summary and modification actions
+ * - Backend ranking strategy switching
+ * - Client-side pure filtering (Price, Duration, Transfers, Mode, Departure Time)
+ * - Result counts distinguishing backend vs filtered results
+ * - Modal journey inspection
+ * - Responsive desktop sidebar and mobile filter sheet
  */
 export function ResultsPage({
   searchState,
@@ -47,6 +44,13 @@ export function ResultsPage({
 }) {
   const { status, data, error, isLoading } = searchState;
   const [activeRanking, setActiveRanking] = useState(searchParams?.ranking || 'overall');
+
+  // Filter state (separate from backend search state)
+  const [filters, setFilters] = useState(getDefaultFilters);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+
+  // Selected journey for detail modal inspection
+  const [selectedJourney, setSelectedJourney] = useState(null);
 
   // Sync active ranking when backend ranking changes or props update
   useEffect(() => {
@@ -68,8 +72,28 @@ export function ResultsPage({
   const travelDate = searchParams?.departureDate || searchParams?.date || '';
   const formattedDate = formatDateDisplay(travelDate);
 
-  const journeys = Array.isArray(data?.journeys) ? data.journeys : [];
-  const resultCount = data?.count ?? journeys.length;
+  // Canonical backend journeys
+  const backendJourneys = useMemo(() => {
+    return Array.isArray(data?.journeys) ? data.journeys : [];
+  }, [data?.journeys]);
+
+  // Derive filter bounds from backend dataset
+  const bounds = useMemo(() => {
+    return deriveFilterBounds(backendJourneys);
+  }, [backendJourneys]);
+
+  // Filtered journeys (pure client-side filtering)
+  const filteredJourneys = useMemo(() => {
+    return filterJourneys(backendJourneys, filters);
+  }, [backendJourneys, filters]);
+
+  const activeFilterCount = useMemo(() => {
+    return countActiveFilters(filters, bounds);
+  }, [filters, bounds]);
+
+  const handleClearFilters = () => {
+    setFilters(getDefaultFilters());
+  };
 
   // Check if any transport providers failed (Phase 8 partial failure detection)
   const providerMeta = data?.meta?.providers || [];
@@ -98,14 +122,14 @@ export function ResultsPage({
               <span>Modify Search</span>
             </button>
 
-            {/* Origin -> Destination Route Title */}
+            {/* Route Title */}
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-text-primary flex flex-wrap items-center gap-2">
               <span>{originName}</span>
               <span className="text-brand-primary">→</span>
               <span>{destinationName}</span>
             </h1>
 
-            {/* Travel Date & Count */}
+            {/* Travel Date & Result Count */}
             <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-text-secondary">
               {formattedDate && (
                 <div className="flex items-center gap-1.5">
@@ -113,19 +137,46 @@ export function ResultsPage({
                   <span>{formattedDate}</span>
                 </div>
               )}
-              {status === 'success' && (
+              {status === 'success' && backendJourneys.length > 0 && (
                 <div className="flex items-center gap-1.5 font-medium text-text-primary">
                   <MapPin className="h-3.5 w-3.5 text-text-tertiary" aria-hidden="true" />
                   <span>
-                    {resultCount} {resultCount === 1 ? 'route' : 'routes'} found
+                    {activeFilterCount > 0 ? (
+                      <>
+                        Showing <strong className="text-brand-primary">{filteredJourneys.length}</strong> of{' '}
+                        {backendJourneys.length} routes
+                      </>
+                    ) : (
+                      <>
+                        {backendJourneys.length} {backendJourneys.length === 1 ? 'route' : 'routes'} found
+                      </>
+                    )}
                   </span>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Quick Action to return/modify */}
-          <div className="sm:text-right">
+          {/* Quick Action Buttons */}
+          <div className="flex items-center gap-2 self-start sm:self-center">
+            {/* Mobile Filter Toggle Button */}
+            {backendJourneys.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(true)}
+                className="lg:hidden inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface-secondary px-3.5 py-2 text-xs font-semibold text-text-primary hover:bg-surface-elevated transition-colors cursor-pointer"
+                aria-label="Open filter options"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5 text-brand-primary" aria-hidden="true" />
+                <span>Filters</span>
+                {activeFilterCount > 0 && (
+                  <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-primary px-1 text-[10px] font-bold text-white">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onNavigateHome}
@@ -150,8 +201,8 @@ export function ResultsPage({
           </div>
         )}
 
-        {/* Ranking Strategy Selector (shown when journeys are available or loading ranking) */}
-        {(status === 'success' || (isLoading && journeys.length > 0)) && (
+        {/* Ranking Strategy Selector */}
+        {(status === 'success' || (isLoading && backendJourneys.length > 0)) && (
           <div className="mt-6 border-t border-white/10 pt-4">
             <RankingSelector
               activeRanking={activeRanking}
@@ -162,7 +213,7 @@ export function ResultsPage({
         )}
       </div>
 
-      {/* Main Content States */}
+      {/* Main Content Area */}
       {isLoading && <LoadingState />}
 
       {!isLoading && status === 'error' && (
@@ -174,20 +225,101 @@ export function ResultsPage({
         />
       )}
 
-      {!isLoading && status === 'empty' && (
+      {/* Backend Empty State (0 total journeys returned) */}
+      {!isLoading && (status === 'empty' || (status === 'success' && backendJourneys.length === 0)) && (
         <EmptyState onModifySearch={onNavigateHome} />
       )}
 
-      {!isLoading && status === 'success' && journeys.length > 0 && (
-        <div className="space-y-4" aria-label="Journey Results">
-          {journeys.map((journey, idx) => (
-            <JourneyResultCard
-              key={journey.id || idx}
-              journey={journey}
-              isTopPick={idx === 0}
+      {/* Success State with Journeys */}
+      {!isLoading && status === 'success' && backendJourneys.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Desktop Left Sidebar: Filters */}
+          <div className="hidden lg:block lg:col-span-4">
+            <JourneyFilters
+              filters={filters}
+              onChange={setFilters}
+              onReset={handleClearFilters}
+              bounds={bounds}
             />
-          ))}
+          </div>
+
+          {/* Right Main Column: Results / Filter Empty */}
+          <div className="lg:col-span-8 space-y-4">
+            {/* Active Filter Chips / Reset Shortcut on Top */}
+            {activeFilterCount > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/5 bg-surface-primary px-4 py-2.5 text-xs">
+                <span className="text-text-secondary">
+                  Showing <strong className="text-text-primary">{filteredJourneys.length}</strong> of{' '}
+                  {backendJourneys.length} journeys matching your criteria
+                </span>
+                <button
+                  type="button"
+                  onClick={handleClearFilters}
+                  className="inline-flex items-center gap-1 font-semibold text-brand-primary hover:text-brand-hover cursor-pointer"
+                >
+                  <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                  <span>Reset filters</span>
+                </button>
+              </div>
+            )}
+
+            {/* Filter-Empty State (Section 16B: filters excluded all routes) */}
+            {filteredJourneys.length === 0 ? (
+              <FilterEmptyState onClearFilters={handleClearFilters} />
+            ) : (
+              /* Filtered Journey Result Cards */
+              filteredJourneys.map((journey, idx) => (
+                <JourneyResultCard
+                  key={journey.id || idx}
+                  journey={journey}
+                  isTopPick={idx === 0 && activeFilterCount === 0}
+                  onViewJourney={setSelectedJourney}
+                />
+              ))
+            )}
+          </div>
         </div>
+      )}
+
+      {/* Mobile Filters Drawer / Slide-Over Sheet */}
+      {isMobileFilterOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Filter Options"
+          className="fixed inset-0 z-50 flex justify-end bg-black/75 backdrop-blur-sm lg:hidden animate-in fade-in"
+        >
+          <div className="relative w-full max-w-md h-full bg-surface-primary border-l border-white/10 p-6 overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-4">
+              <h3 className="text-base font-bold text-text-primary">Journey Filters</h3>
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(false)}
+                className="rounded-lg border border-white/10 p-1.5 text-text-secondary hover:text-text-primary cursor-pointer"
+                aria-label="Close filters"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+
+            <JourneyFilters
+              filters={filters}
+              onChange={setFilters}
+              onReset={handleClearFilters}
+              bounds={bounds}
+              isMobile={true}
+              onCloseMobile={() => setIsMobileFilterOpen(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Journey Detail Modal */}
+      {selectedJourney && (
+        <JourneyDetailModal
+          journey={selectedJourney}
+          onClose={() => setSelectedJourney(null)}
+        />
       )}
     </div>
   );

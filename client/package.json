@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "test": "node --test ../scripts/test_journey_filters.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.475.0",

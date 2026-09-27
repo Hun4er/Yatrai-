@@ -2875,3 +2875,55 @@ The frontend NEVER sorts journeys in React. Selecting ranking strategies (`overa
 ## 121.5 Strict Phase 10 Boundary
 Phase 9 excludes user profiles, notifications, booking flows, payments, maps, and natural language AI search. Those belong to future phases.
 
+---
+
+# 122. Phase 10 — Journey Results + Filtering Architecture
+
+## 122.1 Overview & Architecture Boundary
+Phase 10 elevates the results experience into a production-grade comparison interface. It introduces pure client-side filtering over canonical journeys returned by the Phase 8 orchestrator, without querying providers or recalculating ranking scores.
+
+```text
+Backend Discovery (Phase 8)
+       │
+       ▼
+Canonical Journey Envelope
+       │
+       ▼
+Frontend Results (Phase 9)
+       │
+       ▼
+Pure Client Filtering (`filterJourneys`)
+       │
+       ├── Price Range (min/max numeric)
+       ├── Max Duration (minutes)
+       ├── Transfers (Any, Direct, 1, 2+)
+       ├── Transport Modes (Train, Bus, Flight, Road)
+       └── Departure Time (Early Morning, Morning, Afternoon, Evening)
+       │
+       ▼
+Filtered Journey Cards (`JourneyResultCard`)
+       │
+       ├── Compact Leg Breakdown (e.g. 🚗 Sonipat → Delhi · 🚆 Delhi → Patna)
+       └── [ View Journey ] Modal (`JourneyDetailModal`)
+```
+
+## 122.2 Pure Filter Utility Contract
+- **Function:** `filterJourneys(journeys, filters)` located in `client/src/utils/journeyFilters.js`.
+- **Invariants:**
+  - Deterministic and pure; never mutates input arrays.
+  - Zero external API dependencies.
+  - Separate state from backend results: clearing filters restores original candidate set instantly without network roundtrips.
+  - Dynamic dataset-derived bounds: min/max prices and durations are derived directly from the search result set via `deriveFilterBounds(journeys)`.
+
+## 122.3 Distinct Empty States
+- **Backend-Empty State:** Occurs when the journey search discovers 0 routes on the given corridor/date (handled by `EmptyState`).
+- **Filter-Empty State:** Occurs when backend returned valid journeys, but the user's active filter criteria eliminated all of them (handled by `FilterEmptyState` with an immediate `[ Clear Filters ]` recovery action).
+
+## 122.4 Journey Inspection ("View Journey")
+- Triggered by `[ View Journey ]` button on each card.
+- Renders `JourneyDetailModal` with full canonical itinerary, departure/arrival schedules, transfer connections, and transport operators.
+- Zero credential exposure, raw database IDs, or payment/booking forms.
+
+## 122.5 Strict Phase 11 Boundary
+Phase 10 is strictly restricted to Journey Results and Filtering. Booking flows, payments, user accounts, and notifications remain strictly in future phases.
+

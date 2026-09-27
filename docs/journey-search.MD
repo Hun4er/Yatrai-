@@ -719,3 +719,28 @@ ResultsPage (/results?from=...&to=...&date=...&ranking=...)
 - Route state is preserved in URL search queries for bookmarking, page refresh, and back button navigation without state management overhead.
 - Changing ranking options directly requests re-ranking from `POST /api/journeys/search`, strictly prohibiting frontend sorting.
 
+---
+
+## 12. Phase 10 — Journey Results + Filtering
+
+### 12.1 Target Journey Card Specification
+- **Route:** Display canonical `Origin → Destination` (e.g. Sonipat → Patna).
+- **Transport Modes:** Composite canonical modes (e.g. `Train + Road`, `Bus`, `Flight`).
+- **Schedule:** Formatted 24h departure and arrival times (e.g. `06:30 → 19:20`).
+- **Duration:** Formatted duration (e.g. `12h 50m`).
+- **Transfers:** Canonical transfer count (e.g. `Direct`, `1 transfer`).
+- **Total Price:** Currency-formatted price respecting returned currency (e.g. `₹850`).
+- **Compact Leg Summary:** Optional visual breakdown of segments (e.g. `🚗 Sonipat → Delhi · 🚆 Delhi → Patna`).
+- **CTA:** Functional `[ View Journey ]` button opening canonical modal inspection.
+
+### 12.2 Pure Frontend Filtering Engine
+- `filterJourneys(journeys, filters)`: pure, deterministic, non-mutating.
+- Five filter dimensions:
+  1. **Price Range:** Min/Max numeric limits dynamically bounded by dataset min/max.
+  2. **Max Duration:** Maximum journey duration in minutes.
+  3. **Transfers:** Any, Direct (0), 1, 2+.
+  4. **Transport Mode:** Multi-select (Train, Bus, Flight, Road). Multimodal journeys match if any selected mode is present.
+  5. **Departure Time:** Time buckets (Early Morning 00:00-06:00, Morning 06:00-12:00, Afternoon 12:00-18:00, Evening 18:00-24:00).
+- Separate state: Clearing filters restores original backend results without re-triggering API search.
+- Dual empty states: Distinguishes between backend 0-results (`EmptyState`) and filter exclusion (`FilterEmptyState` with `[ Clear Filters ]`).
+
