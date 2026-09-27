@@ -134,7 +134,7 @@ export const api = {
     getById: (id) => request(`/locations/${id}`),
   },
 
-  // Phase 4: Journey Search Engine
+  // Phase 4 & Phase 8: Journey Search Engine & Orchestrator
   journeys: {
     search: ({
       origin,
@@ -144,6 +144,7 @@ export const api = {
       passengers,
       requestedModes,
       preferences,
+      ranking,
     }) =>
       request('/journeys/search', {
         method: 'POST',
@@ -155,6 +156,7 @@ export const api = {
           passengers,
           requestedModes,
           preferences,
+          ranking,
         }),
       }),
   },

@@ -2822,3 +2822,56 @@ Clear Human Experience
 One Goal.
 Every Route.
 
+---
+
+# 121. Phase 9 — Frontend Foundation Architecture
+
+## 121.1 Overview & Responsibilities
+Phase 9 establishes the first usable consumer interface for Yatrai. The frontend serves strictly as a **consumer of the backend journey orchestrator pipeline**, never a second journey engine.
+
+```text
+┌────────────────────────────────────────────────────────┐
+│                        FRONTEND                        │
+│                                                        │
+│  HomePage (/)         ──► SearchForm                   │
+│  ResultsPage (/results)──► JourneyResultCard           │
+│                            JourneyLeg                  │
+│                            RankingSelector             │
+│  States: Idle | Loading | Success | Empty | Error      │
+└───────────────────────────┬────────────────────────────┘
+                            │
+                    POST /api/journeys/search
+                    { origin, destination, departureDate, ranking }
+                            │
+                            ▼
+┌────────────────────────────────────────────────────────┐
+│                        BACKEND                         │
+│  Location Resolver  ──► Provider Gateway               │
+│  Normalizer         ──► Deduplication                  │
+│  Ranking Engine     ──► Canonical Journey Envelope     │
+└────────────────────────────────────────────────────────┘
+```
+
+## 121.2 Route Architecture & URL State
+- `/`: Home discovery page hosting primary `SearchForm` (From, To, Date, Find Routes).
+- `/results?from=Sonipat&to=Patna&date=2026-10-01&ranking=overall`: Dedicated Results page.
+- URL Query Parameters synchronize with browser History API (`pushState` and `popstate`), ensuring:
+  - Deep-linkable search queries
+  - Page refresh persistence
+  - Browser Back/Forward navigation preserving input state
+- No external routing dependency is required.
+
+## 121.3 Explicit State Machine
+The client encapsulates five distinct states via `useJourneySearch`:
+1. `idle`: Fresh application or empty search inputs.
+2. `loading`: Active API search; buttons disabled with spinner, calm skeleton cards displayed.
+3. `success`: One or more canonical journeys returned.
+4. `empty`: Search succeeded (HTTP 200) with 0 journeys; helpful suggestions displayed.
+5. `error`: Network failure or validation error; safe user-facing message with [ Try Again ] and [ Modify Search ].
+
+## 121.4 Backend Ranking Authority
+The frontend NEVER sorts journeys in React. Selecting ranking strategies (`overall`, `fastest`, `cheapest`, `fewest_transfers`, `most_convenient`) delegates directly to `POST /api/journeys/search` with the requested strategy, preserving the backend ranking engine as the single source of truth.
+
+## 121.5 Strict Phase 10 Boundary
+Phase 9 excludes user profiles, notifications, booking flows, payments, maps, and natural language AI search. Those belong to future phases.
+

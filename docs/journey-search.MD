@@ -680,3 +680,42 @@ The response assembler (`server/src/orchestration/resultAssembler.js`) enforces 
 
 Phase 8 completes the **backend journey discovery brain**. It intentionally excludes user-facing UI, maps visualization, bookings, payments, and natural-language search. Those capabilities are strictly reserved for Phase 9 and beyond.
 
+---
+
+## 11. Phase 9 — Frontend Discovery Foundation
+
+### 11.1 Client Architecture & Pipeline Boundary
+Phase 9 delivers the first usable user experience for Yatrai. The frontend operates strictly as an API consumer of the Journey Orchestrator endpoint:
+
+```text
+User Search (Home /)
+       │
+       ▼
+SearchForm [ From | To | Date | Find Routes ]
+       │
+       ▼
+journeyService.searchJourneys()
+       │
+       ▼
+POST /api/journeys/search
+       │
+       ▼
+ResultsPage (/results?from=...&to=...&date=...&ranking=...)
+       │
+       ├── JourneyResultCard (Canonical fields: times, duration, price, transfers, mode badges)
+       ├── JourneyLeg (Expandable multi-leg itinerary with connection transfer intervals)
+       ├── RankingSelector (Tabs: Best Overall, Fastest, Cheapest, Fewest Transfers, Most Convenient)
+       └── States: Idle, Loading, Success, Empty, Error
+```
+
+### 11.2 State Model & Recovery
+- **Idle:** Clean search form ready for inputs.
+- **Loading:** Calm skeleton cards, submit button displaying spinner and disabled to prevent duplicate submissions.
+- **Success:** Rich cards presenting canonical journeys with multi-leg expansion.
+- **Empty:** Distinguishes 0-route results from errors, displaying guidance and a "Modify Search" button.
+- **Error:** Safe user-facing error message with "Try Again" and "Modify Search" recovery options.
+
+### 11.3 URL Search Preservation & Ranking Control
+- Route state is preserved in URL search queries for bookmarking, page refresh, and back button navigation without state management overhead.
+- Changing ranking options directly requests re-ranking from `POST /api/journeys/search`, strictly prohibiting frontend sorting.
+
