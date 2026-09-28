@@ -86,7 +86,7 @@ const ALLOWED_PRIORITIES = ['fastest', 'cheapest', 'fewestTransfers', 'mostConve
 /**
  * Validates date calendar correctness (prevents 2026-02-31 rollovers).
  */
-function isValidCalendarDate(dateStr) {
+export function isValidCalendarDate(dateStr) {
   if (typeof dateStr !== 'string') return false;
   const trimmed = dateStr.trim();
   if (!ISO_DATE_REGEX.test(trimmed)) return false;
@@ -111,33 +111,60 @@ function isValidCalendarDate(dateStr) {
 }
 
 /**
+ * Checks if a calendar date string is earlier than today in the reference timezone (Asia/Kolkata).
+ * Same-day travel is explicitly valid.
+ */
+export function isPastDate(dateStr, timezone = 'Asia/Kolkata') {
+  if (typeof dateStr !== 'string') return false;
+  const trimmed = dateStr.trim();
+  const parts = trimmed.split(/[-T]/);
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const day = parseInt(parts[2], 10);
+
+  let todayStr;
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    todayStr = formatter.format(new Date());
+  } catch {
+    const now = new Date();
+    todayStr = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
+  }
+
+  const targetDateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  return targetDateStr < todayStr;
+}
+
+/**
  * Validates journey search request payload.
  */
 export function validateJourneySearch(req, res, next) {
-  const { origin, destination, departureDate, passengers, requestedModes, preferences } =
+  const { origin, destination, departureDate, returnDate, passengers, requestedModes, preferences } =
     req.body || {};
   const errors = [];
 
-  // 1. Origin validation
-  const originStr =
-    typeof origin === 'string'
-      ? origin.trim()
-      : origin && typeof origin === 'object' && origin._id
-        ? String(origin._id).trim()
-        : '';
+  // Helper to extract clean location string from string or object
+  const extractLocationStr = (loc) => {
+    if (typeof loc === 'string') return loc.trim();
+    if (loc && typeof loc === 'object') {
+      return (loc.name || loc.city || loc._id || loc.id || '').toString().trim();
+    }
+    return '';
+  };
 
+  // 1. Origin validation
+  const originStr = extractLocationStr(origin);
   if (!originStr) {
     errors.push('Origin location is required');
   }
 
   // 2. Destination validation
-  const destStr =
-    typeof destination === 'string'
-      ? destination.trim()
-      : destination && typeof destination === 'object' && destination._id
-        ? String(destination._id).trim()
-        : '';
-
+  const destStr = extractLocationStr(destination);
   if (!destStr) {
     errors.push('Destination location is required');
   }
@@ -152,6 +179,19 @@ export function validateJourneySearch(req, res, next) {
     errors.push('Departure date is required');
   } else if (!isValidCalendarDate(departureDate)) {
     errors.push('Departure date must be a valid date in YYYY-MM-DD format');
+  } else if (isPastDate(departureDate)) {
+    errors.push('Departure date cannot be in the past');
+  }
+
+  // 4b. Optional return date validation
+  if (returnDate !== undefined && returnDate !== null && returnDate !== '') {
+    if (!isValidCalendarDate(returnDate)) {
+      errors.push('Return date must be a valid date in YYYY-MM-DD format');
+    } else if (isPastDate(returnDate)) {
+      errors.push('Return date cannot be in the past');
+    } else if (isValidCalendarDate(departureDate) && returnDate < departureDate) {
+      errors.push('Return date cannot be earlier than departure date');
+    }
   }
 
   // 5. Passengers validation (optional)

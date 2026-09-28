@@ -42,7 +42,7 @@ export function errorHandler(err, req, res, _next) {
     })
     .catch(() => {});
 
-  const details = config.isDevelopment ? { stack: err.stack } : null;
+  const details = err.details ? err.details : null;
 
   res.status(status).json(errorResponse(message, code, details));
 }

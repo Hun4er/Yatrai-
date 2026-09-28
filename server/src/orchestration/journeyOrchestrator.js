@@ -15,6 +15,7 @@ import journeyDeduplicator from '../deduplication/journeyDeduplicator.js';
 import rankingEngine from '../ranking/rankingEngine.js';
 import resultAssembler from './resultAssembler.js';
 import { matchesTimeWindow } from '../services/naturalLanguage/timeWindowResolver.js';
+import { isValidCalendarDate, isPastDate } from '../middleware/validate.middleware.js';
 
 /**
  * Resolves a location input into a canonical Location Mongoose document or object.
@@ -152,6 +153,23 @@ export class JourneyOrchestrator {
       throw err;
     }
 
+    // Immediate check if origin and destination strings/names are identical
+    const extractLocationStr = (loc) => {
+      if (typeof loc === 'string') return loc.trim();
+      if (loc && typeof loc === 'object') {
+        return (loc.name || loc.city || loc._id || loc.id || '').toString().trim();
+      }
+      return '';
+    };
+    const originStr = extractLocationStr(origin);
+    const destStr = extractLocationStr(destination);
+    if (originStr && destStr && originStr.toLowerCase() === destStr.toLowerCase()) {
+      const err = new Error('Origin and destination cannot be the same location.');
+      err.statusCode = 400;
+      err.code = 'SAME_ORIGIN_DESTINATION';
+      throw err;
+    }
+
     if (!departureDate) {
       const err = new Error('Departure date is required.');
       err.statusCode = 400;
@@ -159,21 +177,51 @@ export class JourneyOrchestrator {
       throw err;
     }
 
-    const depDate = departureDate instanceof Date ? departureDate : new Date(departureDate);
-    if (isNaN(depDate.getTime())) {
-      const err = new Error('Invalid departure date provided.');
-      err.statusCode = 400;
-      err.code = 'VALIDATION_ERROR';
-      throw err;
-    }
-
-    if (returnDate) {
-      const retDate = returnDate instanceof Date ? returnDate : new Date(returnDate);
-      if (isNaN(retDate.getTime())) {
-        const err = new Error('Invalid return date provided.');
+    if (typeof departureDate === 'string') {
+      if (!isValidCalendarDate(departureDate)) {
+        const err = new Error('Departure date must be a valid date in YYYY-MM-DD format.');
         err.statusCode = 400;
         err.code = 'VALIDATION_ERROR';
         throw err;
+      }
+      if (isPastDate(departureDate)) {
+        const err = new Error('Departure date cannot be in the past.');
+        err.statusCode = 400;
+        err.code = 'VALIDATION_ERROR';
+        throw err;
+      }
+    } else {
+      const depDate = departureDate instanceof Date ? departureDate : new Date(departureDate);
+      if (isNaN(depDate.getTime())) {
+        const err = new Error('Invalid departure date provided.');
+        err.statusCode = 400;
+        err.code = 'VALIDATION_ERROR';
+        throw err;
+      }
+    }
+
+    if (returnDate) {
+      if (typeof returnDate === 'string') {
+        if (!isValidCalendarDate(returnDate)) {
+          const err = new Error('Return date must be a valid date in YYYY-MM-DD format.');
+          err.statusCode = 400;
+          err.code = 'VALIDATION_ERROR';
+          throw err;
+        }
+        if (isPastDate(returnDate)) {
+          const err = new Error('Return date cannot be in the past.');
+          err.statusCode = 400;
+          err.code = 'VALIDATION_ERROR';
+          throw err;
+        }
+      } else {
+        const retDate = returnDate instanceof Date ? returnDate : new Date(returnDate);
+        if (isNaN(retDate.getTime())) {
+          const err = new Error('Invalid return date provided.');
+          err.statusCode = 400;
+          err.code = 'VALIDATION_ERROR';
+          throw err;
+        }
       }
     }
 
@@ -895,15 +943,22 @@ export class JourneyOrchestrator {
       // 8. Handle complete provider failure state (Section 16 & 62)
       if (
         executionSummary.totalCount > 0 &&
-        executionSummary.failedCount === executionSummary.totalCount
+        executionSummary.successfulCount === 0 &&
+        executionSummary.emptyCount === 0
       ) {
+        const isAllUnavailable =
+          executionSummary.unavailableCount > 0 &&
+          executionSummary.unavailableCount === executionSummary.totalCount;
         const err = new Error(
-          'Journey search could not be completed. All queried transport providers failed to respond.'
+          isAllUnavailable
+            ? 'Journey search could not be completed. All queried transport providers are currently unavailable.'
+            : 'Journey search could not be completed. All queried transport providers failed to respond.'
         );
-        err.statusCode = 502;
-        err.code = 'ALL_PROVIDERS_FAILED';
+        err.statusCode = isAllUnavailable ? 503 : 502;
+        err.code = isAllUnavailable ? 'PROVIDER_UNAVAILABLE' : 'ALL_PROVIDERS_FAILED';
         err.details = {
           providersFailed: executionSummary.failedCount,
+          providersUnavailable: executionSummary.unavailableCount,
           totalProviders: executionSummary.totalCount,
         };
         throw err;

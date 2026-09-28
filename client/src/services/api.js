@@ -71,7 +71,7 @@ async function request(endpoint, options = {}) {
     if (!err.status) {
       // Network or connection failure
       const networkError = new Error(
-        `Unable to connect to Yatrai API server at ${url}. Please verify the backend is running.`
+        "We couldn't connect to Yatrai. Check your connection and try again."
       );
       networkError.code = 'NETWORK_ERROR';
       networkError.originalError = err;

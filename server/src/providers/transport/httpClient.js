@@ -148,7 +148,7 @@ export async function httpFetch(url, options = {}) {
         throw err;
       }
 
-      // Network connection failure (e.g. ECONNREFUSED)
+      // Network connection failure (e.g. ECONNREFUSED, ENOTFOUND)
       const isLastAttempt = attempt > maxRetries;
       if (!isLastAttempt) {
         logger.warn(`[${provider}] Network error: ${err.message}, retrying...`);
@@ -159,7 +159,7 @@ export async function httpFetch(url, options = {}) {
         `Network connection to provider "${provider}" failed: ${err.message}`,
         {
           provider,
-          code: 'PROVIDER_UNAVAILABLE',
+          code: 'NETWORK_ERROR',
           statusCode: 503,
           retryable: true,
         }
