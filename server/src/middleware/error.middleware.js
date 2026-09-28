@@ -1,6 +1,7 @@
 import config from '../config/index.js';
 import logger from '../utils/logger.js';
 import { errorResponse } from '../utils/apiResponse.js';
+import { errorLogService } from '../services/errorLogService.js';
 
 /**
  * Global Error Handling Middleware
@@ -22,6 +23,24 @@ export function errorHandler(err, req, res, _next) {
     message,
     stack: config.isDevelopment ? err.stack : undefined,
   });
+
+  // Asynchronously record operational error into ErrorLog
+  errorLogService
+    .recordError({
+      message,
+      severity: status >= 500 ? 'error' : 'warn',
+      service: 'yatrai-api',
+      module: req.baseUrl || 'api',
+      endpoint: req.originalUrl ? req.originalUrl.split('?')[0] : null,
+      method: req.method,
+      statusCode: status,
+      errorCode: code,
+      stack: err.stack || null,
+      details: {
+        query: req.query,
+      },
+    })
+    .catch(() => {});
 
   const details = config.isDevelopment ? { stack: err.stack } : null;
 

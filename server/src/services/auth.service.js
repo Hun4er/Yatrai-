@@ -86,8 +86,8 @@ export function getClearCookieOptions() {
  * @param {string} userId
  * @returns {string} signed JWT
  */
-function generateAccessToken(userId) {
-  return jwt.sign({ sub: userId }, config.auth.jwtAccessSecret, {
+function generateAccessToken(userId, role = 'user') {
+  return jwt.sign({ sub: userId, role }, config.auth.jwtAccessSecret, {
     expiresIn: config.auth.jwtAccessExpiresIn,
   });
 }
@@ -164,7 +164,7 @@ export const authService = {
 
     // Issue tokens and session
     const { rawRefreshToken, expiresAt } = await createRefreshSession(user._id);
-    const accessToken = generateAccessToken(user._id.toString());
+    const accessToken = generateAccessToken(user._id.toString(), user.role || 'user');
 
     return {
       user: user.toJSON(),
@@ -206,7 +206,7 @@ export const authService = {
     }
 
     const { rawRefreshToken, expiresAt } = await createRefreshSession(user._id);
-    const accessToken = generateAccessToken(user._id.toString());
+    const accessToken = generateAccessToken(user._id.toString(), user.role || 'user');
 
     return {
       user: user.toJSON(),
@@ -261,7 +261,7 @@ export const authService = {
 
     const { rawRefreshToken: newRawRefreshToken, expiresAt: newExpiresAt } =
       await createRefreshSession(user._id);
-    const accessToken = generateAccessToken(user._id.toString());
+    const accessToken = generateAccessToken(user._id.toString(), user.role || 'user');
 
     return {
       user: user.toJSON(),

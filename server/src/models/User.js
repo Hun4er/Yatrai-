@@ -59,6 +59,12 @@ const UserSchema = new Schema(
       default: 'active',
       index: true,
     },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user',
+      index: true,
+    },
     passwordHash: {
       type: String,
       default: null,
@@ -78,6 +84,8 @@ const UserSchema = new Schema(
     },
   }
 );
+
+UserSchema.index({ role: 1, createdAt: -1 });
 
 export const User = mongoose.model('User', UserSchema);
 export default User;

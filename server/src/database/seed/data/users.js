@@ -39,6 +39,21 @@ export const seedUsers = [
       preferredLanguage: 'en',
     },
     status: 'active',
+    role: 'user',
+  },
+  {
+    name: 'Yatrai Admin',
+    email: 'admin.yatrai@example.com',
+    passwordHash: '$2b$10$eFfTZVRO571dHuc.12Cljum5aRbZaA6xzWXKrf9T8upjBX0ae3BQS', // YatraiPass@123
+    phone: '+91-9876543299',
+    avatar: null,
+    preferences: {
+      preferredTransportModes: ['rail', 'flight', 'bus'],
+      preferredCurrency: 'INR',
+      preferredLanguage: 'en',
+    },
+    status: 'active',
+    role: 'admin',
   },
 ];
 

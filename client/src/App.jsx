@@ -9,6 +9,17 @@ import FavoriteRoutesPage from './pages/FavoriteRoutesPage.jsx';
 import JourneyHistoryPage from './pages/JourneyHistoryPage.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
+import AdminLayout from './layouts/AdminLayout.jsx';
+import {
+  AdminOverviewPage,
+  AdminUsersPage,
+  AdminSearchesPage,
+  AdminJourneysPage,
+  AdminProvidersPage,
+  AdminErrorsPage,
+  AdminAnalyticsPage,
+  AdminSystemHealthPage,
+} from './pages/admin/index.js';
 import useJourneySearch from './hooks/useJourneySearch.js';
 
 /**
@@ -176,78 +187,118 @@ export function App() {
 
   return (
     <AuthProvider>
-      <MainLayout
-        currentPath={currentPath}
-        onNavigate={handleNavigate}
-        onNavigateHome={handleNavigateHome}
-      >
-        {currentPath === '/results' && (
-          <ResultsPage
-            searchState={searchState}
-            searchParams={searchParams}
-            onNavigateHome={handleNavigateHome}
-            onRankingChange={handleRankingChange}
-            onRetry={searchState.retry}
-          />
-        )}
+      {currentPath.startsWith('/admin') ? (
+        <AdminLayout
+          currentPath={currentPath}
+          onNavigate={handleNavigate}
+          onNavigateHome={handleNavigateHome}
+        >
+          {(currentPath === '/admin' || currentPath === '/admin/overview') && (
+            <AdminOverviewPage onNavigate={handleNavigate} />
+          )}
 
-        {currentPath === '/saved' && (
-          <SavedJourneysPage
-            onNavigateHome={handleNavigateHome}
-          />
-        )}
+          {currentPath === '/admin/users' && (
+            <AdminUsersPage onNavigate={handleNavigate} />
+          )}
 
-        {currentPath === '/recent' && (
-          <RecentSearchesPage
-            onNavigateHome={handleNavigateHome}
-            onSearchAgain={handlePerformSearch}
-          />
-        )}
+          {currentPath === '/admin/searches' && (
+            <AdminSearchesPage onNavigate={handleNavigate} />
+          )}
 
-        {currentPath === '/favorites' && (
-          <FavoriteRoutesPage
-            onNavigateHome={handleNavigateHome}
-            onSearchRoute={handlePerformSearch}
-          />
-        )}
+          {currentPath === '/admin/journeys' && (
+            <AdminJourneysPage onNavigate={handleNavigate} />
+          )}
 
-        {currentPath === '/history' && (
-          <JourneyHistoryPage
-            onNavigateHome={handleNavigateHome}
-          />
-        )}
+          {currentPath === '/admin/providers' && (
+            <AdminProvidersPage onNavigate={handleNavigate} />
+          )}
 
-        {currentPath === '/notifications' && (
-          <NotificationsPage
-            onNavigateHome={handleNavigateHome}
-          />
-        )}
+          {currentPath === '/admin/errors' && (
+            <AdminErrorsPage onNavigate={handleNavigate} />
+          )}
 
-        {currentPath === '/profile' && (
-          <ProfilePage
-            onNavigate={handleNavigate}
-          />
-        )}
+          {currentPath === '/admin/analytics' && (
+            <AdminAnalyticsPage onNavigate={handleNavigate} />
+          )}
 
-        {currentPath !== '/results' &&
-          currentPath !== '/saved' &&
-          currentPath !== '/recent' &&
-          currentPath !== '/favorites' &&
-          currentPath !== '/history' &&
-          currentPath !== '/notifications' &&
-          currentPath !== '/profile' && (
-            <HomePage
-              initialOrigin={searchParams.origin}
-              initialDestination={searchParams.destination}
-              initialDate={searchParams.departureDate}
-              onSearch={handlePerformSearch}
-              onNaturalSearch={handlePerformNaturalSearch}
-              isLoading={searchState.isLoading}
-              clarificationState={searchState.clarification}
-              onResolveClarification={searchState.resolveClarification}
+          {currentPath === '/admin/system-health' && (
+            <AdminSystemHealthPage onNavigate={handleNavigate} />
+          )}
+        </AdminLayout>
+      ) : (
+        <MainLayout
+          currentPath={currentPath}
+          onNavigate={handleNavigate}
+          onNavigateHome={handleNavigateHome}
+        >
+          {currentPath === '/results' && (
+            <ResultsPage
+              searchState={searchState}
+              searchParams={searchParams}
+              onNavigateHome={handleNavigateHome}
+              onRankingChange={handleRankingChange}
+              onRetry={searchState.retry}
             />
           )}
-      </MainLayout>
+
+          {currentPath === '/saved' && (
+            <SavedJourneysPage
+              onNavigateHome={handleNavigateHome}
+            />
+          )}
+
+          {currentPath === '/recent' && (
+            <RecentSearchesPage
+              onNavigateHome={handleNavigateHome}
+              onSearchAgain={handlePerformSearch}
+            />
+          )}
+
+          {currentPath === '/favorites' && (
+            <FavoriteRoutesPage
+              onNavigateHome={handleNavigateHome}
+              onSearchRoute={handlePerformSearch}
+            />
+          )}
+
+          {currentPath === '/history' && (
+            <JourneyHistoryPage
+              onNavigateHome={handleNavigateHome}
+            />
+          )}
+
+          {currentPath === '/notifications' && (
+            <NotificationsPage
+              onNavigateHome={handleNavigateHome}
+            />
+          )}
+
+          {currentPath === '/profile' && (
+            <ProfilePage
+              onNavigate={handleNavigate}
+            />
+          )}
+
+          {currentPath !== '/results' &&
+            currentPath !== '/saved' &&
+            currentPath !== '/recent' &&
+            currentPath !== '/favorites' &&
+            currentPath !== '/history' &&
+            currentPath !== '/notifications' &&
+            currentPath !== '/profile' && (
+              <HomePage
+                initialOrigin={searchParams.origin}
+                initialDestination={searchParams.destination}
+                initialDate={searchParams.departureDate}
+                onSearch={handlePerformSearch}
+                onNaturalSearch={handlePerformNaturalSearch}
+                isLoading={searchState.isLoading}
+                clarificationState={searchState.clarification}
+                onResolveClarification={searchState.resolveClarification}
+              />
+            )}
+        </MainLayout>
+      )}
     </AuthProvider>
   );
 }

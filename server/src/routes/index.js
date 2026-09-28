@@ -9,6 +9,7 @@ import recentSearchRoutes from './recentSearch.routes.js';
 import favoriteRouteRoutes from './favoriteRoute.routes.js';
 import journeyHistoryRoutes from './journeyHistory.routes.js';
 import notificationRoutes from './notification.routes.js';
+import adminRoutes from './admin.routes.js';
 
 const apiRouter = Router();
 
@@ -45,6 +46,16 @@ apiRouter.get('/', (req, res) => {
       favoriteRoutes: '/api/favorite-routes',
       journeyHistory: '/api/journey-history',
       notifications: '/api/notifications',
+      admin: {
+        overview: '/api/admin/overview',
+        users: '/api/admin/users',
+        searches: '/api/admin/searches',
+        journeys: '/api/admin/journeys',
+        providers: '/api/admin/providers',
+        errors: '/api/admin/errors',
+        analytics: '/api/admin/analytics',
+        systemHealth: '/api/admin/system-health',
+      },
     },
   });
 });
@@ -78,6 +89,9 @@ apiRouter.use('/journey-history', journeyHistoryRoutes);
 
 // Mount /api/notifications
 apiRouter.use('/notifications', notificationRoutes);
+
+// Mount /api/admin (Protected by authenticate + requireAdmin)
+apiRouter.use('/admin', adminRoutes);
 
 export default apiRouter;
 

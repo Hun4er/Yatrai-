@@ -266,6 +266,41 @@ export const api = {
         method: 'POST',
       }),
   },
+
+  // Phase 15: Admin Dashboard
+  admin: {
+    getOverview: () => request('/admin/overview'),
+    getUsers: ({ page = 1, limit = 20, search = '', role = '', status = '' } = {}) => {
+      const q = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (search) q.set('search', search);
+      if (role) q.set('role', role);
+      if (status) q.set('status', status);
+      return request(`/admin/users?${q.toString()}`);
+    },
+    getSearches: ({ page = 1, limit = 20, status = '', search = '' } = {}) => {
+      const q = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (status) q.set('status', status);
+      if (search) q.set('search', search);
+      return request(`/admin/searches?${q.toString()}`);
+    },
+    getJourneys: ({ page = 1, limit = 20, mode = '', status = '' } = {}) => {
+      const q = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (mode) q.set('mode', mode);
+      if (status) q.set('status', status);
+      return request(`/admin/journeys?${q.toString()}`);
+    },
+    getProviders: () => request('/admin/providers'),
+    getErrors: ({ page = 1, limit = 20, severity = '', statusCode = '', search = '' } = {}) => {
+      const q = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (severity) q.set('severity', severity);
+      if (statusCode) q.set('statusCode', statusCode);
+      if (search) q.set('search', search);
+      return request(`/admin/errors?${q.toString()}`);
+    },
+    getErrorById: (id) => request(`/admin/errors/${id}`),
+    getAnalytics: () => request('/admin/analytics'),
+    getSystemHealth: () => request('/admin/system-health'),
+  },
 };
 
 export default api;
