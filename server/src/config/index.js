@@ -74,8 +74,8 @@ export const config = Object.freeze({
   },
   providers: {
     rail: {
-      apiKey: process.env.RAIL_API_KEY || null,
-      apiUrl: process.env.RAIL_API_URL || null,
+      apiKey: process.env.RAIL_API_KEY ? process.env.RAIL_API_KEY.trim() : null,
+      apiUrl: process.env.RAIL_API_URL ? process.env.RAIL_API_URL.trim() : null,
       timeoutMs: parseInt(process.env.RAIL_TIMEOUT_MS || '5000', 10),
       enabled: process.env.RAIL_ENABLED !== 'false',
     },

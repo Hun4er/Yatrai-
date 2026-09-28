@@ -4,19 +4,276 @@ import { httpFetch } from '../httpClient.js';
 import { ProviderError } from '../errors.js';
 
 /**
+ * Built-in Station Code Mapping for major Indian cities and railway hubs.
+ * Maps city names and common station variants to Indian Railways (IRCTC) alpha station codes.
+ */
+export const STATION_CODE_MAP = {
+  // Delhi NCR
+  delhi: 'NDLS',
+  'new delhi': 'NDLS',
+  'old delhi': 'DLI',
+  'hazrat nizamuddin': 'NZM',
+  nizamuddin: 'NZM',
+  'anand vihar': 'ANVT',
+  'anand vihar terminal': 'ANVT',
+  'delhi cantt': 'DEC',
+  'delhi sarai rohilla': 'DEE',
+  sonipat: 'SNP',
+  sonepat: 'SNP',
+  panipat: 'PNP',
+  karnal: 'KUN',
+  kurukshetra: 'KKDE',
+  ambala: 'UMB',
+  'ambala cantt': 'UMB',
+  chandigarh: 'CDG',
+  faridabad: 'FDB',
+  gurgaon: 'GGN',
+  gurugram: 'GGN',
+  ghaziabad: 'GZB',
+  meerut: 'MTC',
+  rohtak: 'ROK',
+
+  // Bihar & Jharkhand
+  patna: 'PNBE',
+  'patna junction': 'PNBE',
+  'patna jn': 'PNBE',
+  patliputra: 'PPTA',
+  danapur: 'DNR',
+  'rajendra nagar': 'RJPB',
+  'rajendranagar terminal': 'RJPB',
+  gaya: 'GAYA',
+  muzaffarpur: 'MFP',
+  darbhanga: 'DBG',
+  samastipur: 'SPJ',
+  bhagalpur: 'BGP',
+  ranchi: 'RNC',
+  dhanbad: 'DHN',
+  bokaro: 'BKSC',
+  jamshedpur: 'TATA',
+  tatanagar: 'TATA',
+
+  // Maharashtra & Goa
+  mumbai: 'CSMT',
+  'mumbai csmt': 'CSMT',
+  'chhatrapati shivaji': 'CSMT',
+  'mumbai central': 'MMCT',
+  bandra: 'BDTS',
+  'bandra terminus': 'BDTS',
+  'lokmanya tilak': 'LTT',
+  'lokmanya tilak terminus': 'LTT',
+  dadar: 'DR',
+  thane: 'TNA',
+  kalyan: 'KYN',
+  pune: 'PUNE',
+  nagpur: 'NGP',
+  nashik: 'NK',
+  aurangabad: 'AWB',
+  solapur: 'SUR',
+  kolhapur: 'KOP',
+  goa: 'MAO',
+  madgaon: 'MAO',
+  'vasco da gama': 'VSG',
+
+  // West Bengal & North East
+  kolkata: 'HWH',
+  howrah: 'HWH',
+  'howrah junction': 'HWH',
+  sealdah: 'SDAH',
+  shalimar: 'SHM',
+  'kolkata chitpur': 'KOAA',
+  asansol: 'ASN',
+  siliguri: 'NJP',
+  'new jalpaiguri': 'NJP',
+  guwahati: 'GHY',
+  kamakhya: 'KYQ',
+
+  // Uttar Pradesh & Uttarakhand
+  lucknow: 'LKO',
+  'lucknow charbagh': 'LKO',
+  'lucknow junction': 'LJN',
+  kanpur: 'CNB',
+  'kanpur central': 'CNB',
+  varanasi: 'BSB',
+  'varanasi junction': 'BSB',
+  banaras: 'BSBS',
+  'pt deen dayal upadhyaya': 'DDU',
+  mughalsarai: 'DDU',
+  prayagraj: 'PRYJ',
+  'prayagraj junction': 'PRYJ',
+  allahabad: 'PRYJ',
+  gorakhpur: 'GKP',
+  agra: 'AGC',
+  'agra cantt': 'AGC',
+  'agra fort': 'AF',
+  mathura: 'MTJ',
+  aligarh: 'ALJN',
+  moradabad: 'MB',
+  bareilly: 'BE',
+  jhansi: 'VGLJ',
+  'virangana lakshmibai': 'VGLJ',
+  dehradun: 'DDN',
+  haridwar: 'HW',
+  rishikesh: 'YNRK',
+
+  // Rajasthan & Gujarat
+  jaipur: 'JP',
+  'jaipur junction': 'JP',
+  jodhpur: 'JU',
+  ajmer: 'AII',
+  udaipur: 'UDZ',
+  'udaipur city': 'UDZ',
+  bikaner: 'BKN',
+  kota: 'KOTA',
+  ahmedabad: 'ADI',
+  surat: 'ST',
+  vadodara: 'BRC',
+  rajkot: 'RJT',
+  bhavnagar: 'BVC',
+
+  // Punjab & Jammu
+  ludhiana: 'LDH',
+  jalandhar: 'JUC',
+  amritsar: 'ASR',
+  bathinda: 'BTI',
+  jammu: 'JAT',
+  'jammu tawi': 'JAT',
+  katra: 'SVDK',
+  'shri mata vaishno devi katra': 'SVDK',
+
+  // Madhya Pradesh & Chhattisgarh
+  bhopal: 'BPL',
+  'rani kamlapati': 'RKMP',
+  habibganj: 'RKMP',
+  indore: 'INDB',
+  ujjain: 'UJN',
+  gwalior: 'GWL',
+  jabalpur: 'JBP',
+  raipur: 'R',
+  bilaspur: 'BSP',
+
+  // South India
+  bengaluru: 'SBC',
+  bangalore: 'SBC',
+  'ksr bengaluru': 'SBC',
+  yesvantpur: 'YPR',
+  'sir m visvesvaraya terminal': 'SMVB',
+  krishnarajapuram: 'KJM',
+  mysore: 'MYS',
+  mysuru: 'MYS',
+  hubballi: 'UBL',
+  hubli: 'UBL',
+  mangalore: 'MAQ',
+  mangaluru: 'MAQ',
+  chennai: 'MAS',
+  'chennai central': 'MAS',
+  'chennai egmore': 'MS',
+  tambaram: 'TBM',
+  coimbatore: 'CBE',
+  madurai: 'MDU',
+  tiruchirappalli: 'TPJ',
+  trichy: 'TPJ',
+  salem: 'SA',
+  hyderabad: 'HYB',
+  secunderabad: 'SC',
+  kacheguda: 'KCG',
+  visakhapatnam: 'VSKP',
+  vizag: 'VSKP',
+  vijayawada: 'BZA',
+  tirupati: 'TPTY',
+  kochi: 'ERS',
+  cochin: 'ERS',
+  ernakulam: 'ERS',
+  'ernakulam town': 'ERN',
+  thiruvananthapuram: 'TVC',
+  trivandrum: 'TVC',
+  kozhikode: 'CLT',
+  calicut: 'CLT',
+  thrissur: 'TCR',
+  kannur: 'CAN',
+
+  // Odisha
+  bhubaneswar: 'BBS',
+  puri: 'PURI',
+  cuttack: 'CTC',
+  rourkela: 'ROU',
+};
+
+/**
+ * Resolves a location entity into an Indian Railways station code.
+ *
+ * @param {Object} location - Location entity or search object
+ * @returns {string} Indian Railways Station Code (e.g. 'NDLS', 'PNBE', 'SNP')
+ */
+export function resolveStationCode(location) {
+  if (!location) return 'NDLS';
+
+  // 1. Explicit station code properties
+  const directCode = location.code || location.stationCode;
+  if (directCode && /^[A-Za-z]{2,5}$/.test(directCode.trim())) {
+    return directCode.trim().toUpperCase();
+  }
+
+  // 2. Metadata station code
+  const metaCode = location.metadata?.code || location.metadata?.stationCode;
+  if (metaCode && /^[A-Za-z]{2,5}$/.test(metaCode.trim())) {
+    return metaCode.trim().toUpperCase();
+  }
+
+  // 3. Aliases containing an uppercase station code
+  if (Array.isArray(location.aliases)) {
+    const aliasCode = location.aliases.find(
+      (a) => typeof a === 'string' && /^[A-Za-z]{2,5}$/.test(a.trim())
+    );
+    if (aliasCode) return aliasCode.trim().toUpperCase();
+  }
+
+  // 4. Parentheses in displayName or name (e.g. "New Delhi (NDLS)")
+  const parenMatch = (location.displayName || location.name || '').match(/\b([A-Za-z]{2,5})\b/);
+
+  // 5. Clean name & city match against STATION_CODE_MAP
+  const nameClean = (location.name || '').toLowerCase().trim();
+  const cityClean = (location.city || '').toLowerCase().trim();
+
+  if (STATION_CODE_MAP[nameClean]) return STATION_CODE_MAP[nameClean];
+  if (STATION_CODE_MAP[cityClean]) return STATION_CODE_MAP[cityClean];
+
+  for (const [key, code] of Object.entries(STATION_CODE_MAP)) {
+    if (nameClean.includes(key) || cityClean.includes(key)) {
+      return code;
+    }
+  }
+
+  // 6. Name directly matches 2-5 capital letters
+  if (/^[A-Za-z]{2,5}$/.test(nameClean)) {
+    return nameClean.toUpperCase();
+  }
+
+  if (parenMatch && /^[A-Z]{2,5}$/.test(parenMatch[1])) {
+    return parenMatch[1].toUpperCase();
+  }
+
+  // Fallback: sanitized uppercase city or name
+  const fallback = (location.city || location.name || 'NDLS')
+    .toUpperCase()
+    .replace(/[^A-Z]/g, '')
+    .slice(0, 4);
+  return fallback || 'NDLS';
+}
+
+/**
  * Rail Transport Provider Adapter
- * Connects to Indian Railways / IRCTC or configured external rail scheduling gateway.
+ * Connects to RailRadar live API (https://api.railradar.in/v1) or configured external rail gateway.
  *
  * Owns:
- * - Rail API authentication & headers
- * - Station query parameter translation
+ * - Rail API authentication & headers (Bearer token & X-API-Key)
+ * - Station query parameter and path translation
  * - Response schema validation & timing verification
- * - Fare extraction and leg formatting
+ * - Dynamic fare calculation and leg formatting
  */
 export class RailTransportProvider extends BaseTransportProvider {
   constructor(options = {}) {
     super({
-      name: 'Indian Railways Provider (IRCTC)',
+      name: 'Indian Railways Provider (RailRadar)',
       code: 'IRCTC',
       mode: 'rail',
       enabled: options.enabled ?? config.providers.rail.enabled,
@@ -28,19 +285,32 @@ export class RailTransportProvider extends BaseTransportProvider {
   }
 
   /**
+   * Safely extracts the array of train schedule items from various payload shapes:
+   * - RailRadar: { data: { trains: [...] } } or { trains: [...] }
+   * - Legacy/Mock: { trains: [...] } or { data: [...] } or direct array [...]
+   *
+   * @param {Object|Array} rawResponse
+   * @returns {Array|null} Array of train records, or null if malformed
+   */
+  extractTrains(rawResponse) {
+    if (!rawResponse) return null;
+    if (Array.isArray(rawResponse)) return rawResponse;
+    if (Array.isArray(rawResponse.trains)) return rawResponse.trains;
+    if (Array.isArray(rawResponse.data)) return rawResponse.data;
+    if (rawResponse.data && Array.isArray(rawResponse.data.trains)) return rawResponse.data.trains;
+    if (rawResponse.success && rawResponse.data && Array.isArray(rawResponse.data.trains)) {
+      return rawResponse.data.trains;
+    }
+    return null;
+  }
+
+  /**
    * Validates external rail API response structure.
    */
   validateResponse(rawResponse) {
     super.validateResponse(rawResponse);
 
-    // Accept either { trains: [...] } or direct array
-    const trains = Array.isArray(rawResponse)
-      ? rawResponse
-      : Array.isArray(rawResponse.trains)
-        ? rawResponse.trains
-        : Array.isArray(rawResponse.data)
-          ? rawResponse.data
-          : null;
+    const trains = this.extractTrains(rawResponse);
 
     if (!trains) {
       throw new ProviderError('Rail provider returned payload missing train schedule records.', {
@@ -55,7 +325,8 @@ export class RailTransportProvider extends BaseTransportProvider {
     // Validate structure of individual train items
     for (let i = 0; i < trains.length; i++) {
       const train = trains[i];
-      if (!train.trainNumber && !train.number && !train.id) {
+      const trainNum = train.train?.number || train.trainNumber || train.number || train.id;
+      if (!trainNum) {
         throw new ProviderError(`Rail item at index ${i} missing train identifier.`, {
           provider: 'rail',
           code: 'PROVIDER_MALFORMED_RESPONSE',
@@ -63,7 +334,10 @@ export class RailTransportProvider extends BaseTransportProvider {
           retryable: false,
         });
       }
-      if (!train.departureTime || !train.arrivalTime) {
+
+      const dep = train.from?.departure || train.departureTime || train.journeySegment?.departureTime;
+      const arr = train.to?.arrival || train.arrivalTime || train.journeySegment?.arrivalTime;
+      if (!dep || !arr) {
         throw new ProviderError(`Rail item at index ${i} missing schedule timestamps.`, {
           provider: 'rail',
           code: 'PROVIDER_MALFORMED_RESPONSE',
@@ -86,8 +360,8 @@ export class RailTransportProvider extends BaseTransportProvider {
       return this.unavailable('Rail provider is disabled in configuration');
     }
 
-    const apiUrl = options.apiUrl || this.apiUrl;
-    const apiKey = options.apiKey || this.apiKey;
+    const apiUrl = options.apiUrl || this.apiUrl || config.providers.rail.apiUrl;
+    const apiKey = options.apiKey || this.apiKey || config.providers.rail.apiKey;
     const fetchFn = options.fetchFn || this.fetchFn;
 
     // Check if external API credentials exist
@@ -98,8 +372,6 @@ export class RailTransportProvider extends BaseTransportProvider {
     }
 
     const { origin, destination, departureDate, passengers = 1 } = request || {};
-    const fromStation = origin.name || origin.city || 'ORIGIN';
-    const toStation = destination.name || destination.city || 'DESTINATION';
     const travelDateStr =
       departureDate instanceof Date
         ? departureDate.toISOString().slice(0, 10)
@@ -112,18 +384,29 @@ export class RailTransportProvider extends BaseTransportProvider {
       if (options.mockData) {
         rawResponse = options.mockData;
       } else {
-        const queryParams = new URLSearchParams({
-          from: fromStation,
-          to: toStation,
-          date: travelDateStr,
-        });
-
+        const isRailRadar = apiUrl.toLowerCase().includes('railradar.in');
         const headers = { Accept: 'application/json' };
+
         if (apiKey) {
-          headers['X-API-Key'] = apiKey;
+          headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+          headers['X-API-Key'] = apiKey.trim();
         }
 
-        const endpointUrl = `${apiUrl.replace(/\/$/, '')}/trains/between-stations?${queryParams.toString()}`;
+        let endpointUrl;
+        if (isRailRadar) {
+          const fromCode = resolveStationCode(origin);
+          const toCode = resolveStationCode(destination);
+          endpointUrl = `${apiUrl.replace(/\/$/, '')}/trains/between/${encodeURIComponent(fromCode)}/${encodeURIComponent(toCode)}`;
+        } else {
+          const fromStation = origin.name || origin.city || 'ORIGIN';
+          const toStation = destination.name || destination.city || 'DESTINATION';
+          const queryParams = new URLSearchParams({
+            from: fromStation,
+            to: toStation,
+            date: travelDateStr,
+          });
+          endpointUrl = `${apiUrl.replace(/\/$/, '')}/trains/between-stations?${queryParams.toString()}`;
+        }
 
         const res = await httpFetch(endpointUrl, {
           method: 'GET',
@@ -137,9 +420,7 @@ export class RailTransportProvider extends BaseTransportProvider {
 
       this.validateResponse(rawResponse);
 
-      const trainList = Array.isArray(rawResponse)
-        ? rawResponse
-        : rawResponse.trains || rawResponse.data || [];
+      const trainList = this.extractTrains(rawResponse) || [];
 
       if (trainList.length === 0) {
         return this.empty(rawResponse, { durationMs: Date.now() - startTime });
@@ -153,40 +434,75 @@ export class RailTransportProvider extends BaseTransportProvider {
       const day = !isNaN(parsedDepDate.getTime()) ? parsedDepDate.getUTCDate() : 1;
 
       for (const item of trainList) {
-        const trainNum = String(item.trainNumber || item.number || '12001');
-        const trainName = item.trainName || item.name || 'Express Train';
+        const trainNum = String(item.train?.number || item.trainNumber || item.number || '12001');
+        const trainName = item.train?.name || item.trainName || item.name || 'Express Train';
+        const trainType = item.train?.type || item.type || 'Express';
+
+        const depStr = String(
+          item.from?.departure || item.departureTime || item.journeySegment?.departureTime || '06:00'
+        );
+        const arrStr = String(
+          item.to?.arrival || item.arrivalTime || item.journeySegment?.arrivalTime || '12:00'
+        );
 
         // Parse timestamps (either ISO date strings or HH:mm time of day)
         let depTime;
         let arrTime;
 
-        if (item.departureTime.includes('T')) {
-          depTime = new Date(item.departureTime);
+        if (depStr.includes('T')) {
+          depTime = new Date(depStr);
         } else {
-          const [dHour, dMin] = item.departureTime.split(':').map((n) => parseInt(n, 10));
-          depTime = new Date(Date.UTC(year, month, day, dHour || 6, dMin || 0, 0));
+          const [dHour, dMin] = depStr.split(':').map((n) => parseInt(n, 10));
+          depTime = new Date(Date.UTC(year, month, day, isNaN(dHour) ? 6 : dHour, isNaN(dMin) ? 0 : dMin, 0));
         }
 
-        if (item.arrivalTime.includes('T')) {
-          arrTime = new Date(item.arrivalTime);
-        } else {
-          const [aHour, aMin] = item.arrivalTime.split(':').map((n) => parseInt(n, 10));
-          // If arrival hour < departure hour, train arrives next calendar day
-          const dayOffset = (aHour || 0) < (depTime.getUTCHours() || 0) ? 1 : 0;
-          arrTime = new Date(Date.UTC(year, month, day + dayOffset, aHour || 14, aMin || 0, 0));
+        // Determine multi-day offset
+        let dayOffset = 0;
+        if (item.to?.day && item.from?.day && item.to.day > item.from.day) {
+          dayOffset = item.to.day - item.from.day;
+        } else if (!arrStr.includes('T')) {
+          const [aHour] = arrStr.split(':').map((n) => parseInt(n, 10));
+          const [dHour] = depStr.split(':').map((n) => parseInt(n, 10));
+          if (!isNaN(aHour) && !isNaN(dHour) && aHour < dHour) {
+            dayOffset = 1;
+          }
         }
 
-        const durationMinutes = Math.max(
-          1,
-          Math.round((arrTime.getTime() - depTime.getTime()) / 60000)
-        );
-        const distanceKm = Number(item.distance) || 750;
-        const baseFare = Number(item.price || item.fare) || 1250;
+        if (arrStr.includes('T')) {
+          arrTime = new Date(arrStr);
+        } else {
+          const [aHour, aMin] = arrStr.split(':').map((n) => parseInt(n, 10));
+          arrTime = new Date(
+            Date.UTC(year, month, day + dayOffset, isNaN(aHour) ? 14 : aHour, isNaN(aMin) ? 0 : aMin, 0)
+          );
+        }
+
+        let durationMinutes = Number(item.duration) || 0;
+        if (durationMinutes <= 0) {
+          durationMinutes = Math.max(1, Math.round((arrTime.getTime() - depTime.getTime()) / 60000));
+        }
+
+        const distanceKm = Math.round(Number(item.distance) || 750);
+
+        // Dynamic realistic IRCTC fare estimation if price not provided directly
+        let baseFare = Number(item.price || item.fare);
+        if (!baseFare || baseFare <= 0) {
+          const isPremium = /rajdhani|duronto|shatabdi|tejas|vande bharat/i.test(
+            trainType + ' ' + trainName
+          );
+          const ratePerKm = isPremium ? 1.45 : 1.1;
+          baseFare = Math.max(180, Math.round(distanceKm * ratePerKm));
+        }
         const totalFare = baseFare * Number(passengers || 1);
 
+        const fromStationName =
+          item.from?.name || item.from?.code || origin?.name || origin?.city || 'Station A';
+        const toStationName =
+          item.to?.name || item.to?.code || destination?.name || destination?.city || 'Station B';
+
         candidates.push({
-          origin: origin.id || origin._id,
-          destination: destination.id || destination._id,
+          origin: origin?.id || origin?._id,
+          destination: destination?.id || destination?._id,
           departureTime: depTime,
           arrivalTime: arrTime,
           duration: durationMinutes,
@@ -203,12 +519,16 @@ export class RailTransportProvider extends BaseTransportProvider {
             provider: this.name,
             trainNumber: trainNum,
             trainName: trainName,
+            trainType: trainType,
+            fromStation: fromStationName,
+            toStation: toStationName,
+            runDays: item.train?.runDays || item.runDays || [],
           },
           legs: [
             {
               sequence: 1,
-              origin: origin.id || origin._id,
-              destination: destination.id || destination._id,
+              origin: origin?.id || origin?._id,
+              destination: destination?.id || destination?._id,
               mode: 'rail',
               providerCode: this.code,
               departureTime: depTime,
@@ -225,13 +545,17 @@ export class RailTransportProvider extends BaseTransportProvider {
                 name: trainName,
                 operator: item.operator || 'Indian Railways',
                 class: item.class || '3A',
+                type: trainType,
               },
               booking: {
                 status: item.bookingStatus || 'available',
                 reference: item.pnr || `IRCTC-${trainNum}`,
               },
               metadata: {
-                classes: item.classes || ['SL', '3A', '2A'],
+                classes: item.classes || ['SL', '3A', '2A', '1A'],
+                halts: item.totalHaltsBetween ?? null,
+                fromStation: fromStationName,
+                toStation: toStationName,
               },
             },
           ],
