@@ -25,7 +25,7 @@ export class TransferValidator {
 
     // Flight arrival requires extra time for deplaning, baggage retrieval, and airport exit
     if (prevMode === 'flight') {
-      return 90;
+      return nextMode === 'road' ? 60 : 90;
     }
 
     // Flight departure requires security check-in buffer

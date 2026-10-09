@@ -25,4 +25,22 @@ router.post('/search/natural', optionalAuthenticate, journeyController.searchNat
  */
 router.post('/interpret', optionalAuthenticate, journeyController.interpret);
 
+/**
+ * POST /api/journeys/recover
+ * On-demand railway recovery engine execution.
+ */
+router.post('/recover', optionalAuthenticate, validateJourneySearch, journeyController.recover);
+
+/**
+ * GET /api/journeys/:id/availability
+ * Refresh real-time seat availability for a journey.
+ */
+router.get('/:id/availability', optionalAuthenticate, journeyController.getAvailability);
+
+/**
+ * GET /api/journeys/:id/fare
+ * Refresh real-time fare calculation for a journey.
+ */
+router.get('/:id/fare', optionalAuthenticate, journeyController.getFare);
+
 export default router;

@@ -181,6 +181,39 @@ export const api = {
           timezone,
         }),
       }),
+
+    // Real-Time Railway Journey Recovery
+    recover: ({ origin, destination, departureDate, travelClass, quota, passengers, ranking }) =>
+      request('/journeys/recover', {
+        method: 'POST',
+        body: JSON.stringify({
+          origin,
+          destination,
+          departureDate,
+          travelClass,
+          quota,
+          passengers,
+          ranking,
+        }),
+      }),
+
+    getAvailability: (id) => request(`/journeys/${id}/availability`),
+    getFare: (id) => request(`/journeys/${id}/fare`),
+  },
+
+  // Railway Booking Preparation & Compliance
+  booking: {
+    prepare: ({ journeyId, passengers, travelClass, quota, contactDetails }) =>
+      request('/booking/prepare', {
+        method: 'POST',
+        body: JSON.stringify({
+          journeyId,
+          passengers,
+          travelClass,
+          quota,
+          contactDetails,
+        }),
+      }),
   },
 
   // Phase 13: User Profile & Preferences

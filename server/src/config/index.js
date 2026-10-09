@@ -82,6 +82,18 @@ export const config = Object.freeze({
       timeoutMs: parseInt(process.env.RAIL_TIMEOUT_MS || '5000', 10),
       enabled: process.env.RAIL_ENABLED !== 'false',
     },
+    railradar: {
+      apiKey: process.env.RAILRADAR_API_KEY || process.env.RAIL_API_KEY || null,
+      apiUrl: process.env.RAILRADAR_BASE_URL || process.env.RAIL_API_URL || 'https://api.railradar.in/v1',
+      timeoutMs: parseInt(process.env.RAILRADAR_TIMEOUT_MS || process.env.RAIL_TIMEOUT_MS || '5000', 10),
+      enabled: process.env.RAILRADAR_ENABLED !== 'false' && process.env.RAIL_ENABLED !== 'false',
+    },
+    aopay: {
+      apiKey: process.env.AOPAY_API_KEY || null,
+      baseUrl: process.env.AOPAY_BASE_URL || 'https://api.aopay.in/v1',
+      timeoutMs: parseInt(process.env.AOPAY_TIMEOUT_MS || '5000', 10),
+      enabled: process.env.AOPAY_ENABLED === 'true',
+    },
     bus: {
       apiKey: process.env.BUS_API_KEY || null,
       apiUrl: process.env.BUS_API_URL || null,

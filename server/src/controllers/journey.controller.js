@@ -2,7 +2,12 @@ import journeyOrchestrator from '../orchestration/journeyOrchestrator.js';
 import naturalLanguageParser from '../services/naturalLanguage/naturalLanguageParser.js';
 import locationService from '../services/locationService.js';
 import recentSearchService from '../services/recentSearchService.js';
-import { successResponse } from '../utils/apiResponse.js';
+import journeyRecoveryService from '../services/rail/journeyRecovery.service.js';
+import availabilityService from '../services/rail/availability.service.js';
+import fareService from '../services/rail/fare.service.js';
+import journeyService from '../services/journeyService.js';
+import JourneyLeg from '../models/JourneyLeg.js';
+import { successResponse, errorResponse } from '../utils/apiResponse.js';
 
 /**
  * Journey Search Controller
@@ -220,6 +225,95 @@ export const journeyController = {
       });
 
       return res.status(200).json(response);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  /**
+   * POST /api/journeys/recover
+   * On-demand railway recovery engine endpoint.
+   */
+  async recover(req, res, next) {
+    try {
+      const { origin, destination, departureDate, passengers, preferences, options } = req.body || {};
+      const { originLocation, destLocation } = await journeyOrchestrator.resolveLocations(origin, destination);
+      const searchContext = journeyOrchestrator.buildSearchContext({
+        originLocation,
+        destLocation,
+        departureDate,
+        passengers,
+        preferences,
+      });
+
+      const recoveryResult = await journeyRecoveryService.recoverJourneys(searchContext, options || {});
+      return res.status(200).json(
+        successResponse('Alternative recovery journeys discovered', recoveryResult)
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  /**
+   * GET /api/journeys/:id/availability
+   * Refresh real-time seat availability for a specific journey.
+   */
+  async getAvailability(req, res, next) {
+    try {
+      const journey = await journeyService.findById(req.params.id);
+      if (!journey) {
+        return res.status(404).json(errorResponse('Journey not found', 'NOT_FOUND'));
+      }
+      const legs = await JourneyLeg.find({ journey: journey._id }).sort({ sequence: 1 });
+      const enrichedLegs = await Promise.all(
+        legs.map(async (l) => {
+          const avail = await availabilityService.checkLegAvailability({
+            trainNumber: l.vehicle?.identifier || l.service?.number,
+            fromCode: l.origin?.name || l.origin,
+            toCode: l.destination?.name || l.destination,
+            date: l.departureTime,
+            travelClass: l.service?.class || '3A',
+          });
+          return { ...l.toObject(), availability: avail };
+        })
+      );
+      const evaluation = availabilityService.evaluateJourneyAvailability(enrichedLegs);
+      return res.status(200).json(
+        successResponse('Live availability refreshed', { evaluation, legs: enrichedLegs })
+      );
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  /**
+   * GET /api/journeys/:id/fare
+   * Refresh real-time fare calculation for a specific journey.
+   */
+  async getFare(req, res, next) {
+    try {
+      const journey = await journeyService.findById(req.params.id);
+      if (!journey) {
+        return res.status(404).json(errorResponse('Journey not found', 'NOT_FOUND'));
+      }
+      const legs = await JourneyLeg.find({ journey: journey._id }).sort({ sequence: 1 });
+      const enrichedLegs = await Promise.all(
+        legs.map(async (l) => {
+          const fare = await fareService.getLegFare({
+            trainNumber: l.vehicle?.identifier || l.service?.number,
+            fromCode: l.origin?.name || l.origin,
+            toCode: l.destination?.name || l.destination,
+            travelClass: l.service?.class || '3A',
+            distanceKm: l.distance,
+          });
+          return { ...l.toObject(), pricing: fare, price: fare.totalFare };
+        })
+      );
+      const totalFare = fareService.calculateJourneyTotalFare(enrichedLegs);
+      return res.status(200).json(
+        successResponse('Live fare calculation refreshed', { totalFare, legs: enrichedLegs })
+      );
     } catch (error) {
       return next(error);
     }

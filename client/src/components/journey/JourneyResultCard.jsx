@@ -9,6 +9,10 @@ import {
   Bookmark,
   CheckCircle2,
   GitCompare,
+  Ticket,
+  AlertCircle,
+  ExternalLink,
+  X,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../services/api.js';
@@ -53,6 +57,7 @@ export function JourneyResultCard({
   const [isExpanded, setIsExpanded] = useState(false);
   const [saved, setSaved] = useState(initialSaved || false);
   const [saving, setSaving] = useState(false);
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
 
   useEffect(() => {
     if (initialSaved !== undefined) {
@@ -193,6 +198,35 @@ export function JourneyResultCard({
           >
             {isDirect ? 'Direct' : formatTransfers(transfers)}
           </span>
+
+          {/* Recovery Route Badge */}
+          {journey.isRecoveredAlternative && (
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 shrink-0">
+              Recovered Route
+            </span>
+          )}
+
+          {/* Seat Availability Status Badge */}
+          {(journey.availabilityStatus === 'AVAILABILITY_VERIFIED' || journey.isBookable) && (
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
+              Seats Verified
+            </span>
+          )}
+          {journey.availabilityStatus === 'RAC_ONLY' && (
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
+              RAC
+            </span>
+          )}
+          {journey.availabilityStatus === 'WAITLIST_ONLY' && (
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+              Waitlist
+            </span>
+          )}
+          {journey.availabilityStatus === 'NOT_BOOKABLE' && (
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 shrink-0">
+              Not Bookable
+            </span>
+          )}
         </div>
 
         {/* Header Actions: Compare & Save */}
@@ -362,6 +396,16 @@ export function JourneyResultCard({
                 )}
               </button>
             )}
+            {/* Book / Prepare Action */}
+            <button
+              type="button"
+              onClick={() => setBookingModalOpen(true)}
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
+              aria-label="Book tickets or prepare booking"
+            >
+              <Ticket className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Book / Prepare</span>
+            </button>
           </div>
         </div>
       </div>
@@ -419,6 +463,99 @@ export function JourneyResultCard({
                 nextLeg={legs[index + 1] || null}
               />
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Booking Preparation & IRCTC Compliance Modal */}
+      {bookingModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in"
+          onClick={() => setBookingModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-surface-primary p-6 shadow-2xl space-y-4 text-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <Ticket className="h-5 w-5 text-brand-primary" />
+                <h3 className="text-base font-bold text-text-primary">Booking Preparation</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBookingModalOpen(false)}
+                className="rounded-lg p-1 text-text-tertiary hover:text-text-primary cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="text-xs text-text-secondary space-y-2">
+              <p className="font-semibold text-text-primary">
+                {isDirect
+                  ? 'Direct Train Booking'
+                  : 'Multi-Leg Alternative Journey (Legs Booked Separately)'}
+              </p>
+              <p>
+                {isDirect
+                  ? 'This journey is operated as a single direct train. You can book directly using the train number below on IRCTC or an authorized booking partner.'
+                  : 'Per Indian Railways (IRCTC) booking regulations, connecting journeys cannot be issued under a single unified ticket. Each leg must be booked independently using its specific train number and boarding station. Yatrai has verified seat availability for each leg.'}
+              </p>
+            </div>
+
+            {/* Leg breakdown list */}
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {legs.map((leg, i) => (
+                <div key={i} className="rounded-xl border border-white/10 bg-surface-secondary/70 p-3 text-xs space-y-1">
+                  <div className="flex items-center justify-between font-bold text-text-primary">
+                    <span>Leg {i + 1}: {leg.service?.name || 'Train'} (#{leg.service?.number || leg.trainNumber})</span>
+                    <span className="text-emerald-400 font-mono">₹{leg.fare?.amount || leg.price || 0}</span>
+                  </div>
+                  <div className="text-text-secondary">
+                    {leg.origin?.name || leg.origin?.city} → {leg.destination?.name || leg.destination?.city}
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-text-tertiary">
+                    <span>Class: {leg.service?.class || 'SL'}</span>
+                    <span>· Status: {leg.availability?.status || 'VERIFIED'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Total Fare & Compliance Warning */}
+            <div className="flex items-center justify-between border-t border-white/10 pt-2 text-xs">
+              <span className="text-text-secondary font-medium">Total Estimated Fare:</span>
+              <span className="text-base font-bold font-mono text-text-primary">{priceText}</span>
+            </div>
+
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-300 flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+              <span>
+                Yatrai does not store sensitive payment details or auto-book without your explicit IRCTC account authorization.
+              </span>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setBookingModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary cursor-pointer"
+              >
+                Close
+              </button>
+              <a
+                href="https://www.irctc.co.in/nget/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-xs font-bold text-white shadow hover:bg-brand-hover cursor-pointer"
+              >
+                <span>Continue to IRCTC</span>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </div>
           </div>
         </div>
       )}

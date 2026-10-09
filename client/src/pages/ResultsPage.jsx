@@ -11,6 +11,8 @@ import {
   ChevronDown,
   ChevronUp,
   GitCompare,
+  Network,
+  Loader2,
 } from 'lucide-react';
 import RankingSelector from '../components/journey/RankingSelector.jsx';
 import JourneyResultCard from '../components/journey/JourneyResultCard.jsx';
@@ -67,6 +69,11 @@ export function ResultsPage({
   const [comparedJourneyIds, setComparedJourneyIds] = useState([]);
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
 
+  // Station expansion recovery exploration state
+  const [isRecoveringAlternatives, setIsRecoveringAlternatives] = useState(false);
+  const [optionalAlternatives, setOptionalAlternatives] = useState([]);
+  const [recoveryError, setRecoveryError] = useState(null);
+
   const handleViewJourney = (journey) => {
     setSelectedJourney(journey);
     if (isAuthenticated && journey?.id) {
@@ -108,10 +115,37 @@ export function ResultsPage({
   const formattedDate = formatDateDisplay(travelDate);
   const passengers = searchParams?.passengers || 1;
 
-  // Canonical backend journeys
+  // Canonical backend journeys (including any recovered alternatives)
   const backendJourneys = useMemo(() => {
-    return Array.isArray(data?.journeys) ? data.journeys : [];
-  }, [data?.journeys]);
+    const primary = Array.isArray(data?.journeys) ? data.journeys : [];
+    if (!optionalAlternatives || optionalAlternatives.length === 0) return primary;
+    const existingIds = new Set(primary.map((j) => j.id));
+    const newItems = optionalAlternatives.filter((j) => !existingIds.has(j.id));
+    return [...primary, ...newItems];
+  }, [data?.journeys, optionalAlternatives]);
+
+  const recoveryMeta = data?.recoveryMeta || null;
+
+  const handleExploreAlternatives = async () => {
+    setIsRecoveringAlternatives(true);
+    setRecoveryError(null);
+    try {
+      const res = await api.journeys.recover({
+        origin: userOrigin,
+        destination: userDest,
+        departureDate: travelDate,
+        passengers,
+        ranking: activeRanking,
+      });
+      if (res?.data?.journeys) {
+        setOptionalAlternatives(res.data.journeys);
+      }
+    } catch (err) {
+      setRecoveryError(err.message || 'Unable to explore network alternatives at this time');
+    } finally {
+      setIsRecoveringAlternatives(false);
+    }
+  };
 
   // Section 5: Exact numbers derived from real result data
   const journeyStats = useMemo(() => {
@@ -268,6 +302,30 @@ export function ResultsPage({
               </button>
             )}
 
+            {/* Explore Alternatives Button (only when recovery wasn't already triggered) */}
+            {backendJourneys.length > 0 && !recoveryMeta?.recoveryTriggered && (
+              <button
+                type="button"
+                onClick={handleExploreAlternatives}
+                disabled={isRecoveringAlternatives}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3.5 py-2 text-xs font-semibold text-indigo-300 hover:bg-indigo-500/20 transition-all cursor-pointer disabled:opacity-50"
+                title="Search connecting routes via railway network expansion"
+              >
+                {isRecoveringAlternatives ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Network className="h-3.5 w-3.5 text-indigo-400" />
+                )}
+                <span>
+                  {isRecoveringAlternatives
+                    ? 'Exploring network...'
+                    : optionalAlternatives.length > 0
+                    ? `${optionalAlternatives.length} alternatives added`
+                    : 'Explore alternatives'}
+                </span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onNavigateHome}
@@ -277,6 +335,34 @@ export function ResultsPage({
             </button>
           </div>
         </div>
+
+        {/* Railway Recovery Engine Banner */}
+        {recoveryMeta?.recoveryTriggered && (
+          <div
+            role="status"
+            className="mt-4 rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-xs text-indigo-300"
+          >
+            <div className="flex items-start gap-3">
+              <Sparkles className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" aria-hidden="true" />
+              <div className="space-y-1">
+                <div className="font-bold text-sm text-indigo-200">
+                  {backendJourneys.length > 0
+                    ? 'No suitable direct train was available. Alternative journeys recovered.'
+                    : 'No suitable direct train is available. Yatrai is finding alternative routes.'}
+                </div>
+                <p className="text-xs text-indigo-300/90 leading-relaxed">
+                  {recoveryMeta.reason ||
+                    'Direct trains were unavailable or waitlisted. Yatrai explored railway-network stations backward and forward along physical corridors to uncover verified connecting alternatives.'}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-indigo-300/75">
+                  <span>• Network expansion: up to {recoveryMeta.originHops || 5} origin hops &amp; {recoveryMeta.destinationHops || 5} destination hops</span>
+                  <span>• Independent leg availability verified</span>
+                  <span>• Connections checked for safety</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Compact Provider Availability Warning (Section 6) */}
         {hasPartialFailures && (

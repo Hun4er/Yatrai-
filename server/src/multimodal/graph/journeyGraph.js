@@ -58,10 +58,13 @@ export class JourneyGraph {
       const name = idOrLocation.name ? idOrLocation.name.toLowerCase().trim() : '';
       if (name && this.aliasMap.has(name)) return this.aliasMap.get(name);
 
-      const city = idOrLocation.city ? idOrLocation.city.toLowerCase().trim() : '';
-      if (city && this.aliasMap.has(city)) return this.aliasMap.get(city);
+      // Only check city alias if no specific name was given
+      if (!name) {
+        const city = idOrLocation.city ? idOrLocation.city.toLowerCase().trim() : '';
+        if (city && this.aliasMap.has(city)) return this.aliasMap.get(city);
+      }
 
-      return name || city || oid || 'unknown';
+      return name || (idOrLocation.city ? idOrLocation.city.toLowerCase().trim() : '') || oid || 'unknown';
     }
 
     const clean = String(idOrLocation).toLowerCase().trim();
@@ -114,7 +117,9 @@ export class JourneyGraph {
     this.aliasMap.set(canonicalId, canonicalId);
     if (rawId) this.aliasMap.set(rawId.toLowerCase(), canonicalId);
     if (rawName) this.aliasMap.set(rawName.toLowerCase().trim(), canonicalId);
-    if (locationData.city) this.aliasMap.set(locationData.city.toLowerCase().trim(), canonicalId);
+    if (locationData.city && (!rawName || rawName.toLowerCase() === locationData.city.toLowerCase())) {
+      this.aliasMap.set(locationData.city.toLowerCase().trim(), canonicalId);
+    }
     if (locationData.stationCode) this.aliasMap.set(String(locationData.stationCode).toLowerCase().trim(), canonicalId);
     if (locationData.code) this.aliasMap.set(String(locationData.code).toLowerCase().trim(), canonicalId);
 

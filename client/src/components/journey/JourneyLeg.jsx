@@ -181,7 +181,59 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = f
                   {serviceNumber && (
                     <span className="font-mono text-text-secondary">#{serviceNumber}</span>
                   )}
+                  {leg.quota && (
+                    <span className="text-text-tertiary">· Quota: {leg.quota}</span>
+                  )}
+                  {leg.fare?.amount !== undefined && (
+                    <span className="font-semibold text-emerald-400">
+                      · ₹{leg.fare.amount}{leg.fare.isEstimated ? ' (est)' : ''}
+                    </span>
+                  )}
                 </div>
+
+                {/* Real-Time Leg Availability & Live Status */}
+                {leg.availability && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 pt-2 border-t border-white/5 text-[11px]">
+                    {leg.availability.status === 'AVAILABLE' && (
+                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                        AVAILABLE {leg.availability.seatsAvailable ? `(${leg.availability.seatsAvailable})` : ''}
+                      </span>
+                    )}
+                    {leg.availability.status === 'RAC' && (
+                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                        RAC {leg.availability.seatsAvailable ? `(${leg.availability.seatsAvailable})` : ''}
+                      </span>
+                    )}
+                    {leg.availability.status === 'WAITLISTED' && (
+                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                        WAITLISTED
+                      </span>
+                    )}
+                    {leg.availability.status === 'NOT_AVAILABLE' && (
+                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                        NOT AVAILABLE
+                      </span>
+                    )}
+                    {leg.availability.status === 'UNKNOWN' && (
+                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-medium bg-white/5 text-text-tertiary border border-white/10">
+                        AVAILABILITY UNKNOWN
+                      </span>
+                    )}
+
+                    {leg.availability.queryTimestamp && (
+                      <span className="text-text-tertiary text-[10px]">
+                        Checked {new Date(leg.availability.queryTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Live Running Delay Warning */}
+                {leg.liveStatus?.delayMinutes > 5 && (
+                  <div className="mt-1.5 text-[11px] text-amber-400 font-medium">
+                    ⚠️ Running ~{leg.liveStatus.delayMinutes} mins late
+                  </div>
+                )}
               </div>
             </div>
           </div>

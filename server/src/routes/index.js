@@ -11,6 +11,7 @@ import journeyHistoryRoutes from './journeyHistory.routes.js';
 import notificationRoutes from './notification.routes.js';
 import adminRoutes from './admin.routes.js';
 import providerRoutes from './provider.routes.js';
+import bookingRoutes from './booking.routes.js';
 
 const apiRouter = Router();
 
@@ -97,6 +98,9 @@ apiRouter.use('/admin', adminRoutes);
 
 // Mount /api/providers
 apiRouter.use('/providers', providerRoutes);
+
+// Mount /api/booking
+apiRouter.use('/booking', bookingRoutes);
 
 export default apiRouter;
 

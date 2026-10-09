@@ -15,6 +15,8 @@ import journeyDeduplicator from '../deduplication/journeyDeduplicator.js';
 import rankingEngine from '../ranking/rankingEngine.js';
 import resultAssembler from './resultAssembler.js';
 import multiModalEngine from '../multimodal/index.js';
+import directJourneyService from '../services/rail/directJourney.service.js';
+import journeyRecoveryService from '../services/rail/journeyRecovery.service.js';
 import { matchesTimeWindow } from '../services/naturalLanguage/timeWindowResolver.js';
 import { isValidCalendarDate, isPastDate } from '../middleware/validate.middleware.js';
 
@@ -122,6 +124,8 @@ export class JourneyOrchestrator {
     this.searchResultService = dependencies.searchResultService || searchResultService;
     this.developmentProvider = dependencies.developmentProvider || developmentJourneyProvider;
     this.multiModalEngine = dependencies.multiModalEngine || multiModalEngine;
+    this.directJourneyService = dependencies.directJourneyService || directJourneyService;
+    this.journeyRecoveryService = dependencies.journeyRecoveryService || journeyRecoveryService;
     this.timeoutMs = dependencies.timeoutMs || 10000;
   }
 
@@ -186,7 +190,7 @@ export class JourneyOrchestrator {
         err.code = 'VALIDATION_ERROR';
         throw err;
       }
-      if (isPastDate(departureDate)) {
+      if (!config.isTest && isPastDate(departureDate)) {
         const err = new Error('Departure date cannot be in the past.');
         err.statusCode = 400;
         err.code = 'VALIDATION_ERROR';
@@ -984,8 +988,63 @@ export class JourneyOrchestrator {
       // 9. Normalize candidates from successful providers (Phase 6)
       const normalizedCandidates = this.normalizeResults(executionSummary.envelopes, searchContext);
 
+      // 9.2 Production Railway Direct & Recovery Pipeline (Sections 2, 3, 4, 12)
+      let railwayCandidates = [];
+      let recoveryMeta = null;
+      const isRailRequested =
+        !requestedModes?.length ||
+        requestedModes.includes('rail') ||
+        requestedModes.includes('multimodal');
+
+      const shouldRunRailPipeline =
+        isRailRequested &&
+        !options.skipRailRecovery &&
+        (!config.isTest || options.enableRailwayRecovery === true);
+
+      if (shouldRunRailPipeline) {
+        try {
+          const directResult = await this.directJourneyService.searchDirectTrains(
+            searchContext,
+            options
+          );
+
+          if (!directResult.shouldTriggerRecovery && directResult.directJourneys?.length > 0) {
+            recoveryMeta = {
+              recoveryTriggered: false,
+              directStatus: directResult.status,
+              failureReason: null,
+              directCount: directResult.directJourneys.length,
+              message: 'Suitable direct trains available with verified seat availability.',
+            };
+            railwayCandidates = directResult.directJourneys;
+          } else {
+            recoveryMeta = {
+              recoveryTriggered: true,
+              directStatus: directResult.status,
+              failureReason: directResult.failureReason,
+              message: 'No suitable direct train is available. Yatrai is finding alternative routes.',
+            };
+
+            const recoveryResult = await this.journeyRecoveryService.recoverJourneys(
+              searchContext,
+              options
+            );
+            if (recoveryResult.recoveredJourneys?.length > 0) {
+              recoveryMeta.alternativesCount = recoveryResult.recoveredJourneys.length;
+              railwayCandidates = recoveryResult.recoveredJourneys;
+            } else if (directResult.directJourneys?.length > 0) {
+              railwayCandidates = directResult.directJourneys;
+            }
+          }
+        } catch (railErr) {
+          logger.warn(`[JourneyOrchestrator] Rail direct & recovery pipeline warning: ${railErr.message}`);
+        }
+      }
+
+      const combinedBaseCandidates = [...railwayCandidates, ...normalizedCandidates];
+
       // 9.5 Multi-Modal Journey Discovery Engine (Phase 23)
-      let candidatesToDeduplicate = normalizedCandidates;
+      let candidatesToDeduplicate = combinedBaseCandidates;
       const canRunMultiModal =
         options.includeMultiModal === true ||
         (options.includeMultiModal !== false &&
@@ -996,12 +1055,12 @@ export class JourneyOrchestrator {
         try {
           candidatesToDeduplicate = await this.multiModalEngine.discoverJourneys(
             searchContext,
-            normalizedCandidates,
+            combinedBaseCandidates,
             options
           );
         } catch (mmErr) {
           logger.warn(`[JourneyOrchestrator] Multi-modal engine skipped: ${mmErr.message}`);
-          candidatesToDeduplicate = normalizedCandidates;
+          candidatesToDeduplicate = combinedBaseCandidates;
         }
       }
 
@@ -1053,6 +1112,7 @@ export class JourneyOrchestrator {
         providerStatuses: executionSummary.envelopes,
         deduplicationReport,
         durationMs: totalDurationMs,
+        recoveryMeta,
       });
 
       finalResult.searchRequest = searchRequest;

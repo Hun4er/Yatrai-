@@ -89,6 +89,7 @@ export class ResultAssembler {
     deduplicationReport = {},
     durationMs = 0,
     searchedAt,
+    recoveryMeta = null,
   }) {
     const formattedOrigin = this.formatLocation(origin);
     const formattedDest = this.formatLocation(destination);
@@ -106,6 +107,10 @@ export class ResultAssembler {
       providersFailed: failedProviders,
       resultCount: journeys.length,
     };
+
+    if (recoveryMeta) {
+      meta.recovery = recoveryMeta;
+    }
 
     if (deduplicationReport && Object.keys(deduplicationReport).length > 0) {
       meta.deduplication = {
@@ -126,6 +131,7 @@ export class ResultAssembler {
         strategy: rankingStrategy.id || rankingStrategy.strategy || 'overall',
         label: rankingStrategy.name || rankingStrategy.label || 'Best Overall',
       },
+      recoveryMeta: recoveryMeta || null,
       meta,
       journeys,
     };
