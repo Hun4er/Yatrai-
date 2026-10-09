@@ -377,11 +377,9 @@ export class JourneyOrchestrator {
     if (Array.isArray(options.providers) && options.providers.length > 0) {
       return options.providers;
     }
-    if (Array.isArray(searchContext.candidateSources) && searchContext.candidateSources.length > 0) {
-      return searchContext.candidateSources;
-    }
-
-    const { requestedModes } = searchContext;
+    // Railway-only MVP enforcement: active orchestration queries only railway providers when railwayOnly is true
+    const isRailwayOnly = options.railwayOnly === true;
+    const requestedModes = isRailwayOnly ? ['rail'] : searchContext.requestedModes;
     let selected = [];
 
     if (typeof this.providerRegistry.getProviders === 'function') {
@@ -418,6 +416,46 @@ export class JourneyOrchestrator {
     }
 
     return selected;
+  }
+
+  /**
+   * Validates that a candidate journey conforms strictly to the Indian Railways domain model.
+   * Rejects road, bus, flight, OSRM candidates, and unknown transport modes at the backend validation boundary.
+   *
+   * @param {Object} candidate
+   * @returns {boolean}
+   */
+  validateRailwayCandidate(candidate) {
+    if (!candidate || typeof candidate !== 'object') return false;
+
+    // Reject missing, unknown, or non-rail transport modes
+    const modes = Array.isArray(candidate.transportModes) ? candidate.transportModes : [];
+    if (modes.length === 0) return false;
+    const hasNonRailMode = modes.some((m) => String(m).toLowerCase() !== 'rail');
+    if (hasNonRailMode) return false;
+
+    // Reject missing legs or non-rail legs
+    const legs = Array.isArray(candidate.legs) ? candidate.legs : [];
+    if (legs.length === 0) return false;
+    const hasNonRailLeg = legs.some((leg) => {
+      const mode = String(leg?.mode || '').toLowerCase();
+      return mode !== 'rail';
+    });
+    if (hasNonRailLeg) return false;
+
+    // Reject road/driving/OSRM/bus/flight sources or providers
+    const source = String(candidate.source || candidate.metadata?.source || '').toLowerCase();
+    const providerCode = String(candidate.metadata?.provider || candidate.provider || candidate.providerCode || '').toLowerCase();
+    const vehicleType = String(candidate.legs?.[0]?.vehicle?.type || '').toLowerCase();
+    if (
+      ['osrm', 'road', 'bus', 'flight', 'car', 'cab', 'driving'].some(
+        (s) => source.includes(s) || providerCode.includes(s) || vehicleType.includes(s)
+      )
+    ) {
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -967,6 +1005,29 @@ export class JourneyOrchestrator {
         executionSummary.successfulCount === 0 &&
         executionSummary.emptyCount === 0
       ) {
+        // Detect if provider failure was caused by rate limiting
+        const rateLimitedEnvelope = executionSummary.envelopes.find(
+          (e) =>
+            e.error?.code === 'PROVIDER_RATE_LIMITED' ||
+            e.error?.code === 'RATE_LIMITED' ||
+            e.error?.statusCode === 429 ||
+            /rate limit|quota exceeded|too many requests|429/i.test(e.error?.message || '')
+        );
+
+        if (rateLimitedEnvelope) {
+          const err = new Error(
+            'Railway search is temporarily rate-limited. Please try again shortly.'
+          );
+          err.statusCode = 429;
+          err.code = 'PROVIDER_RATE_LIMITED';
+          err.details = {
+            provider: rateLimitedEnvelope.provider,
+            isRateLimited: true,
+            originalError: rateLimitedEnvelope.error?.message,
+          };
+          throw err;
+        }
+
         const isAllUnavailable =
           executionSummary.unavailableCount > 0 &&
           executionSummary.unavailableCount === executionSummary.totalCount;
@@ -1008,29 +1069,50 @@ export class JourneyOrchestrator {
             options
           );
 
-          if (!directResult.shouldTriggerRecovery && directResult.directJourneys?.length > 0) {
+          if (directResult.isRateLimited) {
+            recoveryMeta = {
+              recoveryTriggered: false,
+              isRateLimited: true,
+              directStatus: 'RATE_LIMITED',
+              failureReason: directResult.failureReason || 'Railway search is temporarily rate-limited. Please try again shortly.',
+              message: directResult.failureReason || 'Railway search is temporarily rate-limited. Please try again shortly.',
+              directCount: 0,
+              additionalDirectCount: 0,
+              hasMoreDirect: false,
+            };
+          } else if (!directResult.shouldTriggerRecovery && directResult.directJourneys?.length > 0) {
             recoveryMeta = {
               recoveryTriggered: false,
               directStatus: directResult.status,
               failureReason: null,
               directCount: directResult.directJourneys.length,
-              message: 'Suitable direct trains available with verified seat availability.',
+              bestDirectJourney: directResult.bestDirectJourney || directResult.directJourneys[0],
+              additionalDirectCount: Math.max(0, directResult.directJourneys.length - 1),
+              hasMoreDirect: directResult.directJourneys.length > 1,
+              message: 'Suitable direct train available with verified confirmed-seat availability.',
             };
             railwayCandidates = directResult.directJourneys;
           } else {
-            recoveryMeta = {
-              recoveryTriggered: true,
-              directStatus: directResult.status,
-              failureReason: directResult.failureReason,
-              message: 'No suitable direct train is available. Yatrai is finding alternative routes.',
-            };
-
             const recoveryResult = await this.journeyRecoveryService.recoverJourneys(
               searchContext,
               options
             );
+
+            recoveryMeta = {
+              recoveryTriggered: true,
+              directStatus: directResult.status,
+              failureReason: directResult.failureReason,
+              message: 'No confirmed direct train seats found. Yatrai is finding alternative routes.',
+              reason: directResult.failureReason || 'Direct trains have no confirmed seats available.',
+              originHops: recoveryResult.originExpansionHops || 5,
+              destinationHops: recoveryResult.destinationExpansionHops || 5,
+              alternativesCount: recoveryResult.recoveredJourneys?.length || 0,
+              bestAlternative: recoveryResult.bestAlternative || recoveryResult.recoveredJourneys?.[0],
+              additionalAlternativesCount: Math.max(0, (recoveryResult.recoveredJourneys?.length || 0) - 1),
+              hasMoreAlternatives: (recoveryResult.recoveredJourneys?.length || 0) > 1,
+            };
+
             if (recoveryResult.recoveredJourneys?.length > 0) {
-              recoveryMeta.alternativesCount = recoveryResult.recoveredJourneys.length;
               railwayCandidates = recoveryResult.recoveredJourneys;
             } else if (directResult.directJourneys?.length > 0) {
               railwayCandidates = directResult.directJourneys;
@@ -1041,15 +1123,24 @@ export class JourneyOrchestrator {
         }
       }
 
-      const combinedBaseCandidates = [...railwayCandidates, ...normalizedCandidates];
+      // Combine railway pipeline candidates if present, else preserve normalized candidates
+      let combinedBaseCandidates = railwayCandidates.length > 0
+        ? railwayCandidates
+        : normalizedCandidates;
+
+      // In railway search MVP, strictly reject road, bus, flight, and OSRM candidates
+      const isRailwaySearch = options.railwayOnly === true;
+      if (isRailwaySearch) {
+        combinedBaseCandidates = combinedBaseCandidates.filter((c) => this.validateRailwayCandidate(c));
+      }
 
       // 9.5 Multi-Modal Journey Discovery Engine (Phase 23)
       let candidatesToDeduplicate = combinedBaseCandidates;
       const canRunMultiModal =
-        options.includeMultiModal === true ||
-        (options.includeMultiModal !== false &&
-          !config.isTest &&
-          (!requestedModes?.length || requestedModes.includes('multimodal')));
+        options.includeMultiModal === true &&
+        !config.isTest &&
+        Array.isArray(requestedModes) &&
+        requestedModes.includes('multimodal');
 
       if (canRunMultiModal && this.multiModalEngine && typeof this.multiModalEngine.discoverJourneys === 'function') {
         try {
@@ -1064,6 +1155,11 @@ export class JourneyOrchestrator {
         }
       }
 
+      // Final validation boundary before deduplication and persistence
+      if (isRailwaySearch) {
+        candidatesToDeduplicate = candidatesToDeduplicate.filter((c) => this.validateRailwayCandidate(c));
+      }
+
       // 10. Deduplicate canonical journeys (Phase 8)
       const { uniqueJourneys, deduplicationReport } = this.deduplicate(candidatesToDeduplicate, searchContext);
 
@@ -1072,6 +1168,10 @@ export class JourneyOrchestrator {
 
       // 11.5 Apply deterministic search constraints (Budget & Time Window - Phase 11)
       let candidateJourneys = persistedJourneys;
+      if (isRailwaySearch) {
+        candidateJourneys = candidateJourneys.filter((j) => this.validateRailwayCandidate(j));
+      }
+
       if (
         preferences.maxBudget !== undefined &&
         preferences.maxBudget !== null &&
@@ -1113,6 +1213,7 @@ export class JourneyOrchestrator {
         deduplicationReport,
         durationMs: totalDurationMs,
         recoveryMeta,
+        options,
       });
 
       finalResult.searchRequest = searchRequest;

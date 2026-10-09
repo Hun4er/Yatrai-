@@ -297,33 +297,22 @@ export class RailRadarAdapter {
           };
         }
       } catch {
-        // Will calculate tariff fallback below
+        // Fare unavailable from RailRadar
       }
 
-      // Approved, documented IRCTC telescopic tariff calculation formula
-      const dist = Math.max(distanceKm || 500, 50);
-      const classMultipliers = {
-        '1A': 3.4,
-        '2A': 2.1,
-        '3A': 1.45,
-        '3E': 1.35,
-        CC: 1.25,
-        SL: 0.55,
-        '2S': 0.32,
-      };
-      const multiplier = classMultipliers[travelClass] || 1.35;
-      const baseFare = Math.round(dist * multiplier + 40); // 40 = reservation/superfast surcharge
-
+      // Requirement 2: Do not invent or extrapolate railway fares from unsupported assumptions.
+      // If RailRadar does not expose a verified fare, return fareUnavailable.
       return {
-        success: true,
+        success: false,
         provider: this.name,
         trainNumber: num,
         travelClass,
-        baseFare,
-        totalFare: baseFare,
+        baseFare: null,
+        totalFare: null,
         currency: 'INR',
-        isEstimated: true,
-        source: 'irctc_tariff_schedule',
+        isEstimated: false,
+        source: null,
+        fareUnavailable: true,
         lastUpdated: new Date().toISOString(),
       };
     });

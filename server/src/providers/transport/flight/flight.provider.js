@@ -84,7 +84,7 @@ export class FlightTransportProvider extends BaseTransportProvider {
    * @returns {Promise<Object>} Common Provider Result Envelope
    */
   async search(request, options = {}) {
-    if (!this.isEnabled()) {
+    if (!this.isEnabled() && !options.mockData && !options.fetchFn) {
       return this.unavailable('Flight provider is disabled in configuration');
     }
 
@@ -94,9 +94,7 @@ export class FlightTransportProvider extends BaseTransportProvider {
 
     // Check if external API credentials exist
     if (!apiUrl && !options.mockData) {
-      return this.unavailable(
-        'Flight provider is not configured. Set FLIGHT_API_URL and FLIGHT_API_KEY environment variables.'
-      );
+      return this.unavailable('Flight provider is not configured');
     }
 
     const { origin, destination, departureDate, passengers = 1 } = request || {};

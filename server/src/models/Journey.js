@@ -47,8 +47,9 @@ const JourneySchema = new Schema(
     },
     totalPrice: {
       type: Number,
-      required: [true, 'Total price is required'],
+      required: false,
       min: [0, 'Total price cannot be negative'],
+      default: null,
     },
     currency: {
       type: String,

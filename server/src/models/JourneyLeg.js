@@ -73,7 +73,7 @@ const JourneyLegSchema = new Schema(
     price: {
       type: Number,
       min: [0, 'Price cannot be negative'],
-      default: 0,
+      default: null,
     },
     currency: {
       type: String,

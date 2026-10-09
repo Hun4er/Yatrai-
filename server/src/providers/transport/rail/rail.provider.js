@@ -2,6 +2,7 @@ import config from '../../../config/index.js';
 import { BaseTransportProvider } from '../interface.js';
 import { httpFetch } from '../httpClient.js';
 import { ProviderError } from '../errors.js';
+import { calculateJourneyTiming } from '../../../utils/railwayTime.js';
 
 /**
  * Built-in Station Code Mapping for major Indian cities and railway hubs.
@@ -595,55 +596,30 @@ export class RailTransportProvider extends BaseTransportProvider {
           item.to?.arrival || item.arrivalTime || item.journeySegment?.arrivalTime || '12:00'
         );
 
-        // Parse timestamps (either ISO date strings or HH:mm time of day)
-        let depTime;
-        let arrTime;
-
-        if (depStr.includes('T')) {
-          depTime = new Date(depStr);
-        } else {
-          const [dHour, dMin] = depStr.split(':').map((n) => parseInt(n, 10));
-          depTime = new Date(Date.UTC(year, month, day, isNaN(dHour) ? 6 : dHour, isNaN(dMin) ? 0 : dMin, 0));
-        }
-
-        // Determine multi-day offset
-        let dayOffset = 0;
+        let explicitDayOffset = null;
         if (item.to?.day && item.from?.day && item.to.day > item.from.day) {
-          dayOffset = item.to.day - item.from.day;
-        } else if (!arrStr.includes('T')) {
-          const [aHour] = arrStr.split(':').map((n) => parseInt(n, 10));
-          const [dHour] = depStr.split(':').map((n) => parseInt(n, 10));
-          if (!isNaN(aHour) && !isNaN(dHour) && aHour < dHour) {
-            dayOffset = 1;
-          }
+          explicitDayOffset = item.to.day - item.from.day;
         }
 
-        if (arrStr.includes('T')) {
-          arrTime = new Date(arrStr);
-        } else {
-          const [aHour, aMin] = arrStr.split(':').map((n) => parseInt(n, 10));
-          arrTime = new Date(
-            Date.UTC(year, month, day + dayOffset, isNaN(aHour) ? 14 : aHour, isNaN(aMin) ? 0 : aMin, 0)
-          );
-        }
+        const timing = calculateJourneyTiming(
+          depStr,
+          arrStr,
+          departureDate,
+          explicitDayOffset,
+          item.duration
+        );
 
-        let durationMinutes = Number(item.duration) || 0;
-        if (durationMinutes <= 0) {
-          durationMinutes = Math.max(1, Math.round((arrTime.getTime() - depTime.getTime()) / 60000));
-        }
+        const depTime = timing.departureTime;
+        const arrTime = timing.arrivalTime;
+        const durationMinutes = timing.durationMinutes;
 
         const distanceKm = Math.round(Number(item.distance) || 750);
 
-        // Dynamic realistic IRCTC fare estimation if price not provided directly
-        let baseFare = Number(item.price || item.fare);
-        if (!baseFare || baseFare <= 0) {
-          const isPremium = /rajdhani|duronto|shatabdi|tejas|vande bharat/i.test(
-            trainType + ' ' + trainName
-          );
-          const ratePerKm = isPremium ? 1.45 : 1.1;
-          baseFare = Math.max(180, Math.round(distanceKm * ratePerKm));
-        }
-        const totalFare = baseFare * Number(passengers || 1);
+        // Verified fare handling: never fabricate prices from distance/speed assumptions
+        const rawFare = item.price !== undefined ? item.price : item.fare;
+        const baseFare = Number(rawFare);
+        const hasVerifiedFare = !isNaN(baseFare) && baseFare > 0;
+        const totalFare = hasVerifiedFare ? baseFare * Number(passengers || 1) : null;
 
         const fromStationName =
           item.from?.name || item.from?.code || origin?.name || origin?.city || 'Station A';
@@ -658,6 +634,11 @@ export class RailTransportProvider extends BaseTransportProvider {
           destination: resolvedDestRef,
           departureTime: depTime,
           arrivalTime: arrTime,
+          departureTimeFormatted: timing.departureLocalTime,
+          arrivalTimeFormatted: timing.arrivalLocalTime,
+          departureDateFormatted: timing.departureLocalDate,
+          arrivalDateFormatted: timing.arrivalLocalDate,
+          dayOffset: timing.dayOffset,
           duration: durationMinutes,
           totalDistance: distanceKm,
           totalPrice: totalFare,
@@ -676,6 +657,8 @@ export class RailTransportProvider extends BaseTransportProvider {
             fromStation: fromStationName,
             toStation: toStationName,
             runDays: item.train?.runDays || item.runDays || [],
+            isFareAvailable: hasVerifiedFare,
+            isEstimatedPrice: false,
           },
           legs: [
             {
@@ -686,6 +669,11 @@ export class RailTransportProvider extends BaseTransportProvider {
               providerCode: this.code,
               departureTime: depTime,
               arrivalTime: arrTime,
+              departureTimeFormatted: timing.departureLocalTime,
+              arrivalTimeFormatted: timing.arrivalLocalTime,
+              departureDateFormatted: timing.departureLocalDate,
+              arrivalDateFormatted: timing.arrivalLocalDate,
+              dayOffset: timing.dayOffset,
               duration: durationMinutes,
               distance: distanceKm,
               price: totalFare,

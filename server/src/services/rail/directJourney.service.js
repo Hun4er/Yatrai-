@@ -1,9 +1,9 @@
 import railRadarAdapter from '../../providers/rail/railRadar.adapter.js';
-import aopayAdapter from '../../providers/rail/aopay.adapter.js';
 import { resolveStationCode, getClusterStationCodes } from '../../providers/transport/rail/rail.provider.js';
 import availabilityService, { AVAILABILITY_STATUS, JOURNEY_AVAILABILITY } from './availability.service.js';
 import fareService from './fare.service.js';
 import logger from '../../utils/logger.js';
+import { calculateJourneyTiming } from '../../utils/railwayTime.js';
 
 /**
  * Direct Search Status Codes (Section 3)
@@ -23,17 +23,18 @@ export const DIRECT_SEARCH_STATUS = {
 /**
  * DirectJourneyService
  *
- * Implements Section 3:
- * - Direct train search before any station expansion
+ * Implements Section 3 & 5:
+ * - Direct train search via RailRadar (sole external provider)
  * - Cluster/metro station group resolution
- * - Live fare, schedule, availability retrieval
- * - Strict direct outcome classification
+ * - Accurate Indian railway timetable and IST timing calculation
+ * - Confirmed-seat availability validation
+ * - Strictly 1 best confirmed direct train initial recommendation
+ * - Excludes waitlist/RAC from confirmed initial recommendation
  * - Determines whether recovery engine should be activated
  */
 export class DirectJourneyService {
   constructor(dependencies = {}) {
     this.railRadar = dependencies.railRadar || railRadarAdapter;
-    this.aopay = dependencies.aopay || aopayAdapter;
     this.availabilityService = dependencies.availabilityService || availabilityService;
     this.fareService = dependencies.fareService || fareService;
   }
@@ -57,12 +58,12 @@ export class DirectJourneyService {
     const originCode = resolveStationCode(origin);
     const destCode = resolveStationCode(destination);
 
-    // 1. Query direct trains between primary stations
+    // 1. Query direct trains between primary stations via RailRadar
     let searchResult = await this.railRadar.searchDirectTrains(originCode, destCode, options);
 
     // If primary stations returned 0, try cluster station pairs (e.g. NDLS/DLI/NZM to PNBE/DNR/PPTA)
     let trainItems = searchResult.trains || [];
-    if (trainItems.length === 0) {
+    if (trainItems.length === 0 && searchResult.success) {
       const fromClusters = getClusterStationCodes(origin, originCode);
       const toClusters = getClusterStationCodes(destination, destCode);
 
@@ -79,22 +80,20 @@ export class DirectJourneyService {
       }
     }
 
-    // Secondary fallback to AOPAY if RailRadar failed
-    if (trainItems.length === 0 && !searchResult.success && this.aopay.isAuthorized()) {
-      const aopayRes = await this.aopay.searchTrains(originCode, destCode, departureDate);
-      if (aopayRes.success && aopayRes.trains?.length > 0) {
-        trainItems = aopayRes.trains;
-        searchResult = { success: true };
-      }
-    }
-
-    // Handle provider complete failure
+    // Handle provider complete failure (e.g. timeout, 429 quota exceeded, connection error)
     if (!searchResult.success && trainItems.length === 0) {
+      const isRateLimited =
+        searchResult.statusCode === 429 ||
+        /rate limit|quota exceeded|429/i.test(String(searchResult.error));
+
       return {
-        status: DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED,
+        status: isRateLimited ? 'RATE_LIMITED' : DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED,
+        isRateLimited,
         directJourneys: [],
-        failureReason: searchResult.error || 'Direct train search provider failed to respond.',
-        shouldTriggerRecovery: true,
+        failureReason: isRateLimited
+          ? 'Railway search is temporarily rate-limited. Please try again shortly.'
+          : (searchResult.error || 'Direct train search provider failed to respond or quota exhausted.'),
+        shouldTriggerRecovery: false, // Provider failure must not be treated as proof no direct train exists
       };
     }
 
@@ -124,22 +123,19 @@ export class DirectJourneyService {
       const depStr = item.from?.departure || item.departureTime || '06:00';
       const arrStr = item.to?.arrival || item.arrivalTime || '18:00';
 
-      const depTime = new Date(dateObj);
-      const [dHour, dMin] = depStr.split(':').map((n) => parseInt(n, 10));
-      depTime.setUTCHours(isNaN(dHour) ? 6 : dHour, isNaN(dMin) ? 0 : dMin, 0, 0);
-
-      const arrTime = new Date(depTime);
-      const [aHour, aMin] = arrStr.split(':').map((n) => parseInt(n, 10));
-      let dayOffset = 0;
+      let explicitDayOffset = null;
       if (item.to?.day && item.from?.day && item.to.day > item.from.day) {
-        dayOffset = item.to.day - item.from.day;
-      } else if (!isNaN(aHour) && !isNaN(dHour) && aHour < dHour) {
-        dayOffset = 1;
+        explicitDayOffset = item.to.day - item.from.day;
       }
-      arrTime.setUTCDate(arrTime.getUTCDate() + dayOffset);
-      arrTime.setUTCHours(isNaN(aHour) ? 18 : aHour, isNaN(aMin) ? 0 : aMin, 0, 0);
 
-      const durationMinutes = Number(item.duration) || Math.max(60, Math.round((arrTime.getTime() - depTime.getTime()) / 60000));
+      const timing = calculateJourneyTiming(
+        depStr,
+        arrStr,
+        departureDate,
+        explicitDayOffset,
+        item.duration
+      );
+
       const distanceKm = Math.round(Number(item.distance) || 750);
 
       formattedCandidates.push({
@@ -149,9 +145,14 @@ export class DirectJourneyService {
         toCode: item.to?.code || destCode,
         fromStationName: item.from?.name || origin.name || originCode,
         toStationName: item.to?.name || destination.name || destCode,
-        departureTime: depTime,
-        arrivalTime: arrTime,
-        duration: durationMinutes,
+        departureTime: timing.departureTime,
+        arrivalTime: timing.arrivalTime,
+        departureTimeFormatted: timing.departureLocalTime,
+        arrivalTimeFormatted: timing.arrivalLocalTime,
+        departureDateFormatted: timing.departureLocalDate,
+        arrivalDateFormatted: timing.arrivalLocalDate,
+        dayOffset: timing.dayOffset,
+        duration: timing.durationMinutes,
         distance: distanceKm,
         isRunningOnDate,
         raw: item,
@@ -197,6 +198,11 @@ export class DirectJourneyService {
           destination: destination._id || destination.id || destination,
           departureTime: cand.departureTime,
           arrivalTime: cand.arrivalTime,
+          departureTimeFormatted: cand.departureTimeFormatted,
+          arrivalTimeFormatted: cand.arrivalTimeFormatted,
+          departureDateFormatted: cand.departureDateFormatted,
+          arrivalDateFormatted: cand.arrivalDateFormatted,
+          dayOffset: cand.dayOffset,
           duration: cand.duration,
           totalDistance: cand.distance,
           totalPrice: fare.totalFare,
@@ -216,6 +222,8 @@ export class DirectJourneyService {
             fromStation: cand.fromStationName,
             toStation: cand.toStationName,
             isEstimatedPrice: fare.isEstimated,
+            isFareAvailable: Boolean(fare.totalFare !== null && fare.totalFare > 0),
+            fareUnavailable: Boolean(!fare.totalFare || fare.fareUnavailable),
             availabilityStatus: avail.normalizedStatus,
           },
           legs: [
@@ -227,6 +235,11 @@ export class DirectJourneyService {
               providerCode: 'IRCTC',
               departureTime: cand.departureTime,
               arrivalTime: cand.arrivalTime,
+              departureTimeFormatted: cand.departureTimeFormatted,
+              arrivalTimeFormatted: cand.arrivalTimeFormatted,
+              departureDateFormatted: cand.departureDateFormatted,
+              arrivalDateFormatted: cand.arrivalDateFormatted,
+              dayOffset: cand.dayOffset,
               duration: cand.duration,
               distance: cand.distance,
               price: fare.totalFare,
@@ -293,9 +306,34 @@ export class DirectJourneyService {
     );
 
     if (hasAvailable) {
+      // Confirmed-seat requirement (Section 5):
+      // Rank confirmed trains and select ONE best direct train initially
+      const confirmedDirect = suitableJourneys.filter(
+        (j) => j.availability?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE
+      );
+
+      // Rank confirmed candidates (prefer shortest duration, then lowest price)
+      confirmedDirect.sort((a, b) => {
+        if (a.duration !== b.duration) return a.duration - b.duration;
+        return a.totalPrice - b.totalPrice;
+      });
+
+      if (confirmedDirect.length > 0) {
+        confirmedDirect[0].isTopPick = true;
+        confirmedDirect[0].ranking = {
+          strategy: 'overall',
+          label: 'Best Overall',
+          rank: 1,
+        };
+      }
+
       return {
         status: DIRECT_SEARCH_STATUS.DIRECT_AVAILABLE,
-        directJourneys: suitableJourneys,
+        directJourneys: confirmedDirect,
+        bestDirectJourney: confirmedDirect[0] || null,
+        additionalDirectJourneys: confirmedDirect.slice(1),
+        hasMoreDirect: confirmedDirect.length > 1,
+        totalDirectConfirmedCount: confirmedDirect.length,
         failureReason: null,
         shouldTriggerRecovery: false,
       };

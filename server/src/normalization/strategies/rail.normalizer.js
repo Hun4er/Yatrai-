@@ -1,4 +1,5 @@
 import { BaseNormalizerStrategy } from './base.normalizer.js';
+import { formatInIST } from '../../utils/railwayTime.js';
 
 /**
  * Rail Transport Normalization Strategy
@@ -153,12 +154,15 @@ export class RailNormalizerStrategy extends BaseNormalizerStrategy {
         ? raw.duration
         : normalizedLegs.reduce((sum, l) => sum + (l.duration || 0), 0);
 
-    const totalPrice =
-      typeof raw.totalPrice === 'number' && raw.totalPrice >= 0
-        ? raw.totalPrice
-        : raw.price !== undefined
-          ? price
-          : normalizedLegs.reduce((sum, l) => sum + (l.price || 0), 0);
+    const hasRawTotalPrice = raw.totalPrice !== undefined && raw.totalPrice !== null;
+    const hasRawPrice = raw.price !== undefined && raw.price !== null;
+    const totalPrice = hasRawTotalPrice
+      ? (typeof raw.totalPrice === 'number' && raw.totalPrice >= 0 ? raw.totalPrice : null)
+      : hasRawPrice
+        ? price
+        : (normalizedLegs.length > 0 && normalizedLegs.every(l => typeof l.price === 'number' && l.price >= 0)
+            ? normalizedLegs.reduce((sum, l) => sum + l.price, 0)
+            : null);
 
     const totalDistance =
       typeof raw.totalDistance === 'number' && raw.totalDistance >= 0
@@ -172,11 +176,37 @@ export class RailNormalizerStrategy extends BaseNormalizerStrategy {
 
     const transportModes = Array.from(new Set(normalizedLegs.map((l) => l.mode)));
 
+    const effectiveDepTime = normalizedLegs[0]?.departureTime || departureTime;
+    const effectiveArrTime = normalizedLegs[normalizedLegs.length - 1]?.arrivalTime || arrivalTime;
+    const depIst = formatInIST(effectiveDepTime);
+    const arrIst = formatInIST(effectiveArrTime);
+
+    const departureTimeFormatted = raw.departureTimeFormatted || raw.departureLocalTime || depIst.localTime;
+    const arrivalTimeFormatted = raw.arrivalTimeFormatted || raw.arrivalLocalTime || arrIst.localTime;
+    const departureDateFormatted = raw.departureDateFormatted || raw.departureLocalDate || depIst.localDate;
+    const arrivalDateFormatted = raw.arrivalDateFormatted || raw.arrivalLocalDate || arrIst.localDate;
+
+    let dayOffset = raw.dayOffset;
+    if (dayOffset === undefined || dayOffset === null) {
+      if (departureDateFormatted && arrivalDateFormatted) {
+        const d1 = new Date(departureDateFormatted);
+        const d2 = new Date(arrivalDateFormatted);
+        dayOffset = Math.max(0, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)));
+      } else {
+        dayOffset = 0;
+      }
+    }
+
     const candidate = {
       origin: originId,
       destination: destinationId,
-      departureTime: normalizedLegs[0]?.departureTime || departureTime,
-      arrivalTime: normalizedLegs[normalizedLegs.length - 1]?.arrivalTime || arrivalTime,
+      departureTime: effectiveDepTime,
+      arrivalTime: effectiveArrTime,
+      departureTimeFormatted,
+      arrivalTimeFormatted,
+      departureDateFormatted,
+      arrivalDateFormatted,
+      dayOffset,
       duration: totalDuration,
       totalDistance,
       totalPrice,
@@ -191,6 +221,7 @@ export class RailNormalizerStrategy extends BaseNormalizerStrategy {
         destinationStation: destStation,
         trainNumber,
         trainName,
+        isFareAvailable: totalPrice !== null && totalPrice > 0,
         ...(raw.metadata || {}),
       },
       legs: normalizedLegs,
@@ -203,6 +234,11 @@ export class RailNormalizerStrategy extends BaseNormalizerStrategy {
       destination: candidate.destination,
       departureTime: candidate.departureTime,
       arrivalTime: candidate.arrivalTime,
+      departureTimeFormatted,
+      arrivalTimeFormatted,
+      departureDateFormatted,
+      arrivalDateFormatted,
+      dayOffset,
       duration: candidate.duration,
       totalDistance: candidate.totalDistance,
       totalPrice: candidate.totalPrice,

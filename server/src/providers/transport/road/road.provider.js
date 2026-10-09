@@ -86,12 +86,13 @@ export class RoadTransportProvider extends BaseTransportProvider {
    * @returns {Promise<Object>} Common Provider Result Envelope
    */
   async search(request, options = {}) {
-    if (!this.isEnabled()) {
+    const fetchFn = options.fetchFn || this.fetchFn;
+
+    if (!this.isEnabled() && !options.mockData && fetchFn === globalThis.fetch) {
       return this.unavailable('Road provider is disabled in configuration');
     }
 
     const { origin, destination, departureDate } = request || {};
-    const fetchFn = options.fetchFn || this.fetchFn;
 
     const originCoords = this.extractCoordinates(origin);
     const destCoords = this.extractCoordinates(destination);

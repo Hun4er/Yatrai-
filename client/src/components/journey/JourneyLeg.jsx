@@ -1,32 +1,12 @@
 import React from 'react';
 import { Train, Bus, Plane, Car, Footprints, Clock } from 'lucide-react';
-import { getDayOffset, formatDayOffsetBadge } from '../../utils/formatters.js';
-
-/**
- * Format minutes into "Xh Ym" or "Xh"
- */
-function formatDuration(minutes) {
-  if (!minutes || minutes <= 0) return '0m';
-  const hrs = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  if (hrs > 0 && mins > 0) return `${hrs}h ${mins}m`;
-  if (hrs > 0) return `${hrs}h`;
-  return `${mins}m`;
-}
-
-/**
- * Format ISO time into HH:mm
- */
-function formatTime(isoString) {
-  if (!isoString) return '--:--';
-  try {
-    const d = new Date(isoString);
-    if (isNaN(d.getTime())) return '--:--';
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-  } catch {
-    return '--:--';
-  }
-}
+import {
+  formatTime,
+  formatDuration,
+  getDayOffset,
+  formatDayOffsetBadge,
+  formatDateDisplay,
+} from '../../utils/formatters.js';
 
 /**
  * Returns appropriate icon for transport mode
@@ -69,11 +49,11 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = f
   const originCity = leg.origin?.city && leg.origin?.name !== leg.origin?.city ? leg.origin.city : null;
   const destinationCity = leg.destination?.city && leg.destination?.name !== leg.destination?.city ? leg.destination.city : null;
 
-  const depTime = formatTime(leg.departureTime);
-  const arrTime = formatTime(leg.arrivalTime);
+  const depTime = leg.departureTimeFormatted || formatTime(leg.departureTime);
+  const arrTime = leg.arrivalTimeFormatted || formatTime(leg.arrivalTime);
   const durationText = formatDuration(leg.duration);
 
-  const dayOffset = getDayOffset(leg.departureTime, leg.arrivalTime);
+  const dayOffset = leg.dayOffset !== undefined ? leg.dayOffset : getDayOffset(leg.departureTime, leg.arrivalTime);
   const dayBadge = formatDayOffsetBadge(dayOffset);
 
   const serviceName =

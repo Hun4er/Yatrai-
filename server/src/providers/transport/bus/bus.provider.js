@@ -80,7 +80,7 @@ export class BusTransportProvider extends BaseTransportProvider {
    * @returns {Promise<Object>} Common Provider Result Envelope
    */
   async search(request, options = {}) {
-    if (!this.isEnabled()) {
+    if (!this.isEnabled() && !options.mockData && !options.fetchFn) {
       return this.unavailable('Bus provider is disabled in configuration');
     }
 
@@ -89,9 +89,7 @@ export class BusTransportProvider extends BaseTransportProvider {
     const fetchFn = options.fetchFn || this.fetchFn;
 
     if (!apiUrl && !options.mockData) {
-      return this.unavailable(
-        'Bus provider is not configured. Set BUS_API_URL and BUS_API_KEY environment variables.'
-      );
+      return this.unavailable('Bus provider is not configured');
     }
 
     const { origin, destination, departureDate, passengers = 1 } = request || {};

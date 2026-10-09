@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Calendar, Search, Loader2, Check } from 'lucide-react';
+import { MapPin, Navigation, Calendar, Search, Loader2, Check, ArrowLeftRight } from 'lucide-react';
 import api from '../../services/api.js';
 
 /**
@@ -88,6 +88,18 @@ export function SearchForm({
     return () => clearTimeout(timer);
   }, [destination]);
 
+  const handleSwapStations = () => {
+    setOrigin(destination);
+    setDestination(origin);
+    setOriginSuggestions([]);
+    setDestSuggestions([]);
+    setShowOriginSuggestions(false);
+    setShowDestSuggestions(false);
+    if (errors.origin || errors.destination) {
+      setErrors((prev) => ({ ...prev, origin: null, destination: null }));
+    }
+  };
+
   const validate = () => {
     const errs = {};
     if (!origin || !origin.trim()) {
@@ -162,12 +174,23 @@ export function SearchForm({
                 setShowOriginSuggestions(true);
                 if (errors.origin) setErrors((prev) => ({ ...prev, origin: null }));
               }}
-              className={`w-full rounded-xl border bg-surface-secondary pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-disabled transition-all focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary ${
+              className={`w-full rounded-xl border bg-surface-secondary pl-10 pr-6 py-3 text-sm text-text-primary placeholder:text-text-disabled transition-all focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary ${
                 errors.origin ? 'border-semantic-error' : 'border-white/10'
               }`}
               aria-invalid={Boolean(errors.origin)}
               aria-describedby={errors.origin ? 'origin-error' : undefined}
             />
+
+            {/* Desktop Station Swap Button */}
+            <button
+              type="button"
+              onClick={handleSwapStations}
+              title="Swap origin and destination"
+              aria-label="Swap origin and destination"
+              className="hidden lg:flex absolute -right-3.5 bottom-2.5 z-20 h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-surface-elevated text-text-secondary hover:text-brand-primary hover:border-brand-primary active:scale-95 transition-all cursor-pointer shadow-md"
+            >
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+            </button>
           </div>
 
           {/* Autocomplete Dropdown */}
@@ -202,6 +225,19 @@ export function SearchForm({
               {errors.origin}
             </p>
           )}
+        </div>
+
+        {/* Mobile Station Swap Button */}
+        <div className="flex lg:hidden justify-center -my-2 relative z-10">
+          <button
+            type="button"
+            onClick={handleSwapStations}
+            title="Swap origin and destination"
+            aria-label="Swap origin and destination"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-surface-elevated text-text-secondary hover:text-brand-primary hover:border-brand-primary active:scale-95 transition-all cursor-pointer shadow-md"
+          >
+            <ArrowLeftRight className="h-3.5 w-3.5 rotate-90" />
+          </button>
         </div>
 
         {/* Destination Field with Autocomplete */}

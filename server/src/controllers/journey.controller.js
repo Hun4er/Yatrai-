@@ -54,18 +54,23 @@ export const journeyController = {
           .catch(() => {});
       }
 
-      const result = await journeyOrchestrator.orchestrateSearch({
-        origin,
-        destination,
-        departureDate,
-        returnDate,
-        passengers,
-        requestedModes,
-        preferences,
-        ranking,
-        sortBy,
-        userId,
-      });
+      const result = await journeyOrchestrator.orchestrateSearch(
+        {
+          origin,
+          destination,
+          departureDate,
+          returnDate,
+          passengers,
+          requestedModes: Array.isArray(requestedModes) && requestedModes.length > 0 ? requestedModes : ['rail'],
+          preferences,
+          ranking,
+          sortBy,
+          userId,
+        },
+        {
+          railwayOnly: true,
+        }
+      );
 
       const response = successResponse('Journeys retrieved successfully', result);
 
@@ -144,16 +149,21 @@ export const journeyController = {
           .catch(() => {});
       }
 
-      const result = await journeyOrchestrator.orchestrateSearch({
-        origin: structured.origin,
-        destination: structured.destination,
-        departureDate: structured.departureDate,
-        passengers: structured.passengers,
-        requestedModes: structured.requestedModes,
-        preferences: structured.preferences,
-        ranking: structured.ranking,
-        userId,
-      });
+      const result = await journeyOrchestrator.orchestrateSearch(
+        {
+          origin: structured.origin,
+          destination: structured.destination,
+          departureDate: structured.departureDate,
+          passengers: structured.passengers,
+          requestedModes: ['rail'],
+          preferences: structured.preferences,
+          ranking: structured.ranking,
+          userId,
+        },
+        {
+          railwayOnly: true,
+        }
+      );
 
       const response = successResponse(
         'Journeys retrieved successfully via natural language search',

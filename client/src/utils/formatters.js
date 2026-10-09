@@ -61,42 +61,66 @@ export function formatDuration(minutes) {
 }
 
 /**
- * Format ISO timestamp into local 24-hour "HH:mm".
+ * Format timestamp or railway time into local 24-hour "HH:mm" in Asia/Kolkata (IST).
+ * Indian Railways operates strictly on Indian Standard Time.
  */
-export function formatTime(isoString) {
-  if (!isoString) return '--:--';
+export function formatTime(timeVal) {
+  if (!timeVal) return '--:--';
+  if (typeof timeVal === 'string' && /^\d{1,2}:\d{2}(:\d{2})?$/.test(timeVal.trim())) {
+    const parts = timeVal.trim().split(':');
+    return `${parts[0].padStart(2, '0')}:${parts[1]}`;
+  }
   try {
-    const d = new Date(isoString);
+    const d = new Date(timeVal);
     if (isNaN(d.getTime())) return '--:--';
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    return d.toLocaleTimeString('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
   } catch {
     return '--:--';
   }
 }
 
 /**
- * Format date string (YYYY-MM-DD) into readable display date (e.g. "01 Oct 2026").
+ * Format date string (YYYY-MM-DD or ISO timestamp) into readable display date (e.g. "01 Oct 2026").
+ * Formats consistently in Asia/Kolkata railway context.
  */
-export function formatDateDisplay(dateStr) {
-  if (!dateStr) return '';
+export function formatDateDisplay(dateVal) {
+  if (!dateVal) return '';
   try {
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      const year = parseInt(parts[0], 10);
-      const monthIndex = parseInt(parts[1], 10) - 1;
-      const day = parseInt(parts[2], 10);
-      const d = new Date(year, monthIndex, day);
+    if (typeof dateVal === 'string' && dateVal.includes('T')) {
+      const d = new Date(dateVal);
       if (!isNaN(d.getTime())) {
         return d.toLocaleDateString('en-GB', {
+          timeZone: 'Asia/Kolkata',
           day: '2-digit',
           month: 'short',
           year: 'numeric',
         });
       }
     }
-    return dateStr;
+    const dateStr = String(dateVal).slice(0, 10);
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const monthIndex = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(Date.UTC(year, monthIndex, day, 12, 0, 0));
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('en-GB', {
+          timeZone: 'UTC',
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+      }
+    }
+    return String(dateVal);
   } catch {
-    return dateStr;
+    return String(dateVal);
   }
 }
 
@@ -105,7 +129,9 @@ export function formatDateDisplay(dateStr) {
  * Supports any currency (e.g. INR, USD, EUR) without hardcoding symbols.
  */
 export function formatPrice(amount, currency = 'INR') {
-  if (amount === undefined || amount === null || isNaN(amount)) return 'N/A';
+  if (amount === undefined || amount === null || isNaN(amount) || Number(amount) <= 0) {
+    return 'Fare unavailable';
+  }
   const num = Number(amount);
   const curr = (currency || 'INR').toUpperCase();
   try {
@@ -130,20 +156,26 @@ export function formatTransfers(count) {
 }
 
 /**
- * Calculates calendar day difference between departure and arrival timestamps.
+ * Calculates calendar day difference between departure and arrival timestamps in Asia/Kolkata.
  * Returns 0 if same day, 1 if next day, 2 if two days later, etc.
  */
-export function getDayOffset(departureIso, arrivalIso) {
-  if (!departureIso || !arrivalIso) return 0;
+export function getDayOffset(departureVal, arrivalVal) {
+  if (!departureVal || !arrivalVal) return 0;
   try {
-    const dep = new Date(departureIso);
-    const arr = new Date(arrivalIso);
+    const dep = new Date(departureVal);
+    const arr = new Date(arrivalVal);
     if (isNaN(dep.getTime()) || isNaN(arr.getTime())) return 0;
 
-    const depDate = new Date(dep.getFullYear(), dep.getMonth(), dep.getDate());
-    const arrDate = new Date(arr.getFullYear(), arr.getMonth(), arr.getDate());
-    const diffMs = arrDate.getTime() - depDate.getTime();
-    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    const depDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(dep);
+    const arrDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(arr);
+
+    const [dy, dm, dd] = depDateStr.split('-').map(Number);
+    const [ay, am, ad] = arrDateStr.split('-').map(Number);
+
+    const depUtc = Date.UTC(dy, dm - 1, dd);
+    const arrUtc = Date.UTC(ay, am - 1, ad);
+
+    const diffDays = Math.round((arrUtc - depUtc) / (1000 * 60 * 60 * 24));
     return Math.max(0, diffDays);
   } catch {
     return 0;
@@ -161,24 +193,23 @@ export function formatDayOffsetBadge(offset) {
 
 /**
  * Distinguishes price label semantics by transport type and pricing model.
+ * In Indian Railways MVP, road/driving cost labels are strictly removed.
  */
 export function getPriceLabel(journey) {
-  if (!journey) return 'Total Fare';
+  if (!journey) return 'Fare';
 
-  const modes = Array.isArray(journey.transportModes) ? journey.transportModes : [];
-  const isOnlyRoad = modes.length === 1 && (modes[0] === 'road' || modes[0] === 'car');
-  const hasRoad = modes.includes('road') || modes.includes('car');
-  const isMultiModal = (journey.numberOfTransfers > 0) || modes.length > 1;
+  const rawPrice = journey.totalPrice;
+  const isMissing = rawPrice === null || rawPrice === undefined || isNaN(Number(rawPrice)) || Number(rawPrice) <= 0 || journey.metadata?.fareUnavailable;
 
-  if (isOnlyRoad) {
-    return 'Estimated driving cost';
+  if (isMissing) {
+    return 'Fare';
   }
-  if (isMultiModal && (hasRoad || journey.pricing?.containsEstimatedComponents)) {
-    return 'Estimated total';
-  }
+
   if (journey.metadata?.isEstimatedPrice || journey.pricing?.type === 'estimated') {
-    return 'Estimated fare';
+    const source = journey.metadata?.fareSource || 'Railway estimate';
+    return `Estimated fare (${source})`;
   }
+
   return 'Total fare';
 }
 

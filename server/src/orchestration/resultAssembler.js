@@ -38,21 +38,31 @@ export class ResultAssembler {
    * @param {Array<Object>} providerSummaries
    * @returns {Array<Object>}
    */
-  formatProviderStatuses(providerSummaries = []) {
+  formatProviderStatuses(providerSummaries = [], options = {}) {
     if (!Array.isArray(providerSummaries)) return [];
 
-    return providerSummaries.map((p) => {
+    let filtered = providerSummaries;
+    if (options.railwayOnly) {
+      filtered = providerSummaries.filter((p) => {
+        const mode = String(p.provider || p.mode || '').toLowerCase();
+        return mode === 'rail' || mode === 'irctc' || mode === 'railradar' || mode === 'development';
+      });
+    }
+
+    return filtered.map((p) => {
       const summary = {
         provider: p.provider || p.mode || 'unknown',
         status: p.status || 'unknown',
         resultCount: typeof p.resultCount === 'number' ? p.resultCount : (p.candidates?.length || 0),
       };
 
-      if (p.error) {
-        // Expose safe high-level error message without leaking sensitive internals
+      if (p.error || p.reason) {
+        let msg = p.error?.message || p.reason || 'Provider query unsuccessful';
+        // Redact any environment variable names or credentials
+        msg = msg.replace(/\b[A-Z0-9_]+_(?:KEY|URL|SECRET|TOKEN|ID)\b/g, 'configuration');
         summary.error = {
-          code: p.error.code || 'PROVIDER_ERROR',
-          message: p.error.message || 'Provider query unsuccessful',
+          code: p.error?.code || 'PROVIDER_ERROR',
+          message: msg,
         };
       }
 
@@ -90,13 +100,20 @@ export class ResultAssembler {
     durationMs = 0,
     searchedAt,
     recoveryMeta = null,
+    options = {},
   }) {
+    const isRailwayOnly = options.railwayOnly === true;
     const formattedOrigin = this.formatLocation(origin);
     const formattedDest = this.formatLocation(destination);
-    const safeProviders = this.formatProviderStatuses(providerStatuses);
+    const safeProviders = this.formatProviderStatuses(providerStatuses, { railwayOnly: isRailwayOnly });
 
     const successfulProviders = safeProviders.filter((p) => p.status === 'success').length;
     const failedProviders = safeProviders.filter((p) => p.status === 'failed').length;
+
+    const isRateLimited = Boolean(
+      recoveryMeta?.isRateLimited ||
+      safeProviders.some((p) => p.error?.code === 'RATE_LIMITED' || p.error?.code === 'PROVIDER_RATE_LIMITED' || /rate limit/i.test(p.error?.message || ''))
+    );
 
     const meta = {
       searchedAt: searchedAt || new Date().toISOString(),
@@ -106,7 +123,12 @@ export class ResultAssembler {
       providersSuccessful: successfulProviders,
       providersFailed: failedProviders,
       resultCount: journeys.length,
+      isRateLimited,
     };
+
+    if (isRateLimited) {
+      meta.rateLimitMessage = 'Railway search is temporarily rate-limited. Please try again shortly.';
+    }
 
     if (recoveryMeta) {
       meta.recovery = recoveryMeta;
@@ -120,9 +142,14 @@ export class ResultAssembler {
       };
     }
 
+    let searchStatus = searchRequest?.status || 'completed';
+    if (journeys.length === 0 && isRateLimited) {
+      searchStatus = 'rate_limited';
+    }
+
     return {
       searchRequestId: searchRequest?._id ? searchRequest._id.toString() : null,
-      status: searchRequest?.status || 'completed',
+      status: searchStatus,
       count: journeys.length,
       totalResults: journeys.length,
       origin: formattedOrigin,

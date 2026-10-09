@@ -1,17 +1,17 @@
 import railRadarAdapter from '../../providers/rail/railRadar.adapter.js';
-import aopayAdapter from '../../providers/rail/aopay.adapter.js';
 import stationExpansionService from './stationExpansion.service.js';
 import connectionValidator from './connectionValidator.js';
 import availabilityService, { AVAILABILITY_STATUS, JOURNEY_AVAILABILITY } from './availability.service.js';
 import fareService from './fare.service.js';
 import distanceService from './distance.service.js';
 import logger from '../../utils/logger.js';
+import { calculateJourneyTiming } from '../../utils/railwayTime.js';
 
 /**
  * JourneyRecoveryService
  *
- * Implements Section 12:
- * - Bounded 10-step candidate pipeline for railway recovery
+ * Implements Section 6:
+ * - Bounded candidate pipeline for railway recovery
  * - Real provider train schedule queries for connecting legs
  * - Chronological transfer pairing and validation
  * - Independent availability and fare enrichment
@@ -20,7 +20,6 @@ import logger from '../../utils/logger.js';
 export class JourneyRecoveryService {
   constructor(dependencies = {}) {
     this.railRadar = dependencies.railRadar || railRadarAdapter;
-    this.aopay = dependencies.aopay || aopayAdapter;
     this.stationExpansion = dependencies.stationExpansion || stationExpansionService;
     this.connectionValidator = dependencies.connectionValidator || connectionValidator;
     this.availabilityService = dependencies.availabilityService || availabilityService;
@@ -94,6 +93,7 @@ export class JourneyRecoveryService {
         }
 
         // Pair compatible connections
+        // Pair compatible connections
         for (const t1 of leg1Trains.slice(0, 4)) {
           const t1Num = String(t1.train?.number || t1.trainNumber || t1.number || '');
           const t1Name = t1.train?.name || t1.trainName || t1.name || 'Express Train 1';
@@ -101,21 +101,18 @@ export class JourneyRecoveryService {
           const depStr1 = t1.from?.departure || t1.departureTime || '06:00';
           const arrStr1 = t1.to?.arrival || t1.arrivalTime || '12:00';
 
-          const [d1H, d1M] = depStr1.split(':').map((n) => parseInt(n, 10));
-          const [a1H, a1M] = arrStr1.split(':').map((n) => parseInt(n, 10));
-
-          const t1Dep = new Date(dateObj);
-          t1Dep.setUTCHours(isNaN(d1H) ? 6 : d1H, isNaN(d1M) ? 0 : d1M, 0, 0);
-
-          const t1Arr = new Date(t1Dep);
-          let dayOffset1 = 0;
+          let explicitOffset1 = null;
           if (t1.to?.day && t1.from?.day && t1.to.day > t1.from.day) {
-            dayOffset1 = t1.to.day - t1.from.day;
-          } else if (!isNaN(a1H) && !isNaN(d1H) && a1H < d1H) {
-            dayOffset1 = 1;
+            explicitOffset1 = t1.to.day - t1.from.day;
           }
-          t1Arr.setUTCDate(t1Arr.getUTCDate() + dayOffset1);
-          t1Arr.setUTCHours(isNaN(a1H) ? 12 : a1H, isNaN(a1M) ? 0 : a1M, 0, 0);
+
+          const timing1 = calculateJourneyTiming(
+            depStr1,
+            arrStr1,
+            departureDate,
+            explicitOffset1,
+            t1.duration
+          );
 
           for (const t2 of leg2Trains.slice(0, 4)) {
             const t2Num = String(t2.train?.number || t2.trainNumber || t2.number || '');
@@ -124,47 +121,67 @@ export class JourneyRecoveryService {
             const depStr2 = t2.from?.departure || t2.departureTime || '14:00';
             const arrStr2 = t2.to?.arrival || t2.arrivalTime || '22:00';
 
+            // Leg 2 departs on or after Leg 1 arrival date in IST
             const [d2H, d2M] = depStr2.split(':').map((n) => parseInt(n, 10));
-            const [a2H, a2M] = arrStr2.split(':').map((n) => parseInt(n, 10));
+            const [a1H, a1M] = timing1.arrivalLocalTime.split(':').map((n) => parseInt(n, 10));
 
-            // Determine date of departure for leg 2 (must be after leg 1 arrival)
-            const t2Dep = new Date(t1Arr);
-            t2Dep.setUTCHours(isNaN(d2H) ? 14 : d2H, isNaN(d2M) ? 0 : d2M, 0, 0);
+            let leg2Date = timing1.arrivalLocalDate;
+            const dep2MinOfDay = (isNaN(d2H) ? 14 : d2H) * 60 + (isNaN(d2M) ? 0 : d2M);
+            const arr1MinOfDay = (isNaN(a1H) ? 12 : a1H) * 60 + (isNaN(a1M) ? 0 : a1M);
 
-            // If departure time of day is earlier than arrival time of day, train departs next calendar day
-            if (t2Dep.getTime() <= t1Arr.getTime()) {
-              t2Dep.setUTCDate(t2Dep.getUTCDate() + 1);
+            // If Leg 2 departure time in minutes from midnight is earlier than Leg 1 arrival time + 25 mins buffer,
+            // then Leg 2 departs the next calendar day
+            if (dep2MinOfDay < arr1MinOfDay + 25) {
+              const dParts = leg2Date.split('-').map(Number);
+              const nextDayEpoch = Date.UTC(dParts[0], dParts[1] - 1, dParts[2] + 1);
+              const nextDay = new Date(nextDayEpoch);
+              leg2Date = `${nextDay.getUTCFullYear()}-${String(nextDay.getUTCMonth() + 1).padStart(2, '0')}-${String(nextDay.getUTCDate()).padStart(2, '0')}`;
             }
 
-            const bufferMinutes = Math.round((t2Dep.getTime() - t1Arr.getTime()) / 60000);
+            let explicitOffset2 = null;
+            if (t2.to?.day && t2.from?.day && t2.to.day > t2.from.day) {
+              explicitOffset2 = t2.to.day - t2.from.day;
+            }
 
-            // Transfer buffer sanity: must be between 30 minutes and 10 hours
-            if (bufferMinutes < 25 || bufferMinutes > 10 * 60) {
+            const timing2 = calculateJourneyTiming(
+              depStr2,
+              arrStr2,
+              leg2Date,
+              explicitOffset2,
+              t2.duration
+            );
+
+            const bufferMinutes = Math.round((timing2.departureTime.getTime() - timing1.arrivalTime.getTime()) / 60000);
+
+            // Transfer buffer sanity: must be between 25 minutes and 8 hours (480 mins)
+            if (bufferMinutes < 25 || bufferMinutes > 8 * 60) {
               continue;
             }
-
-            const t2Arr = new Date(t2Dep);
-            let dayOffset2 = 0;
-            if (t2.to?.day && t2.from?.day && t2.to.day > t2.from.day) {
-              dayOffset2 = t2.to.day - t2.from.day;
-            } else if (!isNaN(a2H) && !isNaN(d2H) && a2H < d2H) {
-              dayOffset2 = 1;
-            }
-            t2Arr.setUTCDate(t2Arr.getUTCDate() + dayOffset2);
-            t2Arr.setUTCHours(isNaN(a2H) ? 22 : a2H, isNaN(a2M) ? 0 : a2M, 0, 0);
 
             const dist1 = Math.round(Number(t1.distance) || 450);
             const dist2 = Math.round(Number(t2.distance) || 550);
             const totalDist = dist1 + dist2;
-            const totalDuration = Math.round((t2Arr.getTime() - t1Dep.getTime()) / 60000);
+            const totalDuration = Math.round((timing2.arrivalTime.getTime() - timing1.departureTime.getTime()) / 60000);
 
             const intermediateStation = t1.to?.name || leg1Stage.to;
+            const totalDayOffset = Math.max(
+              0,
+              Math.round(
+                (new Date(timing2.arrivalLocalDate) - new Date(timing1.departureLocalDate)) /
+                  (1000 * 60 * 60 * 24)
+              )
+            );
 
             candidateJourneys.push({
               origin: origin._id || origin.id || origin,
               destination: destination._id || destination.id || destination,
-              departureTime: t1Dep,
-              arrivalTime: t2Arr,
+              departureTime: timing1.departureTime,
+              arrivalTime: timing2.arrivalTime,
+              departureTimeFormatted: timing1.departureLocalTime,
+              arrivalTimeFormatted: timing2.arrivalLocalTime,
+              departureDateFormatted: timing1.departureLocalDate,
+              arrivalDateFormatted: timing2.arrivalLocalDate,
+              dayOffset: totalDayOffset,
               duration: totalDuration,
               totalDistance: totalDist,
               numberOfTransfers: 1,
@@ -184,9 +201,14 @@ export class JourneyRecoveryService {
                   destination: intermediateStation,
                   mode: 'rail',
                   providerCode: 'IRCTC',
-                  departureTime: t1Dep,
-                  arrivalTime: t1Arr,
-                  duration: Math.round((t1Arr.getTime() - t1Dep.getTime()) / 60000),
+                  departureTime: timing1.departureTime,
+                  arrivalTime: timing1.arrivalTime,
+                  departureTimeFormatted: timing1.departureLocalTime,
+                  arrivalTimeFormatted: timing1.arrivalLocalTime,
+                  departureDateFormatted: timing1.departureLocalDate,
+                  arrivalDateFormatted: timing1.arrivalLocalDate,
+                  dayOffset: timing1.dayOffset,
+                  duration: timing1.durationMinutes,
                   distance: dist1,
                   trainNumber: t1Num,
                   vehicle: { type: 'Train', identifier: t1Num },
@@ -199,9 +221,14 @@ export class JourneyRecoveryService {
                   destination: destination._id || destination.id || destination,
                   mode: 'rail',
                   providerCode: 'IRCTC',
-                  departureTime: t2Dep,
-                  arrivalTime: t2Arr,
-                  duration: Math.round((t2Arr.getTime() - t2Dep.getTime()) / 60000),
+                  departureTime: timing2.departureTime,
+                  arrivalTime: timing2.arrivalTime,
+                  departureTimeFormatted: timing2.departureLocalTime,
+                  arrivalTimeFormatted: timing2.arrivalLocalTime,
+                  departureDateFormatted: timing2.departureLocalDate,
+                  arrivalDateFormatted: timing2.arrivalLocalDate,
+                  dayOffset: timing2.dayOffset,
+                  duration: timing2.durationMinutes,
                   distance: dist2,
                   trainNumber: t2Num,
                   vehicle: { type: 'Train', identifier: t2Num },
@@ -312,9 +339,13 @@ export class JourneyRecoveryService {
         journey.currency = 'INR';
         journey.availability = journeyAvail;
         journey.pricing = journeyFare;
+        journey.availabilityStatus = journeyAvail.journeyStatus;
+        journey.isBookable = journeyAvail.isBookable;
+        journey.isRecoveredAlternative = true;
 
         journey.metadata = {
           isRecovery: true,
+          isRecoveredAlternative: true,
           provider: 'Indian Railways (RailRadar Multi-Leg)',
           originExpansionHops: journey.originExpansionHops,
           destinationExpansionHops: journey.destinationExpansionHops,
@@ -330,8 +361,18 @@ export class JourneyRecoveryService {
       }
     }
 
-    // Step 9-10: Rank and categorize recovered journeys
+    // Step 9-10: Rank and categorize recovered journeys (Section 6: display 1 recommended option initially, up to 5 total)
     const rankedAlternatives = this.categorizeAndRank(enrichedJourneys, preferences).slice(0, maxAlternatives);
+
+    if (rankedAlternatives.length > 0) {
+      rankedAlternatives[0].isTopPick = true;
+      rankedAlternatives[0].isRecommendedAlternative = true;
+      rankedAlternatives[0].ranking = {
+        strategy: 'overall',
+        label: 'Best Alternative',
+        rank: 1,
+      };
+    }
 
     logger.info(
       `[JourneyRecoveryService] Recovery complete: ${rankedAlternatives.length} verified alternatives returned`
@@ -340,9 +381,15 @@ export class JourneyRecoveryService {
     return {
       recoveredJourneys: rankedAlternatives,
       journeys: rankedAlternatives,
+      bestAlternative: rankedAlternatives[0] || null,
+      additionalAlternatives: rankedAlternatives.slice(1),
+      hasMoreAlternatives: rankedAlternatives.length > 1,
+      totalAlternativesCount: rankedAlternatives.length,
       status: rankedAlternatives.length > 0 ? 'RECOVERED_ALTERNATIVES_FOUND' : 'NO_ALTERNATIVES_FOUND',
       totalCandidatesGenerated: candidateJourneys.length,
       feasibleCount: feasibleJourneys.length,
+      originExpansionHops: candidateJourneys[0]?.originExpansionHops || 0,
+      destinationExpansionHops: candidateJourneys[0]?.destinationExpansionHops || 0,
     };
   }
 

@@ -101,9 +101,9 @@ export function JourneyFilters({
     });
   };
 
-  const allAvailableModes = bounds.availableModes?.length > 0
+  const allAvailableModes = (bounds.availableModes?.length > 0
     ? bounds.availableModes
-    : ['rail', 'bus', 'flight', 'road'];
+    : ['rail']).filter((m) => m === 'rail' || m === 'train');
 
   return (
     <aside
@@ -150,46 +150,48 @@ export function JourneyFilters({
       </div>
 
       <div className="mt-5 space-y-6">
-        {/* 1. Transport Modes */}
-        <fieldset className="space-y-2">
-          <legend className="text-xs font-bold uppercase tracking-wider text-text-secondary">
-            Transport
-          </legend>
-          <div className="grid grid-cols-2 gap-2">
-            {allAvailableModes.map((mode) => {
-              const Icon = getModeIcon(mode);
-              const isChecked =
-                !filters.transportModes ||
-                filters.transportModes.length === 0 ||
-                filters.transportModes.includes(mode);
+        {/* 1. Transport Modes (only shown if multi-modal choices exist) */}
+        {allAvailableModes.length > 1 && (
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-bold uppercase tracking-wider text-text-secondary">
+              Transport
+            </legend>
+            <div className="grid grid-cols-2 gap-2">
+              {allAvailableModes.map((mode) => {
+                const Icon = getModeIcon(mode);
+                const isChecked =
+                  !filters.transportModes ||
+                  filters.transportModes.length === 0 ||
+                  filters.transportModes.includes(mode);
 
-              const modeLabel = mode === 'rail' ? 'Train' : mode.charAt(0).toUpperCase() + mode.slice(1);
+                const modeLabel = mode === 'rail' ? 'Train' : mode.charAt(0).toUpperCase() + mode.slice(1);
 
-              return (
-                <label
-                  key={mode}
-                  className={`flex items-center gap-2 rounded-xl px-3 py-2 border transition-all cursor-pointer text-xs ${
-                    isChecked
-                      ? 'border-brand-primary/40 bg-surface-secondary text-text-primary font-medium'
-                      : 'border-white/5 bg-surface-secondary/40 text-text-tertiary'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={() => handleModeToggle(mode)}
-                    className="h-3.5 w-3.5 rounded border-white/20 bg-surface-secondary text-brand-primary focus:ring-brand-primary accent-brand-primary"
-                  />
-                  <Icon className="h-3.5 w-3.5 text-brand-primary shrink-0" aria-hidden="true" />
-                  <span className="truncate">{modeLabel}</span>
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
+                return (
+                  <label
+                    key={mode}
+                    className={`flex items-center gap-2 rounded-xl px-3 py-2 border transition-all cursor-pointer text-xs ${
+                      isChecked
+                        ? 'border-brand-primary/40 bg-surface-secondary text-text-primary font-medium'
+                        : 'border-white/5 bg-surface-secondary/40 text-text-tertiary'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => handleModeToggle(mode)}
+                      className="h-3.5 w-3.5 rounded border-white/20 bg-surface-secondary text-brand-primary focus:ring-brand-primary accent-brand-primary"
+                    />
+                    <Icon className="h-3.5 w-3.5 text-brand-primary shrink-0" aria-hidden="true" />
+                    <span className="truncate">{modeLabel}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
 
         {/* 2. Transfers */}
-        <fieldset className="space-y-2 border-t border-white/5 pt-4">
+        <fieldset className={`space-y-2 ${allAvailableModes.length > 1 ? 'border-t border-white/5 pt-4' : ''}`}>
           <legend className="text-xs font-bold uppercase tracking-wider text-text-secondary">
             Transfers
           </legend>

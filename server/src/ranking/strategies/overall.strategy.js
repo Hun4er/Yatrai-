@@ -59,6 +59,7 @@ export class OverallStrategy extends BaseRankingStrategy {
         (j) =>
           typeof j.totalPrice === 'number' &&
           !isNaN(j.totalPrice) &&
+          j.totalPrice > 0 &&
           (consistent || (j.currency || baseCurrency).toUpperCase() === baseCurrency)
       ),
       (j) => j.totalPrice
@@ -69,7 +70,7 @@ export class OverallStrategy extends BaseRankingStrategy {
       const isMissingPrice =
         j.totalPrice === null ||
         j.totalPrice === undefined ||
-        isNaN(j.totalPrice) ||
+        isNaN(Number(j.totalPrice)) ||
         (!consistent && (j.currency || baseCurrency).toUpperCase() !== baseCurrency);
 
       const durationScore =
@@ -77,7 +78,7 @@ export class OverallStrategy extends BaseRankingStrategy {
           ? normalizeLowerIsBetter(j.duration, durationBounds.min, durationBounds.max)
           : 0.0;
 
-      const priceScore = !isMissingPrice
+      const priceScore = !isMissingPrice && priceBounds.min !== priceBounds.max
         ? normalizeLowerIsBetter(j.totalPrice, priceBounds.min, priceBounds.max)
         : 0.0;
 

@@ -65,6 +65,9 @@ export function ResultsPage({
   // Selected journey for detail modal inspection
   const [selectedJourney, setSelectedJourney] = useState(null);
 
+  // Progressive disclosure: 1 train/journey initially, expand on demand
+  const [showMoreJourneys, setShowMoreJourneys] = useState(false);
+
   // Journey comparison multi-selection state
   const [comparedJourneyIds, setComparedJourneyIds] = useState([]);
   const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
@@ -147,38 +150,42 @@ export function ResultsPage({
     }
   };
 
-  // Section 5: Exact numbers derived from real result data
-  const journeyStats = useMemo(() => {
-    const total = backendJourneys.length;
-    const direct = backendJourneys.filter((j) => (j.numberOfTransfers ?? 0) === 0).length;
-    const connecting = total - direct;
+  // Section 5: Exact numbers derived exclusively from verified railway results
+  const isRailwayValid = (j) => {
+    if (!j) return false;
+    const modes = Array.isArray(j.transportModes) ? j.transportModes : [];
+    if (modes.length === 0 || modes.some((m) => String(m).toLowerCase() !== 'rail')) return false;
+    const legs = Array.isArray(j.legs) ? j.legs : [];
+    if (legs.length === 0 || legs.some((l) => String(l.mode || '').toLowerCase() !== 'rail')) return false;
+    return true;
+  };
 
-    const modesSet = new Set();
-    backendJourneys.forEach((j) => {
-      if (Array.isArray(j.transportModes)) {
-        j.transportModes.forEach((m) => {
-          if (m) modesSet.add(m.toLowerCase());
-        });
-      }
-    });
+  const validatedJourneys = useMemo(() => {
+    return backendJourneys.filter(isRailwayValid);
+  }, [backendJourneys]);
+
+  const journeyStats = useMemo(() => {
+    const total = validatedJourneys.length;
+    const direct = validatedJourneys.filter((j) => (j.numberOfTransfers ?? 0) === 0).length;
+    const connecting = total - direct;
 
     return {
       total,
       direct,
       connecting,
-      modesCount: modesSet.size,
+      modesCount: total > 0 ? 1 : 0,
     };
-  }, [backendJourneys]);
+  }, [validatedJourneys]);
 
-  // Derive filter bounds from backend dataset
+  // Derive filter bounds exclusively from validated railway dataset
   const bounds = useMemo(() => {
-    return deriveFilterBounds(backendJourneys);
-  }, [backendJourneys]);
+    return deriveFilterBounds(validatedJourneys);
+  }, [validatedJourneys]);
 
   // Filtered journeys (client-side pure filtering)
   const filteredJourneys = useMemo(() => {
-    return filterJourneys(backendJourneys, filters);
-  }, [backendJourneys, filters]);
+    return filterJourneys(validatedJourneys, filters);
+  }, [validatedJourneys, filters]);
 
   const activeFilterCount = useMemo(() => {
     return countActiveFilters(filters, bounds);
@@ -188,10 +195,24 @@ export function ResultsPage({
     setFilters(getDefaultFilters());
   };
 
-  // Check if any transport providers failed (Section 6)
+  // Check if active railway search provider failed (Section 6, only active railway provider)
   const providerMeta = data?.meta?.providers || [];
-  const failedProviders = providerMeta.filter((p) => p.status === 'failed' || p.error);
+  const failedProviders = providerMeta.filter(
+    (p) =>
+      (p.status === 'failed' || p.error) &&
+      ['rail', 'irctc', 'railradar'].includes(String(p.provider || '').toLowerCase())
+  );
   const hasPartialFailures = failedProviders.length > 0;
+
+  const isRateLimited =
+    status === 'rate_limited' ||
+    Boolean(data?.meta?.isRateLimited) ||
+    error?.code === 'RATE_LIMITED' ||
+    error?.code === 'PROVIDER_RATE_LIMITED' ||
+    error?.status === 429 ||
+    error?.statusCode === 429 ||
+    Boolean(error?.details?.isRateLimited) ||
+    /rate limit|quota exceeded|too many requests|429/i.test(error?.message || '');
 
   const handleRankingSelect = (newStrategy) => {
     setActiveRanking(newStrategy);
@@ -272,11 +293,11 @@ export function ResultsPage({
               )}
             </div>
 
-            {/* Multi-modal breakdown badge strip */}
+            {/* Railway breakdown badge strip */}
             {status === 'success' && backendJourneys.length > 0 && (
               <div className="mt-2 text-xs text-text-tertiary">
-                {journeyStats.modesCount > 0 && <span>{journeyStats.modesCount} transport modes · </span>}
-                <span>{journeyStats.direct} direct</span>
+                <span className="font-semibold text-text-secondary">Indian Railways</span>
+                <span> · {journeyStats.direct} direct</span>
                 <span> · {journeyStats.connecting} connecting</span>
               </div>
             )}
@@ -346,9 +367,7 @@ export function ResultsPage({
               <Sparkles className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" aria-hidden="true" />
               <div className="space-y-1">
                 <div className="font-bold text-sm text-indigo-200">
-                  {backendJourneys.length > 0
-                    ? 'No suitable direct train was available. Alternative journeys recovered.'
-                    : 'No suitable direct train is available. Yatrai is finding alternative routes.'}
+                  No confirmed direct train seats found. Yatrai is finding alternative routes.
                 </div>
                 <p className="text-xs text-indigo-300/90 leading-relaxed">
                   {recoveryMeta.reason ||
@@ -421,7 +440,40 @@ export function ResultsPage({
       {/* Main Content Area */}
       {isLoading && <LoadingState />}
 
-      {!isLoading && status === 'error' && (
+      {/* Railway Rate Limit State */}
+      {!isLoading && isRateLimited && (
+        <div className="rounded-2xl border border-amber-500/30 bg-surface-primary p-6 sm:p-8 text-center space-y-4 shadow-xl">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
+            <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-lg font-bold text-text-primary">Railway search temporarily rate-limited</h3>
+            <p className="text-sm text-text-secondary max-w-md mx-auto">
+              Railway search is temporarily rate-limited. Please try again shortly.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            {onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:bg-brand-hover transition-colors cursor-pointer"
+              >
+                <span>Retry search</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onNavigateHome}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+            >
+              <span>Modify criteria</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!isLoading && !isRateLimited && status === 'error' && (
         <ErrorState
           title="Unable to find journeys"
           message={error?.message || "We couldn't complete the journey search. Please check your criteria."}
@@ -431,7 +483,7 @@ export function ResultsPage({
       )}
 
       {/* Backend Empty State (Section 29) */}
-      {!isLoading && (status === 'empty' || (status === 'success' && backendJourneys.length === 0)) && (
+      {!isLoading && !isRateLimited && (status === 'empty' || (status === 'success' && validatedJourneys.length === 0)) && (
         <EmptyState onModifySearch={onNavigateHome} />
       )}
 
@@ -473,13 +525,15 @@ export function ResultsPage({
               <FilterEmptyState onClearFilters={handleClearFilters} />
             ) : (
               <>
-                {/* 1. RECOMMENDED BY YATRAI SECTION (Section 19) */}
+                {/* 1. RECOMMENDED / BEST JOURNEY SECTION */}
                 {topJourney && (
                   <section className="space-y-2.5" aria-label="Recommended Journey">
                     <div className="flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-brand-primary" aria-hidden="true" />
                       <h2 className="text-xs font-bold uppercase tracking-wider text-brand-primary">
-                        Recommended by Yatrai
+                        {recoveryMeta?.recoveryTriggered
+                          ? 'Recommended Alternative Journey'
+                          : 'Recommended Direct Train'}
                       </h2>
                     </div>
 
@@ -494,26 +548,72 @@ export function ResultsPage({
                   </section>
                 )}
 
-                {/* 2. OTHER JOURNEYS SECTION (Section 19) */}
+                {/* 2. OTHER JOURNEYS PROGRESSIVE DISCLOSURE SECTION */}
                 {otherJourneys.length > 0 && (
                   <section className="space-y-3 pt-2" aria-label="Other Journey Options">
-                    <h2 className="text-xs font-bold uppercase tracking-wider text-text-tertiary">
-                      Other Journeys ({otherJourneys.length})
-                    </h2>
+                    {!showMoreJourneys ? (
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowMoreJourneys(true)}
+                          className="w-full flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-secondary py-3.5 px-4 text-sm font-semibold text-text-primary hover:bg-surface-elevated hover:border-brand-primary/40 hover:text-brand-primary transition-all cursor-pointer shadow-sm"
+                        >
+                          <span>
+                            {recoveryMeta?.recoveryTriggered
+                              ? `Show more alternative journeys (${otherJourneys.length})`
+                              : `Show more available trains (${otherJourneys.length})`}
+                          </span>
+                          <ChevronDown className="h-4 w-4 text-brand-primary" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-xs font-bold uppercase tracking-wider text-text-tertiary">
+                            {recoveryMeta?.recoveryTriggered
+                              ? `Other Alternative Journeys (${otherJourneys.length})`
+                              : `Other Available Trains (${otherJourneys.length})`}
+                          </h2>
+                          <button
+                            type="button"
+                            onClick={() => setShowMoreJourneys(false)}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-brand-primary hover:text-brand-hover cursor-pointer"
+                          >
+                            <span>Show fewer</span>
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
 
-                    <div className="space-y-4">
-                      {otherJourneys.map((journey, idx) => (
-                        <JourneyResultCard
-                          key={journey.id || idx}
-                          journey={journey}
-                          isTopPick={false}
-                          allJourneys={backendJourneys}
-                          onViewJourney={handleViewJourney}
-                          onToggleCompare={handleToggleCompare}
-                          isCompared={comparedJourneyIds.includes(journey.id)}
-                        />
-                      ))}
-                    </div>
+                        <div className="space-y-4">
+                          {otherJourneys.map((journey, idx) => (
+                            <JourneyResultCard
+                              key={journey.id || idx}
+                              journey={journey}
+                              isTopPick={false}
+                              allJourneys={backendJourneys}
+                              onViewJourney={handleViewJourney}
+                              onToggleCompare={handleToggleCompare}
+                              isCompared={comparedJourneyIds.includes(journey.id)}
+                            />
+                          ))}
+                        </div>
+
+                        <div className="pt-2 flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => setShowMoreJourneys(false)}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-surface-secondary px-4 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors cursor-pointer"
+                          >
+                            <span>
+                              {recoveryMeta?.recoveryTriggered
+                                ? 'Show fewer alternative journeys'
+                                : 'Show fewer trains'}
+                            </span>
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </section>
                 )}
               </>

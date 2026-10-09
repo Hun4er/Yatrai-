@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Loader2, CheckCircle2, Circle } from 'lucide-react';
 
 const ORCHESTRATION_STAGES = [
-  'Understanding your trip...',
-  'Resolving locations...',
-  'Checking transport providers...',
-  'Finding direct journeys...',
-  'Building connected journeys...',
-  'Comparing time, cost and transfers...',
-  'Ranking your options...',
+  'Resolving stations...',
+  'Searching direct trains...',
+  'Checking confirmed-seat availability...',
+  'Finding alternative routes...',
+  'Validating connections...',
+  'Preparing results...',
 ];
 
 /**

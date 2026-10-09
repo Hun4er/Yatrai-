@@ -52,7 +52,10 @@ export class CheapestStrategy extends BaseRankingStrategy {
     const nonComparable = [];
 
     for (const j of working) {
-      const isMissingPrice = j.totalPrice === null || j.totalPrice === undefined || isNaN(j.totalPrice);
+      const isMissingPrice =
+        j.totalPrice === null ||
+        j.totalPrice === undefined ||
+        isNaN(Number(j.totalPrice));
       const jCurrency = (j.currency || baseCurrency).toUpperCase();
 
       if (isMissingPrice || (!consistent && jCurrency !== baseCurrency)) {

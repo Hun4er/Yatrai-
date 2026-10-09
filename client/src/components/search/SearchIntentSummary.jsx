@@ -311,7 +311,7 @@ export function SearchIntentSummary({
       {/* Action Footer */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
         <div className="text-xs text-text-tertiary">
-          Pressing &ldquo;Search journeys&rdquo; will discover connected routes across rail, road, bus and flight.
+          Pressing &ldquo;Search journeys&rdquo; will discover verified Indian Railways trains and connecting routes.
         </div>
 
         <button

@@ -3,6 +3,7 @@ import { railTransportProvider } from './rail/rail.provider.js';
 import { busTransportProvider } from './bus/bus.provider.js';
 import { flightTransportProvider } from './flight/flight.provider.js';
 import { logger } from '../../utils/logger.js';
+import config from '../../config/index.js';
 
 /**
  * Transport Provider Registry
@@ -79,8 +80,13 @@ export class TransportProviderRegistry {
     const { requestedModes } = filter;
 
     if (!requestedModes || !Array.isArray(requestedModes) || requestedModes.length === 0) {
-      // By default, return all registered and enabled providers
-      return Array.from(this.providers.values());
+      // By default, return registered and enabled providers
+      const enabled = Array.from(this.providers.values()).filter((provider) => {
+        const mode = String(provider.mode || '').toLowerCase();
+        if (mode === 'rail') return true;
+        return Boolean(config.providers?.[mode]?.enabled);
+      });
+      return enabled.length > 0 ? enabled : Array.from(this.providers.values());
     }
 
     const matched = [];

@@ -69,11 +69,14 @@ export function deriveFilterBounds(journeys = []) {
   const currenciesSet = new Set();
 
   for (const j of journeys) {
-    const price = Number(j.totalPrice) || 0;
+    const rawPrice = j.totalPrice;
+    const hasValidPrice = rawPrice !== null && rawPrice !== undefined && !isNaN(Number(rawPrice)) && Number(rawPrice) > 0;
+    if (hasValidPrice) {
+      const price = Number(rawPrice);
+      if (price < minPrice) minPrice = price;
+      if (price > maxPrice) maxPrice = price;
+    }
     const duration = Number(j.duration) || 0;
-
-    if (price < minPrice) minPrice = price;
-    if (price > maxPrice) maxPrice = price;
 
     if (duration < minDuration) minDuration = duration;
     if (duration > maxDuration) maxDuration = duration;
@@ -134,7 +137,8 @@ export function matchesTransfers(numberOfTransfers, transferFilter) {
   const transfers = Number(numberOfTransfers) || 0;
 
   if (transferFilter === '0' || transferFilter === 'direct') return transfers === 0;
-  if (transferFilter === '1' || transferFilter === '1_max') return transfers <= 1;
+  if (transferFilter === '1') return transfers === 1;
+  if (transferFilter === '1_max') return transfers <= 1;
   if (transferFilter === '2_max') return transfers <= 2;
   if (transferFilter === '2+') return transfers >= 2;
 
@@ -177,13 +181,23 @@ export function filterJourneys(journeys = [], filters = {}) {
   } = filters;
 
   return journeys.filter((journey) => {
-    // 1. Price Filtering (numeric comparison)
-    const price = Number(journey.totalPrice) || 0;
-    if (minPrice !== null && minPrice !== undefined && price < Number(minPrice)) {
-      return false;
+    // 1. Price Filtering (numeric comparison, missing fares do not match specific numeric filters)
+    const rawPrice = journey.totalPrice;
+    const hasValidPrice =
+      rawPrice !== null &&
+      rawPrice !== undefined &&
+      !isNaN(Number(rawPrice)) &&
+      Number(rawPrice) > 0;
+
+    if (minPrice !== null && minPrice !== undefined) {
+      if (!hasValidPrice || Number(rawPrice) < Number(minPrice)) {
+        return false;
+      }
     }
-    if (maxPrice !== null && maxPrice !== undefined && price > Number(maxPrice)) {
-      return false;
+    if (maxPrice !== null && maxPrice !== undefined) {
+      if (!hasValidPrice || Number(rawPrice) > Number(maxPrice)) {
+        return false;
+      }
     }
 
     // 2. Duration Filtering (numeric comparison in minutes)
