@@ -10,6 +10,7 @@ import favoriteRouteRoutes from './favoriteRoute.routes.js';
 import journeyHistoryRoutes from './journeyHistory.routes.js';
 import notificationRoutes from './notification.routes.js';
 import adminRoutes from './admin.routes.js';
+import providerRoutes from './provider.routes.js';
 
 const apiRouter = Router();
 
@@ -22,6 +23,7 @@ apiRouter.get('/', (req, res) => {
     version: 'v1',
     endpoints: {
       health: '/api/health',
+      providersHealth: '/api/providers/health',
       auth: {
         register: '/api/auth/register',
         login: '/api/auth/login',
@@ -92,6 +94,9 @@ apiRouter.use('/notifications', notificationRoutes);
 
 // Mount /api/admin (Protected by authenticate + requireAdmin)
 apiRouter.use('/admin', adminRoutes);
+
+// Mount /api/providers
+apiRouter.use('/providers', providerRoutes);
 
 export default apiRouter;
 

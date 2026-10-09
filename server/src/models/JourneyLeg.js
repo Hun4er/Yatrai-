@@ -95,7 +95,7 @@ const JourneyLegSchema = new Schema(
       url: { type: String, trim: true },
       status: {
         type: String,
-        enum: ['available', 'waitlist', 'sold_out', 'unknown'],
+        enum: ['available', 'waitlist', 'sold_out', 'not_bookable', 'unknown'],
         default: 'unknown',
       },
     },

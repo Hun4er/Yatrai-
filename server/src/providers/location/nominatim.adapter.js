@@ -11,13 +11,15 @@ import { LOCATION_TYPES } from '../../models/Location.js';
 export function mapProviderType(item = {}) {
   const osmClass = (item.class || item.category || '').toLowerCase();
   const osmType = (item.type || '').toLowerCase();
+  const displayName = (item.display_name || '').toLowerCase();
 
   // 1. Airports
   if (
     osmClass === 'aeroway' ||
     osmType === 'aerodrome' ||
     osmType === 'airport' ||
-    osmClass === 'airport'
+    osmClass === 'airport' ||
+    /airport|aerodrome|airfield/i.test(displayName)
   ) {
     return 'airport';
   }
@@ -28,9 +30,9 @@ export function mapProviderType(item = {}) {
     osmType === 'station' ||
     osmType === 'halt' ||
     osmType === 'stop' ||
-    /junction|railway|station|terminal/i.test(item.display_name || '')
+    /junction|railway\s*station|train\s*station|railway\s*terminal/i.test(displayName)
   ) {
-    if (/bus/i.test(item.display_name || '') || osmType === 'bus_station') {
+    if (/bus/i.test(displayName) || osmType === 'bus_station') {
       return 'bus_station';
     }
     return 'railway_station';
@@ -41,20 +43,48 @@ export function mapProviderType(item = {}) {
     osmClass === 'bus' ||
     osmType === 'bus_station' ||
     osmType === 'bus_stop' ||
-    /bus\s*(?:stand|station|terminal)/i.test(item.display_name || '')
+    /bus\s*(?:stand|station|terminal)/i.test(displayName)
   ) {
     return 'bus_station';
   }
 
-  // 4. Cities / Towns / Villages
+  // 4. Highways, Expressways & Roads
   if (
-    osmClass === 'place' &&
-    ['city', 'town', 'village', 'municipality', 'suburb', 'neighbourhood'].includes(osmType)
+    osmClass === 'highway' ||
+    ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'expressway'].includes(osmType) ||
+    /expressway|highway|bypass|nh-\d|tollway/i.test(displayName)
+  ) {
+    return 'highway';
+  }
+  if (
+    osmClass === 'highway' &&
+    ['residential', 'service', 'track', 'unclassified', 'road', 'street'].includes(osmType)
+  ) {
+    return 'road';
+  }
+  if (osmClass !== 'building' && ['road', 'street'].includes(osmType)) {
+    return 'road';
+  }
+
+  // 5. Cities / Municipalities
+  if (
+    item.addresstype === 'city' ||
+    (osmClass === 'place' && ['city', 'municipality'].includes(osmType)) ||
+    (osmClass === 'boundary' && osmType === 'administrative' && item.place_rank === 16)
   ) {
     return 'city';
   }
 
-  // 5. States / Regions / Districts
+  // 6. Towns / Villages
+  if (
+    item.addresstype === 'town' ||
+    item.addresstype === 'village' ||
+    (osmClass === 'place' && ['town', 'village', 'hamlet', 'suburb', 'neighbourhood'].includes(osmType))
+  ) {
+    return 'town';
+  }
+
+  // 7. States / Regions / Districts
   if (
     (osmClass === 'boundary' && osmType === 'administrative') ||
     ['state', 'region', 'district', 'county', 'province'].includes(osmType)
@@ -62,12 +92,12 @@ export function mapProviderType(item = {}) {
     return 'region';
   }
 
-  // 6. Countries
+  // 8. Countries
   if (osmType === 'country' || (osmClass === 'place' && osmType === 'country')) {
     return 'country';
   }
 
-  // 7. Universities, Landmarks, POIs
+  // 9. Universities, Landmarks, POIs
   if (
     ['amenity', 'tourism', 'historic', 'leisure'].includes(osmClass) ||
     ['university', 'college', 'school', 'hospital', 'monument', 'museum'].includes(osmType)
@@ -75,17 +105,17 @@ export function mapProviderType(item = {}) {
     return 'landmark';
   }
 
-  // 8. Addresses / Buildings
-  if (['building', 'highway', 'address'].includes(osmClass)) {
+  // 10. Addresses / Buildings
+  if (['building', 'address'].includes(osmClass)) {
     return 'address';
   }
 
-  // Fallback: match against valid canonical types or default to landmark
+  // Fallback: match against valid canonical types or default to poi
   if (LOCATION_TYPES.includes(osmType)) {
     return osmType;
   }
 
-  return 'landmark';
+  return 'poi';
 }
 
 /**
@@ -113,7 +143,7 @@ export function normalizeNominatimResult(item) {
   const canonicalType = mapProviderType(item);
 
   // Extract clean primary name
-  const rawName =
+  let rawName =
     item.name ||
     address.city ||
     address.town ||
@@ -122,6 +152,13 @@ export function normalizeNominatimResult(item) {
     item.display_name?.split(',')[0]?.trim() ||
     'Unknown Location';
 
+  // If name has municipal suffix like "Chennai Corporation" or "Delhi Municipal Corporation", clean it for city search
+  if (/corporation|municipal/i.test(rawName) && address.state_district) {
+    rawName = address.state_district;
+  } else {
+    rawName = rawName.replace(/\s+(?:Corporation|Municipal\s*Corporation)$/i, '').trim();
+  }
+
   const name = rawName.trim();
   const city =
     address.city ||
@@ -129,6 +166,7 @@ export function normalizeNominatimResult(item) {
     address.village ||
     address.municipality ||
     address.county ||
+    address.state_district ||
     name;
   const state = address.state || address.region || null;
   const country = address.country || 'India';
@@ -144,7 +182,7 @@ export function normalizeNominatimResult(item) {
     name,
     displayName: item.display_name || `${name}, ${state || ''}, ${country}`.replace(', ,', ','),
     type: canonicalType,
-    city: city.trim(),
+    city: city.replace(/\s+(?:Corporation|Municipal\s*Corporation)$/i, '').trim(),
     state: state ? state.trim() : null,
     country: country.trim(),
     countryCode,
@@ -153,6 +191,9 @@ export function normalizeNominatimResult(item) {
       // Strict GeoJSON order: [longitude, latitude]
       coordinates: [lng, lat],
     },
+    latitude: lat,
+    longitude: lng,
+    source: 'nominatim',
     placeId,
     timezone: 'Asia/Kolkata',
     aliases: item.namedetails ? Object.values(item.namedetails).filter(Boolean) : [],
@@ -162,6 +203,7 @@ export function normalizeNominatimResult(item) {
       osmType: item.osm_type || null,
       category: item.category || item.class || null,
       importance: typeof item.importance === 'number' ? item.importance : null,
+      addresstype: item.addresstype || null,
     },
   };
 }

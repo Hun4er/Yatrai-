@@ -19,4 +19,10 @@ router.post('/search', optionalAuthenticate, validateJourneySearch, journeyContr
  */
 router.post('/search/natural', optionalAuthenticate, journeyController.searchNatural);
 
+/**
+ * POST /api/journeys/interpret
+ * Compact travel intent parsing and candidate location resolution.
+ */
+router.post('/interpret', optionalAuthenticate, journeyController.interpret);
+
 export default router;

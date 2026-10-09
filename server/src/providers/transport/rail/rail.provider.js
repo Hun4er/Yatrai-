@@ -199,6 +199,95 @@ export const STATION_CODE_MAP = {
 };
 
 /**
+ * Metropolitan railway cluster mappings.
+ * Allows looking up secondary major passenger terminals when a metro city's primary station has 0 direct trains.
+ */
+export const METRO_CLUSTERS = {
+  // Chennai
+  chennai: ['MAS', 'PER', 'MS', 'TBM'],
+  mas: ['MAS', 'PER', 'MS', 'TBM'],
+  per: ['PER', 'MAS', 'MS', 'TBM'],
+  ms: ['MS', 'MAS', 'PER', 'TBM'],
+  tbm: ['TBM', 'MS', 'MAS', 'PER'],
+
+  // Patna
+  patna: ['PNBE', 'DNR', 'PPTA', 'RJPB'],
+  'patna junction': ['PNBE', 'DNR', 'PPTA', 'RJPB'],
+  pnbe: ['PNBE', 'DNR', 'PPTA', 'RJPB'],
+  dnr: ['DNR', 'PNBE', 'PPTA', 'RJPB'],
+  danapur: ['DNR', 'PNBE', 'PPTA', 'RJPB'],
+  ppta: ['PPTA', 'PNBE', 'DNR', 'RJPB'],
+  patliputra: ['PPTA', 'PNBE', 'DNR', 'RJPB'],
+  rjpb: ['RJPB', 'PNBE', 'DNR', 'PPTA'],
+
+  // Delhi NCR
+  delhi: ['NDLS', 'DLI', 'NZM', 'ANVT', 'DEE'],
+  'new delhi': ['NDLS', 'DLI', 'NZM', 'ANVT', 'DEE'],
+  ndls: ['NDLS', 'DLI', 'NZM', 'ANVT', 'DEE'],
+  dli: ['DLI', 'NDLS', 'NZM', 'ANVT', 'DEE'],
+  nzm: ['NZM', 'NDLS', 'DLI', 'ANVT', 'DEE'],
+  anvt: ['ANVT', 'NDLS', 'DLI', 'NZM', 'DEE'],
+  sonipat: ['SNP'],
+  snp: ['SNP'],
+
+  // Mumbai
+  mumbai: ['CSMT', 'MMCT', 'BDTS', 'LTT', 'DR'],
+  csmt: ['CSMT', 'MMCT', 'BDTS', 'LTT', 'DR'],
+  mmct: ['MMCT', 'CSMT', 'BDTS', 'LTT', 'DR'],
+  bdts: ['BDTS', 'MMCT', 'CSMT', 'LTT', 'DR'],
+  ltt: ['LTT', 'CSMT', 'MMCT', 'BDTS', 'DR'],
+
+  // Kolkata
+  kolkata: ['HWH', 'SDAH', 'KOAA', 'SHM'],
+  howrah: ['HWH', 'SDAH', 'KOAA', 'SHM'],
+  hwh: ['HWH', 'SDAH', 'KOAA', 'SHM'],
+  sdah: ['SDAH', 'HWH', 'KOAA', 'SHM'],
+
+  // Bengaluru
+  bengaluru: ['SBC', 'YPR', 'SMVB', 'KJM'],
+  bangalore: ['SBC', 'YPR', 'SMVB', 'KJM'],
+  sbc: ['SBC', 'YPR', 'SMVB', 'KJM'],
+  ypr: ['YPR', 'SBC', 'SMVB', 'KJM'],
+
+  // Hyderabad
+  hyderabad: ['SC', 'HYB', 'KCG'],
+  secunderabad: ['SC', 'HYB', 'KCG'],
+  sc: ['SC', 'HYB', 'KCG'],
+
+  // Varanasi
+  varanasi: ['BSB', 'BSBS', 'DDU'],
+  bsb: ['BSB', 'BSBS', 'DDU'],
+  ddu: ['DDU', 'BSB', 'BSBS'],
+};
+
+/**
+ * Returns all potential station codes for a location in a metropolitan cluster.
+ *
+ * @param {Object} location
+ * @param {string} defaultCode
+ * @returns {Array<string>}
+ */
+export function getClusterStationCodes(location, defaultCode) {
+  const codes = new Set();
+  if (defaultCode) codes.add(defaultCode.toUpperCase());
+
+  const nameClean = (location?.name || '').toLowerCase().trim();
+  const cityClean = (location?.city || '').toLowerCase().trim();
+
+  for (const [key, cluster] of Object.entries(METRO_CLUSTERS)) {
+    if (
+      nameClean.includes(key) ||
+      cityClean.includes(key) ||
+      (defaultCode && key === defaultCode.toLowerCase())
+    ) {
+      cluster.forEach((c) => codes.add(c));
+    }
+  }
+
+  return Array.from(codes);
+}
+
+/**
  * Resolves a location entity into an Indian Railways station code.
  *
  * @param {Object} location - Location entity or search object
@@ -381,10 +470,13 @@ export class RailTransportProvider extends BaseTransportProvider {
     let rawResponse = null;
 
     try {
+      const fromCode = resolveStationCode(origin);
+      const toCode = resolveStationCode(destination);
+      const isRailRadar = apiUrl ? apiUrl.toLowerCase().includes('railradar.in') : false;
+
       if (options.mockData) {
         rawResponse = options.mockData;
       } else {
-        const isRailRadar = apiUrl.toLowerCase().includes('railradar.in');
         const headers = { Accept: 'application/json' };
 
         if (apiKey) {
@@ -394,8 +486,6 @@ export class RailTransportProvider extends BaseTransportProvider {
 
         let endpointUrl;
         if (isRailRadar) {
-          const fromCode = resolveStationCode(origin);
-          const toCode = resolveStationCode(destination);
           endpointUrl = `${apiUrl.replace(/\/$/, '')}/trains/between/${encodeURIComponent(fromCode)}/${encodeURIComponent(toCode)}`;
         } else {
           const fromStation = origin.name || origin.city || 'ORIGIN';
@@ -420,7 +510,67 @@ export class RailTransportProvider extends BaseTransportProvider {
 
       this.validateResponse(rawResponse);
 
-      const trainList = this.extractTrains(rawResponse) || [];
+      let trainList = this.extractTrains(rawResponse) || [];
+
+      // If primary station pair yields 0 trains, attempt metropolitan cluster resolution
+      if (trainList.length === 0 && !options.mockData && isRailRadar) {
+        const fromClusters = getClusterStationCodes(origin, fromCode);
+        const toClusters = getClusterStationCodes(destination, toCode);
+
+        if (fromClusters.length > 1 || toClusters.length > 1) {
+          const clusterPairs = [];
+          const topFrom = fromClusters.slice(0, 3);
+          const topTo = toClusters.slice(0, 3);
+
+          for (const f of topFrom) {
+            for (const t of topTo) {
+              if (f === fromCode && t === toCode) continue;
+              clusterPairs.push({ from: f, to: t });
+            }
+          }
+
+          const headers = { Accept: 'application/json' };
+          if (apiKey) {
+            headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+            headers['X-API-Key'] = apiKey.trim();
+          }
+
+          // Query up to 6 most relevant cluster station pairs concurrently
+          const queries = clusterPairs.slice(0, 6).map(async ({ from: f, to: t }) => {
+            try {
+              const cUrl = `${apiUrl.replace(/\/$/, '')}/trains/between/${encodeURIComponent(f)}/${encodeURIComponent(t)}`;
+              const cRes = await httpFetch(cUrl, {
+                method: 'GET',
+                headers,
+                timeoutMs: Math.min(options.timeoutMs || this.timeoutMs, 4000),
+                provider: 'rail',
+                fetchFn,
+              });
+              return this.extractTrains(cRes.data) || [];
+            } catch {
+              return [];
+            }
+          });
+
+          const clusterResults = await Promise.allSettled(queries);
+          const trainMap = new Map();
+
+          for (const cr of clusterResults) {
+            if (cr.status === 'fulfilled' && Array.isArray(cr.value)) {
+              for (const tr of cr.value) {
+                const num = String(tr.train?.number || tr.trainNumber || tr.number || '');
+                if (num && !trainMap.has(num)) {
+                  trainMap.set(num, tr);
+                }
+              }
+            }
+          }
+
+          if (trainMap.size > 0) {
+            trainList = Array.from(trainMap.values());
+          }
+        }
+      }
 
       if (trainList.length === 0) {
         return this.empty(rawResponse, { durationMs: Date.now() - startTime });
@@ -500,9 +650,12 @@ export class RailTransportProvider extends BaseTransportProvider {
         const toStationName =
           item.to?.name || item.to?.code || destination?.name || destination?.city || 'Station B';
 
+        const resolvedOriginRef = origin?.id || origin?._id || origin?.name || origin?.city || fromStationName;
+        const resolvedDestRef = destination?.id || destination?._id || destination?.name || destination?.city || toStationName;
+
         candidates.push({
-          origin: origin?.id || origin?._id,
-          destination: destination?.id || destination?._id,
+          origin: resolvedOriginRef,
+          destination: resolvedDestRef,
           departureTime: depTime,
           arrivalTime: arrTime,
           duration: durationMinutes,
@@ -527,8 +680,8 @@ export class RailTransportProvider extends BaseTransportProvider {
           legs: [
             {
               sequence: 1,
-              origin: origin?.id || origin?._id,
-              destination: destination?.id || destination?._id,
+              origin: resolvedOriginRef,
+              destination: resolvedDestRef,
               mode: 'rail',
               providerCode: this.code,
               departureTime: depTime,

@@ -36,7 +36,10 @@ export const config = Object.freeze({
   env: process.env.NODE_ENV || 'development',
   isProduction: process.env.NODE_ENV === 'production',
   isDevelopment: (process.env.NODE_ENV || 'development') === 'development',
-  isTest: process.env.NODE_ENV === 'test',
+  isTest:
+    process.env.NODE_ENV === 'test' ||
+    process.env.npm_lifecycle_event === 'test' ||
+    process.execArgv.some((a) => a.includes('--test')),
 
   // Server network
   port: parseInt(process.env.PORT || '5000', 10),

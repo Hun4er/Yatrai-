@@ -13,6 +13,135 @@ function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/**
+ * Scores a location candidate based on query intent and entity type.
+ * Ensures cities/stations/airports are prioritized over highways, roads, and addresses.
+ *
+ * @param {Object} candidate
+ * @param {string} cleanQuery
+ * @returns {number} Score
+ */
+export function scoreLocationCandidate(candidate, cleanQuery) {
+  if (!candidate) return -999;
+  const lowerQ = cleanQuery.toLowerCase().trim();
+  const isAirportQuery = /\b(airport|aerodrome|airfield|terminal\s*[12345])\b/i.test(lowerQ);
+  const isStationQuery = /\b(station|junction|central|cantt|railway|terminus|jn)\b/i.test(lowerQ);
+  const isBusQuery = /\b(bus\s*(?:stand|station|terminal)|isbt)\b/i.test(lowerQ);
+  const isRoadQuery = /\b(highway|expressway|bypass|road|street|nh-\d)\b/i.test(lowerQ);
+
+  let score = 0;
+  const type = (candidate.type || '').toLowerCase();
+  const name = (candidate.name || '').toLowerCase();
+  const city = (candidate.city || '').toLowerCase();
+  const displayName = (candidate.displayName || '').toLowerCase();
+
+  if (isAirportQuery) {
+    if (type === 'airport') score += 160;
+    else if (type === 'city') score += 30;
+    else score -= 40;
+  } else if (isStationQuery) {
+    if (type === 'railway_station') score += 160;
+    else if (type === 'city') score += 40;
+    else score -= 40;
+  } else if (isBusQuery) {
+    if (type === 'bus_station') score += 160;
+    else if (type === 'city') score += 40;
+    else score -= 40;
+  } else if (isRoadQuery) {
+    if (type === 'highway' || type === 'road') score += 160;
+  } else {
+    // Generic city/town search (e.g. "Chennai", "Delhi", "Sonipat", "Patna")
+    // Rank cities & towns first! Heavily penalize highways and roads
+    if (type === 'city') score += 140;
+    else if (type === 'town') score += 120;
+    else if (type === 'region') score += 80;
+    else if (type === 'railway_station') score += 70;
+    else if (type === 'airport') score += 60;
+    else if (type === 'bus_station') score += 50;
+    else if (type === 'landmark' || type === 'poi') score += 30;
+    else if (type === 'address') score += 10;
+    else if (type === 'highway' || type === 'road') score -= 150;
+  }
+
+  // Name / City match accuracy bonuses
+  if (name === lowerQ) score += 70;
+  else if (name.startsWith(lowerQ)) score += 35;
+  else if (name.includes(lowerQ)) score += 15;
+
+  if (city === lowerQ) score += 40;
+  else if (city.startsWith(lowerQ)) score += 20;
+
+  if (displayName.includes(lowerQ)) score += 10;
+
+  // Bonus for importance metadata from geocoder
+  const importance = Number(candidate.metadata?.importance) || 0.4;
+  score += Math.round(importance * 25);
+
+  // If candidate name contains "expressway" or "highway" when not requested, penalize
+  if (!isRoadQuery && /expressway|highway|bypass/i.test(name + ' ' + displayName)) {
+    score -= 120;
+  }
+
+  return score;
+}
+
+/**
+ * Filters and ranks candidate locations to prevent road/highway confusion.
+ *
+ * @param {Array<Object>} candidates
+ * @param {string} cleanQuery
+ * @returns {Array<Object>} Sorted and filtered candidates
+ */
+export function filterAndRankCandidates(candidates = [], cleanQuery = '') {
+  if (!Array.isArray(candidates) || candidates.length === 0) return [];
+  const lowerQ = cleanQuery.toLowerCase().trim();
+  const isRoadQuery = /\b(highway|expressway|bypass|road|street|nh-\d)\b/i.test(lowerQ);
+
+  // Filter out unwanted highways/roads for non-road queries if non-road candidates exist
+  let filtered = candidates;
+  if (!isRoadQuery) {
+    const nonRoad = candidates.filter((c) => {
+      const type = (c.type || '').toLowerCase();
+      const isRoadOrHwy = type === 'highway' || type === 'road';
+      const hasHwyName = /expressway|highway|bypass/i.test(c.name || '');
+      return !isRoadOrHwy && !hasHwyName;
+    });
+    if (nonRoad.length > 0) {
+      filtered = nonRoad;
+    }
+  }
+
+  // Rank by calculated score descending
+  return [...filtered].sort((a, b) => {
+    return scoreLocationCandidate(b, cleanQuery) - scoreLocationCandidate(a, cleanQuery);
+  });
+}
+
+/**
+ * Formats a location document into canonical structured representation.
+ *
+ * @param {Object} doc
+ * @returns {Object} Structured location
+ */
+export function formatLocationDoc(doc) {
+  if (!doc) return null;
+  const json = typeof doc.toJSON === 'function' ? doc.toJSON() : doc;
+  const coords = json.location?.coordinates || json.coordinates || [];
+  return {
+    ...json,
+    id: json._id ? json._id.toString() : json.id || null,
+    name: json.name || '',
+    type: json.type || 'unknown',
+    latitude: typeof json.latitude === 'number' ? json.latitude : (coords[1] ?? null),
+    longitude: typeof json.longitude === 'number' ? json.longitude : (coords[0] ?? null),
+    city: json.city || '',
+    state: json.state || null,
+    country: json.country || 'India',
+    placeId: json.placeId || null,
+    source: json.source || json.metadata?.provider || 'nominatim',
+  };
+}
+
 export const locationService = {
   // ============================================================================
   // PHASE 1 CRUD & GEOSPATIAL METHODS (Preserved for Backward Compatibility)
@@ -57,12 +186,13 @@ export const locationService = {
   },
 
   // ============================================================================
-  // PHASE 3 LOCATION RESOLUTION & DISCOVERY METHODS
+  // PHASE 3 & 22 LOCATION RESOLUTION & DISCOVERY METHODS
   // ============================================================================
 
   /**
    * Searches for canonical locations matching a query.
    * Checks database cache first to minimize external provider roundtrips and avoid duplicates.
+   * Prioritizes cities/towns/stations and filters out roads/highways for generic queries.
    *
    * @param {string} query - Human entered text
    * @param {Object} [options]
@@ -81,7 +211,6 @@ export const locationService = {
 
     // 1. Check local MongoDB cache if not forcing refresh
     if (!forceRefresh) {
-      // Prioritize exact or prefix matches on name, city, or aliases
       const localMatches = await Location.find({
         $or: [
           { name: new RegExp(`^${escaped}$`, 'i') },
@@ -90,40 +219,23 @@ export const locationService = {
           { name: new RegExp(`^${escaped}`, 'i') },
           { displayName: new RegExp(escaped, 'i') },
         ],
-      }).limit(limit);
+      }).limit(limit * 3);
 
       if (localMatches.length > 0) {
-        // Sort matches to prioritize exact name match, then exact city match, then prefix
-        const lowerQ = cleanQuery.toLowerCase();
-        localMatches.sort((a, b) => {
-          const aExactName = (a.name || '').toLowerCase() === lowerQ;
-          const bExactName = (b.name || '').toLowerCase() === lowerQ;
-          if (aExactName && !bExactName) return -1;
-          if (!aExactName && bExactName) return 1;
-
-          const aExactCity = (a.city || '').toLowerCase() === lowerQ;
-          const bExactCity = (b.city || '').toLowerCase() === lowerQ;
-          if (aExactCity && !bExactCity) return -1;
-          if (!aExactCity && bExactCity) return 1;
-
-          const aStarts = (a.name || '').toLowerCase().startsWith(lowerQ);
-          const bStarts = (b.name || '').toLowerCase().startsWith(lowerQ);
-          if (aStarts && !bStarts) return -1;
-          if (!aStarts && bStarts) return 1;
-
-          return 0;
-        });
-
-        logger.debug(
-          `Found ${localMatches.length} cached location(s) in MongoDB for: "${cleanQuery}"`
-        );
-        return localMatches.map((doc) => doc.toJSON());
+        const rankedLocal = filterAndRankCandidates(localMatches, cleanQuery);
+        // Only return from cache if the top candidate has a viable positive score
+        if (rankedLocal.length > 0 && scoreLocationCandidate(rankedLocal[0], cleanQuery) > 30) {
+          logger.debug(
+            `Found ${rankedLocal.length} cached location(s) in MongoDB for: "${cleanQuery}" (top: ${rankedLocal[0].name}, type: ${rankedLocal[0].type})`
+          );
+          return rankedLocal.slice(0, limit).map(formatLocationDoc);
+        }
       }
     }
 
     // 2. Query geocoding provider
     let candidates = await locationProvider.search(cleanQuery, {
-      limit,
+      limit: Math.max(limit, 5),
       adapter: providerAdapter,
     });
 
@@ -146,9 +258,12 @@ export const locationService = {
       return [];
     }
 
+    // Filter and rank external candidates based on query intent
+    const rankedCandidates = filterAndRankCandidates(candidates, cleanQuery);
+
     // 3. Persist and deduplicate candidates in MongoDB
     const persisted = [];
-    for (const candidate of candidates) {
+    for (const candidate of rankedCandidates.slice(0, limit)) {
       // Deduplication check: match existing by placeId, or compound name + city + type
       const queryFilter = candidate.placeId
         ? { placeId: candidate.placeId }
@@ -161,22 +276,22 @@ export const locationService = {
       let existing = await Location.findOne(queryFilter);
 
       if (existing) {
-        // Reuse existing canonical document
-        persisted.push(existing.toJSON());
+        persisted.push(formatLocationDoc(existing));
       } else {
         try {
           const doc = new Location(candidate);
           await doc.save();
-          persisted.push(doc.toJSON());
+          persisted.push(formatLocationDoc(doc));
         } catch (err) {
-          // If concurrent insert triggered duplicate key or validation, attempt recovery
           logger.warn(
             'Error persisting location candidate, attempting lookup fallback:',
             err.message
           );
           const fallback = await Location.findOne({ name: candidate.name, city: candidate.city });
           if (fallback) {
-            persisted.push(fallback.toJSON());
+            persisted.push(formatLocationDoc(fallback));
+          } else {
+            persisted.push(formatLocationDoc(candidate));
           }
         }
       }
@@ -231,7 +346,7 @@ export const locationService = {
       };
     }
 
-    // Step B: Direct place query resolution (e.g. "Delhi", "SRM University Delhi NCR", "Patna Junction")
+    // Step B: Direct place query resolution (e.g. "Chennai", "Chennai Central", "Chennai Airport")
     const candidates = await this.search(cleanInput, { limit: options.limit || 5, ...options });
 
     return {

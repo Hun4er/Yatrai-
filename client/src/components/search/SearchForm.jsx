@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { MapPin, Navigation, Calendar, Search, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { MapPin, Navigation, Calendar, Search, Loader2, Check } from 'lucide-react';
+import api from '../../services/api.js';
 
 /**
  * SearchForm Component
  *
- * Provides the primary journey discovery input: Origin, Destination, and Departure Date.
- * Handles client-side validation, accessible form inputs, and triggers search submission.
+ * Provides the deterministic journey discovery input: Origin, Destination, and Departure Date.
+ * Includes Section 2 Location Resolution autocomplete to prevent silent POI conversion.
  */
 export function SearchForm({
   initialOrigin = '',
@@ -20,7 +21,16 @@ export function SearchForm({
   const [departureDate, setDepartureDate] = useState(initialDate);
   const [errors, setErrors] = useState({});
 
-  // Sync state if initial props change (e.g. from URL params or navigation)
+  // Location suggestions state
+  const [originSuggestions, setOriginSuggestions] = useState([]);
+  const [destSuggestions, setDestSuggestions] = useState([]);
+  const [showOriginSuggestions, setShowOriginSuggestions] = useState(false);
+  const [showDestSuggestions, setShowDestSuggestions] = useState(false);
+
+  const originRef = useRef(null);
+  const destRef = useRef(null);
+
+  // Sync state if initial props change
   useEffect(() => {
     if (initialOrigin) setOrigin(initialOrigin);
     if (initialDestination) setDestination(initialDestination);
@@ -37,6 +47,46 @@ export function SearchForm({
       setDepartureDate(`${yyyy}-${mm}-${dd}`);
     }
   }, [departureDate]);
+
+  // Debounced autocomplete for Origin
+  useEffect(() => {
+    if (!origin || origin.trim().length < 2) {
+      setOriginSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.locations.search(origin.trim(), 5);
+        const locs = res?.data?.locations || [];
+        setOriginSuggestions(locs);
+      } catch {
+        setOriginSuggestions([]);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [origin]);
+
+  // Debounced autocomplete for Destination
+  useEffect(() => {
+    if (!destination || destination.trim().length < 2) {
+      setDestSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.locations.search(destination.trim(), 5);
+        const locs = res?.data?.locations || [];
+        setDestSuggestions(locs);
+      } catch {
+        setDestSuggestions([]);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [destination]);
 
   const validate = () => {
     const errs = {};
@@ -65,6 +115,8 @@ export function SearchForm({
     if (isLoading) return;
 
     if (validate()) {
+      setShowOriginSuggestions(false);
+      setShowDestSuggestions(false);
       onSearch({
         origin: origin.trim(),
         destination: destination.trim(),
@@ -83,8 +135,8 @@ export function SearchForm({
       aria-label="Journey Search Form"
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:gap-3 items-end">
-        {/* Origin Field */}
-        <div className="lg:col-span-4">
+        {/* Origin Field with Autocomplete */}
+        <div className="lg:col-span-4 relative" ref={originRef}>
           <label
             htmlFor="origin-input"
             className="block text-xs font-semibold uppercase tracking-wider text-text-secondary mb-1.5"
@@ -104,8 +156,10 @@ export function SearchForm({
               disabled={isLoading}
               placeholder="e.g. Sonipat"
               value={origin}
+              onFocus={() => setShowOriginSuggestions(true)}
               onChange={(e) => {
                 setOrigin(e.target.value);
+                setShowOriginSuggestions(true);
                 if (errors.origin) setErrors((prev) => ({ ...prev, origin: null }));
               }}
               className={`w-full rounded-xl border bg-surface-secondary pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-disabled transition-all focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary ${
@@ -115,6 +169,34 @@ export function SearchForm({
               aria-describedby={errors.origin ? 'origin-error' : undefined}
             />
           </div>
+
+          {/* Autocomplete Dropdown */}
+          {showOriginSuggestions && originSuggestions.length > 0 && (
+            <div className="absolute z-20 left-0 right-0 mt-1 rounded-xl border border-white/10 bg-surface-elevated p-1 shadow-2xl space-y-0.5">
+              {originSuggestions.map((loc, idx) => (
+                <button
+                  key={loc.id || idx}
+                  type="button"
+                  onClick={() => {
+                    setOrigin(loc.name || loc.city);
+                    setShowOriginSuggestions(false);
+                  }}
+                  className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left hover:bg-white/5 transition-colors cursor-pointer"
+                >
+                  <div className="truncate">
+                    <span className="font-semibold text-text-primary">{loc.name}</span>
+                    {loc.state && <span className="text-text-tertiary">, {loc.state}</span>}
+                  </div>
+                  {loc.type && (
+                    <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-text-tertiary uppercase shrink-0 ml-2">
+                      {loc.type.replace('_', ' ')}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
           {errors.origin && (
             <p id="origin-error" className="mt-1 text-xs text-semantic-error" role="alert">
               {errors.origin}
@@ -122,8 +204,8 @@ export function SearchForm({
           )}
         </div>
 
-        {/* Destination Field */}
-        <div className="lg:col-span-4">
+        {/* Destination Field with Autocomplete */}
+        <div className="lg:col-span-4 relative" ref={destRef}>
           <label
             htmlFor="destination-input"
             className="block text-xs font-semibold uppercase tracking-wider text-text-secondary mb-1.5"
@@ -143,8 +225,10 @@ export function SearchForm({
               disabled={isLoading}
               placeholder="e.g. Patna"
               value={destination}
+              onFocus={() => setShowDestSuggestions(true)}
               onChange={(e) => {
                 setDestination(e.target.value);
+                setShowDestSuggestions(true);
                 if (errors.destination) setErrors((prev) => ({ ...prev, destination: null }));
               }}
               className={`w-full rounded-xl border bg-surface-secondary pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-disabled transition-all focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary ${
@@ -154,6 +238,34 @@ export function SearchForm({
               aria-describedby={errors.destination ? 'destination-error' : undefined}
             />
           </div>
+
+          {/* Autocomplete Dropdown */}
+          {showDestSuggestions && destSuggestions.length > 0 && (
+            <div className="absolute z-20 left-0 right-0 mt-1 rounded-xl border border-white/10 bg-surface-elevated p-1 shadow-2xl space-y-0.5">
+              {destSuggestions.map((loc, idx) => (
+                <button
+                  key={loc.id || idx}
+                  type="button"
+                  onClick={() => {
+                    setDestination(loc.name || loc.city);
+                    setShowDestSuggestions(false);
+                  }}
+                  className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left hover:bg-white/5 transition-colors cursor-pointer"
+                >
+                  <div className="truncate">
+                    <span className="font-semibold text-text-primary">{loc.name}</span>
+                    {loc.state && <span className="text-text-tertiary">, {loc.state}</span>}
+                  </div>
+                  {loc.type && (
+                    <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-text-tertiary uppercase shrink-0 ml-2">
+                      {loc.type.replace('_', ' ')}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
           {errors.destination && (
             <p id="destination-error" className="mt-1 text-xs text-semantic-error" role="alert">
               {errors.destination}
@@ -215,7 +327,7 @@ export function SearchForm({
             ) : (
               <>
                 <Search className="h-4 w-4" aria-hidden="true" />
-                <span>Find Routes</span>
+                <span>Find Journeys</span>
               </>
             )}
           </button>

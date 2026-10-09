@@ -126,9 +126,19 @@ export function App() {
 
   // Execute natural language search intent discovery (Phase 11)
   const handlePerformNaturalSearch = useCallback(
-    async (query) => {
+    async (queryOrParams) => {
+      // If confirmed parameters were passed from SearchIntentSummary
+      if (
+        queryOrParams &&
+        typeof queryOrParams === 'object' &&
+        queryOrParams.origin &&
+        queryOrParams.destination
+      ) {
+        return handlePerformSearch(queryOrParams);
+      }
+
       try {
-        const result = await searchState.searchNatural(query);
+        const result = await searchState.searchNatural(queryOrParams);
 
         // If clarification is required, remain on home page to collect missing fields
         if (result?.status === 'needs_clarification') {
@@ -156,7 +166,7 @@ export function App() {
         // Search state will hold the error
       }
     },
-    [searchState]
+    [handlePerformSearch, searchState]
   );
 
   // Switch ranking strategy on results page

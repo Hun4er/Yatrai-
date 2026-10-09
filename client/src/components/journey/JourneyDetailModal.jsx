@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { X, Clock, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Clock, ShieldCheck, ExternalLink, Calendar, Info } from 'lucide-react';
 import {
   formatDuration,
   formatPrice,
@@ -7,6 +7,9 @@ import {
   formatDateDisplay,
   formatTransportModes,
   formatTransfers,
+  getDayOffset,
+  formatDayOffsetBadge,
+  getPriceLabel,
 } from '../../utils/formatters.js';
 import { JourneyLeg } from './JourneyLeg.jsx';
 import { JourneyMap } from '../map/JourneyMap.jsx';
@@ -15,9 +18,8 @@ import { JourneyMap } from '../map/JourneyMap.jsx';
  * JourneyDetailModal Component
  *
  * Dedicated inspection modal for selected journey.
- * Integrates Mapbox GL JS route visualization (Phase 12), canonical itinerary,
- * transfer details, service providers, and summary metrics.
- * Contains ZERO raw provider payloads or payment forms.
+ * Integrates Mapbox GL JS route visualization (Phase 12), canonical itinerary segments,
+ * explicit arrival date handling, provider data freshness, and booking references.
  */
 export function JourneyDetailModal({ journey, onClose }) {
   const [selectedLegSequence, setSelectedLegSequence] = useState(null);
@@ -41,23 +43,36 @@ export function JourneyDetailModal({ journey, onClose }) {
   const arrTime = formatTime(journey.arrivalTime);
   const depDate = formatDateDisplay(journey.departureTime?.split('T')?.[0]);
   const arrDate = formatDateDisplay(journey.arrivalTime?.split('T')?.[0]);
+
+  const dayOffset = getDayOffset(journey.departureTime, journey.arrivalTime);
+  const dayOffsetBadge = formatDayOffsetBadge(dayOffset);
+
   const durationText = formatDuration(journey.duration);
   const priceText = formatPrice(journey.totalPrice, journey.currency);
+  const priceLabel = getPriceLabel(journey);
   const transferText = formatTransfers(journey.numberOfTransfers);
   const modesText = formatTransportModes(journey.transportModes);
   const legs = Array.isArray(journey.legs) ? journey.legs : [];
   const rankingLabel = journey.ranking?.label;
+
   const providerName =
+    legs[0]?.service?.operator ||
     journey.metadata?.provider ||
+    legs[0]?.service?.name ||
     journey.provider ||
-    (legs[0]?.service?.operator ? legs[0].service.operator : null);
+    'Transport Network';
+
+  const freshnessInfo =
+    journey.metadata?.freshness ||
+    (journey.metadata?.searchedAt ? `Updated ${formatDateDisplay(journey.metadata.searchedAt.split('T')[0])}` : null);
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="journey-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/80 backdrop-blur-sm animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto bg-black/80 backdrop-blur-sm animate-in fade-in"
+      onClick={onClose}
     >
       <div
         className="relative w-full max-w-3xl rounded-2xl border border-white/10 bg-surface-primary p-6 sm:p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto"
@@ -68,7 +83,7 @@ export function JourneyDetailModal({ journey, onClose }) {
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               {rankingLabel && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold text-brand-primary border border-brand-primary/20">
+                <span className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-3 py-0.5 text-xs font-semibold text-brand-primary border border-brand-primary/20">
                   <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>{rankingLabel}</span>
                 </span>
@@ -86,13 +101,13 @@ export function JourneyDetailModal({ journey, onClose }) {
             type="button"
             onClick={onClose}
             className="rounded-xl border border-white/10 bg-surface-secondary p-2 text-text-secondary hover:text-text-primary hover:border-white/20 transition-all cursor-pointer focus:outline-none"
-            aria-label="Close journey details"
+            aria-label="Close itinerary details"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
-        {/* Journey Map Route Visualization (Phase 12) */}
+        {/* Journey Map Route Visualization */}
         <div className="w-full">
           <JourneyMap
             journey={journey}
@@ -109,24 +124,24 @@ export function JourneyDetailModal({ journey, onClose }) {
             <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
               Total Duration
             </div>
-            <div className="mt-1 text-base font-bold text-text-primary flex items-center gap-1.5">
+            <div className="mt-1 text-base font-bold text-text-primary flex items-center gap-1.5 font-mono">
               <Clock className="h-4 w-4 text-brand-primary" aria-hidden="true" />
               <span>{durationText}</span>
             </div>
           </div>
 
           <div className="rounded-xl border border-white/5 bg-surface-secondary p-3.5">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-              Total Price
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary truncate">
+              {priceLabel}
             </div>
-            <div className="mt-1 text-base font-bold text-semantic-success flex items-center gap-1">
+            <div className="mt-1 text-base font-bold text-text-primary flex items-center gap-1 font-mono">
               <span>{priceText}</span>
             </div>
           </div>
 
           <div className="rounded-xl border border-white/5 bg-surface-secondary p-3.5">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-text-tertiary">
-              Connections
+              Transfers
             </div>
             <div className="mt-1 text-base font-bold text-text-primary">
               {transferText}
@@ -143,32 +158,41 @@ export function JourneyDetailModal({ journey, onClose }) {
           </div>
         </div>
 
-        {/* Departure & Arrival Schedule */}
+        {/* Departure & Arrival Schedule with Explicit Dates */}
         <div className="rounded-xl border border-white/5 bg-surface-secondary/70 p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">
-              Departure
+            <div className="text-xs font-semibold uppercase tracking-wider text-text-tertiary flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5 text-brand-primary" />
+              <span>Departure</span>
             </div>
-            <div className="mt-1 text-xl font-bold text-text-primary">{depTime}</div>
+            <div className="mt-1 text-xl font-bold text-text-primary font-mono">{depTime}</div>
             <div className="text-xs text-brand-primary font-medium">{originName}</div>
             {depDate && <div className="text-xs text-text-tertiary">{depDate}</div>}
           </div>
 
           <div>
-            <div className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">
-              Arrival
+            <div className="text-xs font-semibold uppercase tracking-wider text-text-tertiary flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5 text-brand-primary" />
+              <span>Arrival</span>
             </div>
-            <div className="mt-1 text-xl font-bold text-text-primary">{arrTime}</div>
+            <div className="mt-1 text-xl font-bold text-text-primary font-mono flex items-baseline gap-2">
+              <span>{arrTime}</span>
+              {dayOffsetBadge && (
+                <span className="rounded-md bg-brand-soft px-1.5 py-0.5 text-xs font-bold text-brand-primary border border-brand-primary/20">
+                  {dayOffsetBadge}
+                </span>
+              )}
+            </div>
             <div className="text-xs text-brand-primary font-medium">{destinationName}</div>
             {arrDate && <div className="text-xs text-text-tertiary">{arrDate}</div>}
           </div>
         </div>
 
-        {/* Step-by-Step Itinerary Legs */}
+        {/* Step-by-Step Itinerary Segments */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wider text-text-secondary">
-              Itinerary Segments ({legs.length} {legs.length === 1 ? 'Leg' : 'Legs'})
+              Itinerary Segments ({legs.length} {legs.length === 1 ? 'segment' : 'segments'})
             </h3>
             {selectedLegSequence && (
               <button
@@ -176,11 +200,12 @@ export function JourneyDetailModal({ journey, onClose }) {
                 onClick={() => setSelectedLegSequence(null)}
                 className="text-[11px] text-brand-primary hover:underline cursor-pointer"
               >
-                Clear leg selection
+                Clear segment highlight
               </button>
             )}
           </div>
-          <div className="space-y-3">
+
+          <div className="space-y-2">
             {legs.map((leg, idx) => (
               <JourneyLeg
                 key={leg.id || idx}
@@ -196,11 +221,18 @@ export function JourneyDetailModal({ journey, onClose }) {
           </div>
         </div>
 
-        {/* Footer info: provider & notice */}
+        {/* Footer Info & Disclaimers */}
         <div className="border-t border-white/5 pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-text-tertiary">
-          <div>
+          <div className="space-y-0.5">
             {providerName && (
-              <span>Discovered via <strong className="text-text-secondary">{providerName}</strong></span>
+              <div>
+                Discovered via <strong className="text-text-secondary">{providerName}</strong>
+              </div>
+            )}
+            {freshnessInfo && (
+              <div className="text-[11px] text-text-tertiary">
+                {freshnessInfo}
+              </div>
             )}
           </div>
 
@@ -209,7 +241,7 @@ export function JourneyDetailModal({ journey, onClose }) {
             onClick={onClose}
             className="rounded-xl bg-surface-secondary px-5 py-2.5 text-xs font-semibold text-text-primary border border-white/10 hover:bg-surface-elevated transition-colors cursor-pointer self-end sm:self-auto"
           >
-            Close Details
+            Close Itinerary
           </button>
         </div>
       </div>

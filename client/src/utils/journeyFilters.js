@@ -24,9 +24,9 @@ export const DEPARTURE_TIME_BUCKET_CONFIG = [
 
 export const TRANSFER_FILTER_OPTIONS = [
   { id: 'any', label: 'Any' },
-  { id: '0', label: 'Direct (0)' },
-  { id: '1', label: '1 Transfer' },
-  { id: '2+', label: '2+ Transfers' },
+  { id: 'direct', label: 'Direct only' },
+  { id: '1_max', label: '1 max' },
+  { id: '2_max', label: '2 max' },
 ];
 
 /**
@@ -133,8 +133,9 @@ export function matchesTransfers(numberOfTransfers, transferFilter) {
   if (!transferFilter || transferFilter === 'any') return true;
   const transfers = Number(numberOfTransfers) || 0;
 
-  if (transferFilter === '0') return transfers === 0;
-  if (transferFilter === '1') return transfers === 1;
+  if (transferFilter === '0' || transferFilter === 'direct') return transfers === 0;
+  if (transferFilter === '1' || transferFilter === '1_max') return transfers <= 1;
+  if (transferFilter === '2_max') return transfers <= 2;
   if (transferFilter === '2+') return transfers >= 2;
 
   return true;

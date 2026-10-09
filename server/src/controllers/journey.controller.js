@@ -1,5 +1,6 @@
 import journeyOrchestrator from '../orchestration/journeyOrchestrator.js';
 import naturalLanguageParser from '../services/naturalLanguage/naturalLanguageParser.js';
+import locationService from '../services/locationService.js';
 import recentSearchService from '../services/recentSearchService.js';
 import { successResponse } from '../utils/apiResponse.js';
 
@@ -158,6 +159,65 @@ export const journeyController = {
       response.query = query;
       response.parsedRequest = structured;
       response.journeys = result.journeys;
+
+      return res.status(200).json(response);
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  /**
+   * POST /api/journeys/interpret
+   * Interprets natural language travel intent and resolves candidate locations
+   * without immediately orchestrating the entire journey search.
+   */
+  async interpret(req, res, next) {
+    try {
+      const { query, referenceDate, timezone } = req.body || {};
+
+      if (!query || typeof query !== 'string' || !query.trim()) {
+        const err = new Error('Query string is required for natural language interpretation.');
+        err.statusCode = 400;
+        err.code = 'INVALID_QUERY';
+        throw err;
+      }
+
+      const parseResult = await naturalLanguageParser.parse(query, {
+        currentDate: referenceDate,
+        timezone,
+      });
+
+      if (parseResult.status === 'needs_clarification' || parseResult.status === 'invalid') {
+        return res.status(200).json({
+          success: false,
+          status: parseResult.status,
+          message: parseResult.message,
+          missingFields: parseResult.missingFields,
+          parsedRequest: parseResult.structuredRequest,
+        });
+      }
+
+      const structured = parseResult.structuredRequest;
+      const [originCandidates, destinationCandidates] = await Promise.all([
+        structured?.origin ? locationService.search(structured.origin, { limit: 5 }) : Promise.resolve([]),
+        structured?.destination ? locationService.search(structured.destination, { limit: 5 }) : Promise.resolve([]),
+      ]);
+
+      const response = successResponse('Search intent interpreted successfully', {
+        query,
+        status: 'ready',
+        parsedRequest: structured,
+        origin: {
+          query: structured.origin,
+          candidates: originCandidates,
+          selected: originCandidates[0] || null,
+        },
+        destination: {
+          query: structured.destination,
+          candidates: destinationCandidates,
+          selected: destinationCandidates[0] || null,
+        },
+      });
 
       return res.status(200).json(response);
     } catch (error) {

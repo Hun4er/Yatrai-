@@ -14,6 +14,7 @@ import journeyNormalizer from '../normalization/journeyNormalizer.js';
 import journeyDeduplicator from '../deduplication/journeyDeduplicator.js';
 import rankingEngine from '../ranking/rankingEngine.js';
 import resultAssembler from './resultAssembler.js';
+import multiModalEngine from '../multimodal/index.js';
 import { matchesTimeWindow } from '../services/naturalLanguage/timeWindowResolver.js';
 import { isValidCalendarDate, isPastDate } from '../middleware/validate.middleware.js';
 
@@ -120,6 +121,7 @@ export class JourneyOrchestrator {
     this.journeyLegService = dependencies.journeyLegService || journeyLegService;
     this.searchResultService = dependencies.searchResultService || searchResultService;
     this.developmentProvider = dependencies.developmentProvider || developmentJourneyProvider;
+    this.multiModalEngine = dependencies.multiModalEngine || multiModalEngine;
     this.timeoutMs = dependencies.timeoutMs || 10000;
   }
 
@@ -388,9 +390,11 @@ export class JourneyOrchestrator {
 
     // In development or test environments, include the development candidate source if available
     // and not explicitly disabled via options.includeDevelopment = false
+    // When live rail provider is configured, prioritize live providers and omit mock development provider
+    const hasLiveRail = Boolean(config.providers.rail.apiKey && config.providers.rail.apiUrl);
     const shouldIncludeDev =
       options.includeDevelopment === true ||
-      (options.includeDevelopment !== false && (config.isTest || config.isDevelopment));
+      (options.includeDevelopment !== false && (config.isTest || (config.isDevelopment && !hasLiveRail)));
 
     if (shouldIncludeDev && this.developmentProvider) {
       const devAlreadyPresent = selected.some(
@@ -665,9 +669,12 @@ export class JourneyOrchestrator {
 
       try {
         // A. Create normalized Journey
+        const journeyOriginId = candidate.origin?._id || candidate.origin?.id || candidate.origin;
+        const journeyDestId = candidate.destination?._id || candidate.destination?.id || candidate.destination;
+
         createdJourney = await this.journeyService.create({
-          origin: candidate.origin,
-          destination: candidate.destination,
+          origin: journeyOriginId,
+          destination: journeyDestId,
           departureTime: candidate.departureTime,
           arrivalTime: candidate.arrivalTime,
           duration: candidate.duration,
@@ -684,11 +691,21 @@ export class JourneyOrchestrator {
         const legs = Array.isArray(candidate.legs) ? candidate.legs : [];
         try {
           for (const legData of legs) {
+            let legOriginId = legData.origin?._id || legData.origin?.id || legData.origin;
+            let legDestId = legData.destination?._id || legData.destination?.id || legData.destination;
+
+            if (!mongoose.Types.ObjectId.isValid(legOriginId)) {
+              legOriginId = createdJourney.origin;
+            }
+            if (!mongoose.Types.ObjectId.isValid(legDestId)) {
+              legDestId = createdJourney.destination;
+            }
+
             await this.journeyLegService.create({
               journey: createdJourney._id,
               sequence: legData.sequence,
-              origin: legData.origin,
-              destination: legData.destination,
+              origin: legOriginId,
+              destination: legDestId,
               mode: legData.mode,
               provider: legData.provider || null,
               departureTime: legData.departureTime,
@@ -967,8 +984,29 @@ export class JourneyOrchestrator {
       // 9. Normalize candidates from successful providers (Phase 6)
       const normalizedCandidates = this.normalizeResults(executionSummary.envelopes, searchContext);
 
+      // 9.5 Multi-Modal Journey Discovery Engine (Phase 23)
+      let candidatesToDeduplicate = normalizedCandidates;
+      const canRunMultiModal =
+        options.includeMultiModal === true ||
+        (options.includeMultiModal !== false &&
+          !config.isTest &&
+          (!requestedModes?.length || requestedModes.includes('multimodal')));
+
+      if (canRunMultiModal && this.multiModalEngine && typeof this.multiModalEngine.discoverJourneys === 'function') {
+        try {
+          candidatesToDeduplicate = await this.multiModalEngine.discoverJourneys(
+            searchContext,
+            normalizedCandidates,
+            options
+          );
+        } catch (mmErr) {
+          logger.warn(`[JourneyOrchestrator] Multi-modal engine skipped: ${mmErr.message}`);
+          candidatesToDeduplicate = normalizedCandidates;
+        }
+      }
+
       // 10. Deduplicate canonical journeys (Phase 8)
-      const { uniqueJourneys, deduplicationReport } = this.deduplicate(normalizedCandidates, searchContext);
+      const { uniqueJourneys, deduplicationReport } = this.deduplicate(candidatesToDeduplicate, searchContext);
 
       // 11. Persist unique canonical journeys, legs, and search results
       const persistedJourneys = await this.persistJourneys(uniqueJourneys, searchContext);

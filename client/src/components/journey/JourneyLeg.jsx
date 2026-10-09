@@ -1,5 +1,6 @@
 import React from 'react';
-import { Train, Bus, Plane, Car, Footprints, Clock, ArrowRight } from 'lucide-react';
+import { Train, Bus, Plane, Car, Footprints, Clock } from 'lucide-react';
+import { getDayOffset, formatDayOffsetBadge } from '../../utils/formatters.js';
 
 /**
  * Format minutes into "Xh Ym" or "Xh"
@@ -56,23 +57,35 @@ export function getModeIcon(mode) {
 /**
  * JourneyLeg Component
  *
- * Renders an individual journey leg timeline item and transfer interval.
+ * Renders an individual journey segment in a clear vertical timeline (Section 12).
+ * Shows departure stop, vehicle/operator details, arrival stop, day offsets,
+ * and transfer connection duration without fabricating any stops.
  */
 export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = false, onSelect = null }) {
   const Icon = getModeIcon(leg.mode);
 
   const originName = leg.origin?.name || leg.origin?.city || 'Origin';
   const destinationName = leg.destination?.name || leg.destination?.city || 'Destination';
+  const originCity = leg.origin?.city && leg.origin?.name !== leg.origin?.city ? leg.origin.city : null;
+  const destinationCity = leg.destination?.city && leg.destination?.name !== leg.destination?.city ? leg.destination.city : null;
+
   const depTime = formatTime(leg.departureTime);
   const arrTime = formatTime(leg.arrivalTime);
   const durationText = formatDuration(leg.duration);
+
+  const dayOffset = getDayOffset(leg.departureTime, leg.arrivalTime);
+  const dayBadge = formatDayOffsetBadge(dayOffset);
+
   const serviceName =
     leg.service?.name ||
     leg.service?.operator ||
     leg.vehicle?.type ||
-    (leg.mode ? leg.mode.toUpperCase() : 'Transit');
+    (leg.mode ? `${leg.mode.toUpperCase()} Transit` : 'Transit');
 
-  // Calculate transfer duration between this leg and the next leg
+  const serviceClass = leg.service?.class ? `· ${leg.service.class}` : '';
+  const serviceNumber = leg.service?.number || leg.vehicle?.identifier;
+
+  // Calculate transfer duration between this leg and next leg
   let transferDuration = 0;
   if (nextLeg && leg.arrivalTime && nextLeg.departureTime) {
     const end = new Date(leg.arrivalTime).getTime();
@@ -90,66 +103,135 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = f
 
   return (
     <div className="relative">
-      {/* Leg Container */}
+      {/* Segment Container */}
       <div
         onClick={handleClick}
-        className={`flex items-start gap-4 rounded-xl border p-4 transition-all ${
+        className={`rounded-xl transition-all ${
           onSelect ? 'cursor-pointer' : ''
         } ${
           isSelected
-            ? 'border-brand-primary bg-surface-elevated shadow-lg ring-1 ring-brand-primary/50'
-            : 'border-white/5 bg-surface-secondary/70 hover:border-white/15'
+            ? 'border border-brand-primary/60 bg-surface-elevated/80 p-3 sm:p-4 ring-1 ring-brand-primary/40'
+            : ''
         }`}
       >
-        {/* Mode Icon Badge */}
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-elevated text-brand-primary border border-white/10">
-          <Icon className="h-5 w-5" aria-hidden="true" />
-        </div>
+        {/* Continuous 3-Row Vertical Timeline Track */}
+        <div className="space-y-0">
+          {/* 1. Departure Point Row */}
+          <div className="flex items-start gap-3">
+            {/* Timeline Spine Col - Origin Marker */}
+            <div className="flex w-5 flex-col items-center pt-1 shrink-0">
+              <div
+                className="h-2.5 w-2.5 rounded-full bg-brand-primary ring-4 ring-brand-primary/20 shrink-0"
+                aria-hidden="true"
+              />
+              <div className="w-0.5 flex-1 bg-brand-primary/30 min-h-[10px]" aria-hidden="true" />
+            </div>
 
-        {/* Leg Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-brand-primary">
-              {leg.mode || 'Transit'} · {serviceName}
-            </span>
-            <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
-              <Clock className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>{durationText}</span>
-              {leg.distance ? <span>({leg.distance} km)</span> : null}
+            {/* Departure Text */}
+            <div className="flex-1 min-w-0 pb-1">
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+                <span className="font-mono text-sm sm:text-base font-bold text-text-primary">
+                  {depTime}
+                </span>
+                <span
+                  className="text-sm sm:text-base font-semibold text-text-primary break-words leading-snug"
+                  title={originName}
+                >
+                  {originName}
+                </span>
+              </div>
+              {originCity && (
+                <div className="text-xs text-text-tertiary mt-0.5">{originCity}</div>
+              )}
             </div>
           </div>
 
-          {/* Time & Stops */}
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-            <div>
-              <div className="font-semibold text-text-primary flex items-center gap-2">
-                <span>{depTime}</span>
-                <span className="text-xs text-text-tertiary font-normal">Depart</span>
-              </div>
-              <div className="text-xs text-text-secondary truncate" title={originName}>
-                {originName}
-              </div>
+          {/* 2. Middle Row: Continuous Line alongside Transit Service Card */}
+          <div className="flex items-stretch gap-3">
+            {/* Timeline Spine Col - Continuous Vertical Line */}
+            <div className="flex w-5 flex-col items-center shrink-0">
+              <div className="w-0.5 h-full bg-brand-primary/30" aria-hidden="true" />
             </div>
 
-            <div>
-              <div className="font-semibold text-text-primary flex items-center gap-2">
-                <span>{arrTime}</span>
-                <span className="text-xs text-text-tertiary font-normal">Arrive</span>
+            {/* Transit Service Metadata Card */}
+            <div className="flex-1 min-w-0 py-2">
+              <div className="rounded-xl border border-white/10 bg-surface-elevated/70 p-3 sm:p-3.5 transition-colors hover:border-white/20">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Icon className="h-4 w-4 text-brand-primary shrink-0" aria-hidden="true" />
+                    <span
+                      className="text-sm font-semibold text-text-primary break-words leading-snug"
+                      title={serviceName}
+                    >
+                      {serviceName}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs font-mono text-text-secondary shrink-0">
+                    <Clock className="h-3.5 w-3.5 text-brand-primary" aria-hidden="true" />
+                    <span>{durationText}</span>
+                    {leg.distance ? <span>· {leg.distance} km</span> : null}
+                  </div>
+                </div>
+
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
+                  <span className="capitalize text-text-secondary font-medium">
+                    {leg.mode || 'Transit'}
+                  </span>
+                  {serviceClass && <span>{serviceClass}</span>}
+                  {serviceNumber && (
+                    <span className="font-mono text-text-secondary">#{serviceNumber}</span>
+                  )}
+                </div>
               </div>
-              <div className="text-xs text-text-secondary truncate" title={destinationName}>
-                {destinationName}
+            </div>
+          </div>
+
+          {/* 3. Arrival Point Row */}
+          <div className="flex items-start gap-3">
+            {/* Timeline Spine Col - Destination Marker */}
+            <div className="flex w-5 flex-col items-center shrink-0">
+              <div className="w-0.5 h-1.5 bg-brand-primary/30" aria-hidden="true" />
+              <div
+                className="h-2.5 w-2.5 rounded-full border-2 border-brand-primary bg-background-primary ring-2 ring-brand-primary/10 shrink-0"
+                aria-hidden="true"
+              />
+            </div>
+
+            {/* Arrival Text */}
+            <div className="flex-1 min-w-0 pt-0.5">
+              <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+                <span className="font-mono text-sm sm:text-base font-bold text-text-primary">
+                  {arrTime}
+                </span>
+                {dayBadge && (
+                  <span className="rounded-md bg-brand-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-brand-primary border border-brand-primary/20">
+                    {dayBadge}
+                  </span>
+                )}
+                <span
+                  className="text-sm sm:text-base font-semibold text-text-primary break-words leading-snug"
+                  title={destinationName}
+                >
+                  {destinationName}
+                </span>
               </div>
+              {destinationCity && (
+                <div className="text-xs text-text-tertiary mt-0.5">{destinationCity}</div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Transfer indicator between legs */}
+      {/* Transfer Connection Callout between segments */}
       {!isLast && transferDuration > 0 && (
-        <div className="my-2.5 flex items-center gap-2 px-6 text-xs text-semantic-warning font-medium">
-          <div className="h-4 w-px bg-white/20 ml-2" />
-          <ArrowRight className="h-3 w-3" aria-hidden="true" />
-          <span>Transfer connection ({formatDuration(transferDuration)})</span>
+        <div className="my-3 pl-8">
+          <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+            <Clock className="h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden="true" />
+            <span>
+              <strong>{formatDuration(transferDuration)}</strong> transfer connection at {destinationName}
+            </span>
+          </div>
         </div>
       )}
     </div>

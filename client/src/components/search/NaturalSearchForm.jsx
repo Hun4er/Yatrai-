@@ -7,13 +7,15 @@ import {
   HelpCircle,
   ArrowRight,
 } from 'lucide-react';
+import journeyService from '../../services/journeyService.js';
+import SearchIntentSummary from './SearchIntentSummary.jsx';
 
 /**
  * NaturalSearchForm Component
  *
- * Natural language travel intent input for Yatrai (Phase 11).
- * Allows users to state travel plans naturally, handles clarification states,
- * and passes the interpreted request to the deterministic journey engine.
+ * Natural language travel intent input for Yatrai (Phase 11 + Section 2 & 3).
+ * Allows users to state travel plans naturally, interprets intent and location
+ * candidates before search execution, and provides location disambiguation.
  */
 export function NaturalSearchForm({
   onSearch,
@@ -25,24 +27,59 @@ export function NaturalSearchForm({
   const [query, setQuery] = useState('');
   const [clarificationValue, setClarificationValue] = useState('');
   const [validationError, setValidationError] = useState('');
+  const [isInterpreting, setIsInterpreting] = useState(false);
+  const [interpretation, setInterpretation] = useState(null);
 
   const sampleQueries = [
-    'I need to reach Patna from Sonipat tomorrow morning under ₹1500',
-    'Sonipat to Patna by train on 2026-10-01',
+    'I need to go to patna from sonepat tomorrow',
+    'Sonipat to Patna by train on 2026-10-10 under ₹1500',
     'Cheapest route from Sonipat to Patna next Monday',
   ];
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (isLoading) return;
-
-    if (!query.trim()) {
+  const handleInterpretAndSubmit = async (textToParse) => {
+    const targetQuery = textToParse || query;
+    if (!targetQuery || !targetQuery.trim()) {
       setValidationError('Please enter your travel request in natural language.');
       return;
     }
 
     setValidationError('');
-    onSearch(query.trim());
+    setIsInterpreting(true);
+
+    try {
+      const response = await journeyService.interpretJourneyIntent({
+        query: targetQuery.trim(),
+      });
+
+      if (response?.status === 'needs_clarification' || response?.data?.status === 'needs_clarification') {
+        setIsInterpreting(false);
+        // Fallback to direct search handler which manages clarification
+        onSearch(targetQuery.trim());
+        return;
+      }
+
+      const interpData = response?.data || response;
+      if (interpData?.parsedRequest) {
+        setInterpretation({
+          ...interpData,
+          rawQuery: targetQuery.trim(),
+        });
+      } else {
+        // Direct search fallback
+        onSearch(targetQuery.trim());
+      }
+    } catch {
+      // If interpret endpoint fails, fallback to direct search
+      onSearch(targetQuery.trim());
+    } finally {
+      setIsInterpreting(false);
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (isLoading || isInterpreting) return;
+    handleInterpretAndSubmit(query);
   };
 
   const handleClarificationSubmit = (e) => {
@@ -53,6 +90,20 @@ export function NaturalSearchForm({
       onResolveClarification(clarificationValue.trim());
     }
   };
+
+  // If interpretation is present and user is reviewing intent before final search
+  if (interpretation && !isLoading) {
+    return (
+      <SearchIntentSummary
+        interpretation={interpretation}
+        onConfirmSearch={(confirmedParams) => {
+          onSearch(confirmedParams);
+        }}
+        onEditQuery={() => setInterpretation(null)}
+        isLoading={isLoading}
+      />
+    );
+  }
 
   return (
     <div className="w-full max-w-4xl space-y-4">
@@ -87,8 +138,8 @@ export function NaturalSearchForm({
             id="natural-query-input"
             name="query"
             rows={3}
-            disabled={isLoading}
-            placeholder="e.g. I need to reach Patna from Sonipat tomorrow morning and I don't want to spend more than ₹1500..."
+            disabled={isLoading || isInterpreting}
+            placeholder="e.g. I need to go to Patna from Sonepat tomorrow..."
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -121,7 +172,10 @@ export function NaturalSearchForm({
               <button
                 key={idx}
                 type="button"
-                onClick={() => setQuery(sample)}
+                onClick={() => {
+                  setQuery(sample);
+                  handleInterpretAndSubmit(sample);
+                }}
                 className="rounded-lg bg-surface-secondary px-2.5 py-1 text-[11px] text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors cursor-pointer text-left"
               >
                 &ldquo;{sample}&rdquo;
@@ -132,19 +186,24 @@ export function NaturalSearchForm({
           <button
             type="submit"
             id="natural-search-submit-btn"
-            disabled={isLoading}
+            disabled={isLoading || isInterpreting}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-primary px-6 py-3 text-sm font-semibold text-white shadow-md shadow-brand-primary/25 hover:bg-brand-hover active:bg-brand-active disabled:opacity-60 disabled:cursor-not-allowed transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary shrink-0"
-            aria-busy={isLoading}
+            aria-busy={isLoading || isInterpreting}
           >
-            {isLoading ? (
+            {isInterpreting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                <span>Interpreting intent...</span>
+                <span>Interpreting trip...</span>
+              </>
+            ) : isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                <span>Searching journeys...</span>
               </>
             ) : (
               <>
                 <Search className="h-4 w-4" aria-hidden="true" />
-                <span>Find Routes</span>
+                <span>Find Journeys</span>
               </>
             )}
           </button>

@@ -20,7 +20,18 @@ export const journeyService = {
    * @param {string[]} [params.requestedModes]
    * @returns {Promise<Object>} Safe canonical response containing journeys array and metadata
    */
-  async searchJourneys({ origin, destination, departureDate, ranking = 'overall', passengers = 1, requestedModes }) {
+  async searchJourneys(params = {}) {
+    const {
+      origin,
+      destination,
+      departureDate,
+      ranking = 'overall',
+      passengers = 1,
+      requestedModes,
+      userOriginQuery,
+      userDestinationQuery,
+    } = params;
+
     if (!origin || !origin.trim()) {
       const err = new Error('Origin is required.');
       err.code = 'VALIDATION_ERROR';
@@ -62,6 +73,8 @@ export const journeyService = {
         totalResults: resultData.totalResults ?? journeys.length,
         origin: resultData.origin || null,
         destination: resultData.destination || null,
+        userOriginQuery: userOriginQuery || null,
+        userDestinationQuery: userDestinationQuery || null,
         ranking: resultData.ranking || { strategy: ranking, label: 'Best Overall' },
         meta: resultData.meta || {},
         journeys,
@@ -139,6 +152,40 @@ export const journeyService = {
       formattedError.code = error.code || 'NATURAL_SEARCH_ERROR';
       formattedError.status = error.status || 500;
       formattedError.details = error.details || null;
+      throw formattedError;
+    }
+  },
+
+  /**
+   * Interpret natural query to discover intent & location candidates before executing full journey search.
+   *
+   * @param {Object} params
+   * @param {string} params.query
+   * @param {string} [params.referenceDate]
+   * @param {string} [params.timezone]
+   * @returns {Promise<Object>}
+   */
+  async interpretJourneyIntent({ query, referenceDate, timezone }) {
+    if (!query || !query.trim()) {
+      const err = new Error('Query string is required.');
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+
+    try {
+      const response = await api.journeys.interpret({
+        query: query.trim(),
+        referenceDate,
+        timezone,
+      });
+
+      return response;
+    } catch (error) {
+      const formattedError = new Error(
+        error.message || 'Unable to interpret travel intent. Please try again.'
+      );
+      formattedError.code = error.code || 'INTERPRET_ERROR';
+      formattedError.status = error.status || 500;
       throw formattedError;
     }
   },

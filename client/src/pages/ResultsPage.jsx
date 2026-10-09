@@ -3,15 +3,20 @@ import {
   ArrowLeft,
   Calendar,
   MapPin,
-  AlertCircle,
+  AlertTriangle,
   SlidersHorizontal,
   X,
   RotateCcw,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  GitCompare,
 } from 'lucide-react';
 import RankingSelector from '../components/journey/RankingSelector.jsx';
 import JourneyResultCard from '../components/journey/JourneyResultCard.jsx';
 import JourneyFilters from '../components/journey/JourneyFilters.jsx';
 import JourneyDetailModal from '../components/journey/JourneyDetailModal.jsx';
+import JourneyComparisonModal from '../components/journey/JourneyComparisonModal.jsx';
 import LoadingState from '../components/common/LoadingState.jsx';
 import ErrorState from '../components/common/ErrorState.jsx';
 import EmptyState from '../components/common/EmptyState.jsx';
@@ -29,13 +34,13 @@ import api from '../services/api.js';
 /**
  * ResultsPage Component
  *
- * Coordinates journey discovery presentation:
- * - Search header summary and modification actions
- * - Backend ranking strategy switching
- * - Client-side pure filtering (Price, Duration, Transfers, Mode, Departure Time)
- * - Result counts distinguishing backend vs filtered results
- * - Modal journey inspection
- * - Responsive desktop sidebar and mobile filter sheet
+ * Implements Sections 5, 6, 7, 8, 17, 18, 19, 20, 21:
+ * - Results Header Redesign (intended location header + secondary routing POIs)
+ * - Dynamic counts (journey options, transport modes, direct count, connecting count)
+ * - Compact Provider Availability Warning with expandable details
+ * - Desktop Layout (Filters left, Recommended by Yatrai + Other Journeys right)
+ * - Mobile Layout (Dedicated vertical hierarchy + bottom-sheet filters)
+ * - Journey Comparison Drawer & Modal
  */
 export function ResultsPage({
   searchState,
@@ -48,18 +53,35 @@ export function ResultsPage({
   const { isAuthenticated } = useAuth();
   const [activeRanking, setActiveRanking] = useState(searchParams?.ranking || 'overall');
 
-  // Filter state (separate from backend search state)
+  // Filter state
   const [filters, setFilters] = useState(getDefaultFilters);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
+  // Provider failure warning details toggle
+  const [showProviderWarningDetails, setShowProviderWarningDetails] = useState(false);
+
   // Selected journey for detail modal inspection
   const [selectedJourney, setSelectedJourney] = useState(null);
+
+  // Journey comparison multi-selection state
+  const [comparedJourneyIds, setComparedJourneyIds] = useState([]);
+  const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
 
   const handleViewJourney = (journey) => {
     setSelectedJourney(journey);
     if (isAuthenticated && journey?.id) {
       api.journeyHistory.record(journey.id).catch(() => {});
     }
+  };
+
+  const handleToggleCompare = (journey) => {
+    if (!journey?.id) return;
+    setComparedJourneyIds((prev) => {
+      if (prev.includes(journey.id)) {
+        return prev.filter((id) => id !== journey.id);
+      }
+      return [...prev, journey.id];
+    });
   };
 
   // Sync active ranking when backend ranking changes or props update
@@ -71,28 +93,55 @@ export function ResultsPage({
     }
   }, [data?.ranking?.strategy, searchParams?.ranking]);
 
-  const originName =
-    data?.origin?.name || data?.origin?.city || searchParams?.origin || searchParams?.from || 'Origin';
-  const destinationName =
-    data?.destination?.name ||
-    data?.destination?.city ||
-    searchParams?.destination ||
-    searchParams?.to ||
-    'Destination';
+  // Section 5: Distinguish intended locations vs exact POIs/stations
+  const userOrigin = searchParams?.origin || searchParams?.from || data?.origin?.city || 'Origin';
+  const userDest = searchParams?.destination || searchParams?.to || data?.destination?.city || 'Destination';
+
+  const exactOriginName = data?.origin?.name || userOrigin;
+  const exactDestName = data?.destination?.name || userDest;
+
+  const showRoutingPoiSecondary =
+    (data?.origin?.name && data.origin.name.toLowerCase() !== userOrigin.toLowerCase()) ||
+    (data?.destination?.name && data.destination.name.toLowerCase() !== userDest.toLowerCase());
+
   const travelDate = searchParams?.departureDate || searchParams?.date || '';
   const formattedDate = formatDateDisplay(travelDate);
+  const passengers = searchParams?.passengers || 1;
 
   // Canonical backend journeys
   const backendJourneys = useMemo(() => {
     return Array.isArray(data?.journeys) ? data.journeys : [];
   }, [data?.journeys]);
 
+  // Section 5: Exact numbers derived from real result data
+  const journeyStats = useMemo(() => {
+    const total = backendJourneys.length;
+    const direct = backendJourneys.filter((j) => (j.numberOfTransfers ?? 0) === 0).length;
+    const connecting = total - direct;
+
+    const modesSet = new Set();
+    backendJourneys.forEach((j) => {
+      if (Array.isArray(j.transportModes)) {
+        j.transportModes.forEach((m) => {
+          if (m) modesSet.add(m.toLowerCase());
+        });
+      }
+    });
+
+    return {
+      total,
+      direct,
+      connecting,
+      modesCount: modesSet.size,
+    };
+  }, [backendJourneys]);
+
   // Derive filter bounds from backend dataset
   const bounds = useMemo(() => {
     return deriveFilterBounds(backendJourneys);
   }, [backendJourneys]);
 
-  // Filtered journeys (pure client-side filtering)
+  // Filtered journeys (client-side pure filtering)
   const filteredJourneys = useMemo(() => {
     return filterJourneys(backendJourneys, filters);
   }, [backendJourneys, filters]);
@@ -105,7 +154,7 @@ export function ResultsPage({
     setFilters(getDefaultFilters());
   };
 
-  // Check if any transport providers failed (Phase 8 partial failure detection)
+  // Check if any transport providers failed (Section 6)
   const providerMeta = data?.meta?.providers || [];
   const failedProviders = providerMeta.filter((p) => p.status === 'failed' || p.error);
   const hasPartialFailures = failedProviders.length > 0;
@@ -117,11 +166,20 @@ export function ResultsPage({
     }
   };
 
+  // Selected journeys for comparison modal
+  const comparedJourneys = useMemo(() => {
+    return backendJourneys.filter((j) => comparedJourneyIds.includes(j.id));
+  }, [backendJourneys, comparedJourneyIds]);
+
+  // Top recommended journey vs other journeys (Section 19)
+  const topJourney = filteredJourneys.length > 0 ? filteredJourneys[0] : null;
+  const otherJourneys = filteredJourneys.length > 1 ? filteredJourneys.slice(1) : [];
+
   return (
     <div className="space-y-6">
-      {/* Search Header Banner */}
-      <div className="rounded-2xl border border-white/10 bg-surface-primary p-6 shadow-md">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* Search Header Banner (Section 5) */}
+      <div className="rounded-2xl border border-white/10 bg-surface-primary p-6 sm:p-7 shadow-lg">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <button
               type="button"
@@ -129,42 +187,65 @@ export function ResultsPage({
               className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-primary hover:text-brand-hover transition-colors cursor-pointer focus:outline-none"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              <span>Modify Search</span>
+              <span>Modify search</span>
             </button>
 
-            {/* Route Title */}
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-text-primary flex flex-wrap items-center gap-2">
-              <span>{originName}</span>
+            {/* Route Title: Intended Locations */}
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-text-primary flex flex-wrap items-center gap-2">
+              <span className="capitalize">{userOrigin}</span>
               <span className="text-brand-primary">→</span>
-              <span>{destinationName}</span>
+              <span className="capitalize">{userDest}</span>
             </h1>
 
-            {/* Travel Date & Result Count */}
-            <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-text-secondary">
+            {/* Secondary: Exact Station/Airport/POI if resolved */}
+            {showRoutingPoiSecondary && (
+              <p className="mt-1 text-xs text-text-secondary">
+                Routing via <strong className="text-text-primary">{exactOriginName}</strong> →{' '}
+                <strong className="text-text-primary">{exactDestName}</strong>
+              </p>
+            )}
+
+            {/* Travel Date & Passengers Summary */}
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-secondary">
               {formattedDate && (
                 <div className="flex items-center gap-1.5">
                   <Calendar className="h-3.5 w-3.5 text-brand-primary" aria-hidden="true" />
                   <span>{formattedDate}</span>
                 </div>
               )}
+              <span>·</span>
+              <span>{passengers} {passengers === 1 ? 'passenger' : 'passengers'}</span>
+
               {status === 'success' && backendJourneys.length > 0 && (
-                <div className="flex items-center gap-1.5 font-medium text-text-primary">
-                  <MapPin className="h-3.5 w-3.5 text-text-tertiary" aria-hidden="true" />
-                  <span>
-                    {activeFilterCount > 0 ? (
-                      <>
-                        Showing <strong className="text-brand-primary">{filteredJourneys.length}</strong> of{' '}
-                        {backendJourneys.length} routes
-                      </>
-                    ) : (
-                      <>
-                        {backendJourneys.length} {backendJourneys.length === 1 ? 'route' : 'routes'} found
-                      </>
-                    )}
-                  </span>
-                </div>
+                <>
+                  <span>·</span>
+                  <div className="flex items-center gap-1.5 font-bold text-text-primary">
+                    <MapPin className="h-3.5 w-3.5 text-brand-primary" aria-hidden="true" />
+                    <span>
+                      {activeFilterCount > 0 ? (
+                        <>
+                          Showing <strong className="text-brand-primary">{filteredJourneys.length}</strong> of{' '}
+                          {journeyStats.total} journey options
+                        </>
+                      ) : (
+                        <>
+                          {journeyStats.total} {journeyStats.total === 1 ? 'journey option' : 'journey options'}
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </>
               )}
             </div>
+
+            {/* Multi-modal breakdown badge strip */}
+            {status === 'success' && backendJourneys.length > 0 && (
+              <div className="mt-2 text-xs text-text-tertiary">
+                {journeyStats.modesCount > 0 && <span>{journeyStats.modesCount} transport modes · </span>}
+                <span>{journeyStats.direct} direct</span>
+                <span> · {journeyStats.connecting} connecting</span>
+              </div>
+            )}
           </div>
 
           {/* Quick Action Buttons */}
@@ -192,26 +273,54 @@ export function ResultsPage({
               onClick={onNavigateHome}
               className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface-secondary px-4 py-2 text-xs font-medium text-text-primary hover:bg-surface-elevated hover:border-white/20 transition-all cursor-pointer"
             >
-              <span>Change Criteria</span>
+              <span>Change criteria</span>
             </button>
           </div>
         </div>
 
-        {/* Partial Provider Failure Warning */}
+        {/* Compact Provider Availability Warning (Section 6) */}
         {hasPartialFailures && (
           <div
             role="note"
-            className="mt-4 flex items-center gap-2 rounded-xl border border-semantic-warning/20 bg-semantic-warning/10 p-3 text-xs text-semantic-warning"
+            className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-300"
           >
-            <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>
-              Some transport providers were temporarily unavailable. Discovered results may be
-              incomplete.
-            </span>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />
+                <span>
+                  <strong>Results may be incomplete:</strong> Some transport providers are currently unavailable.
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowProviderWarningDetails((prev) => !prev)}
+                className="inline-flex items-center gap-1 font-semibold text-amber-400 hover:underline cursor-pointer shrink-0"
+              >
+                <span>{showProviderWarningDetails ? 'Hide details' : 'Details'}</span>
+                {showProviderWarningDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              </button>
+            </div>
+
+            {/* Expandable Failed Providers List */}
+            {showProviderWarningDetails && (
+              <div className="mt-2.5 pt-2 border-t border-amber-500/20 space-y-1">
+                <div className="text-[11px] font-semibold text-amber-200">
+                  Unavailable Providers:
+                </div>
+                {failedProviders.map((fp, idx) => (
+                  <div key={idx} className="text-[11px] text-amber-300/80 flex items-center gap-1.5">
+                    <span>•</span>
+                    <span className="font-semibold capitalize">{fp.provider}:</span>
+                    <span>{fp.error?.message || 'Temporary connection timeout'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Ranking Strategy Selector */}
+        {/* Ranking Strategy Selector (Section 7) */}
         {(status === 'success' || (isLoading && backendJourneys.length > 0)) && (
           <div className="mt-6 border-t border-white/10 pt-4">
             <RankingSelector
@@ -228,14 +337,14 @@ export function ResultsPage({
 
       {!isLoading && status === 'error' && (
         <ErrorState
-          title="Unable to find routes"
-          message={error?.message || "We couldn't complete the journey search. Please try again."}
+          title="Unable to find journeys"
+          message={error?.message || "We couldn't complete the journey search. Please check your criteria."}
           onRetry={onRetry}
           onModifySearch={onNavigateHome}
         />
       )}
 
-      {/* Backend Empty State (0 total journeys returned) */}
+      {/* Backend Empty State (Section 29) */}
       {!isLoading && (status === 'empty' || (status === 'success' && backendJourneys.length === 0)) && (
         <EmptyState onModifySearch={onNavigateHome} />
       )}
@@ -243,7 +352,7 @@ export function ResultsPage({
       {/* Success State with Journeys */}
       {!isLoading && status === 'success' && backendJourneys.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Desktop Left Sidebar: Filters */}
+          {/* Desktop Left Sidebar: Filters (Section 17 & 19) */}
           <div className="hidden lg:block lg:col-span-4">
             <JourneyFilters
               filters={filters}
@@ -253,8 +362,8 @@ export function ResultsPage({
             />
           </div>
 
-          {/* Right Main Column: Results / Filter Empty */}
-          <div className="lg:col-span-8 space-y-4">
+          {/* Right Main Column: Results / Filter Empty (Section 19) */}
+          <div className="lg:col-span-8 space-y-6">
             {/* Active Filter Chips / Reset Shortcut on Top */}
             {activeFilterCount > 0 && (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/5 bg-surface-primary px-4 py-2.5 text-xs">
@@ -273,39 +382,114 @@ export function ResultsPage({
               </div>
             )}
 
-            {/* Filter-Empty State (Section 16B: filters excluded all routes) */}
+            {/* Filter-Empty State */}
             {filteredJourneys.length === 0 ? (
               <FilterEmptyState onClearFilters={handleClearFilters} />
             ) : (
-              /* Filtered Journey Result Cards */
-              filteredJourneys.map((journey, idx) => (
-                <JourneyResultCard
-                  key={journey.id || idx}
-                  journey={journey}
-                  isTopPick={idx === 0 && activeFilterCount === 0}
-                  onViewJourney={handleViewJourney}
-                />
-              ))
+              <>
+                {/* 1. RECOMMENDED BY YATRAI SECTION (Section 19) */}
+                {topJourney && (
+                  <section className="space-y-2.5" aria-label="Recommended Journey">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-brand-primary" aria-hidden="true" />
+                      <h2 className="text-xs font-bold uppercase tracking-wider text-brand-primary">
+                        Recommended by Yatrai
+                      </h2>
+                    </div>
+
+                    <JourneyResultCard
+                      journey={topJourney}
+                      isTopPick={true}
+                      allJourneys={backendJourneys}
+                      onViewJourney={handleViewJourney}
+                      onToggleCompare={handleToggleCompare}
+                      isCompared={comparedJourneyIds.includes(topJourney.id)}
+                    />
+                  </section>
+                )}
+
+                {/* 2. OTHER JOURNEYS SECTION (Section 19) */}
+                {otherJourneys.length > 0 && (
+                  <section className="space-y-3 pt-2" aria-label="Other Journey Options">
+                    <h2 className="text-xs font-bold uppercase tracking-wider text-text-tertiary">
+                      Other Journeys ({otherJourneys.length})
+                    </h2>
+
+                    <div className="space-y-4">
+                      {otherJourneys.map((journey, idx) => (
+                        <JourneyResultCard
+                          key={journey.id || idx}
+                          journey={journey}
+                          isTopPick={false}
+                          allJourneys={backendJourneys}
+                          onViewJourney={handleViewJourney}
+                          onToggleCompare={handleToggleCompare}
+                          isCompared={comparedJourneyIds.includes(journey.id)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </>
             )}
           </div>
         </div>
       )}
 
-      {/* Mobile Filters Drawer / Slide-Over Sheet */}
+      {/* Floating Bottom Comparison Bar (Section 21) */}
+      {comparedJourneys.length > 0 && (
+        <div
+          role="region"
+          aria-label="Journey Comparison Bar"
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border border-brand-primary/40 bg-surface-elevated px-5 py-3 shadow-2xl backdrop-blur-md animate-in slide-in-from-bottom"
+        >
+          <div className="flex items-center gap-2 text-xs font-semibold text-text-primary">
+            <GitCompare className="h-4 w-4 text-brand-primary" />
+            <span>
+              {comparedJourneys.length} {comparedJourneys.length === 1 ? 'journey' : 'journeys'} selected
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={comparedJourneys.length < 2}
+              onClick={() => setIsCompareModalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-1.5 text-xs font-bold text-white shadow-md hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <span>Compare journeys</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setComparedJourneyIds([])}
+              className="text-xs text-text-tertiary hover:text-text-primary cursor-pointer px-1"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Filters Bottom Sheet (Section 18) */}
       {isMobileFilterOpen && (
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Filter Options"
-          className="fixed inset-0 z-50 flex justify-end bg-black/75 backdrop-blur-sm lg:hidden animate-in fade-in"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-sm lg:hidden animate-in fade-in"
+          onClick={() => setIsMobileFilterOpen(false)}
         >
-          <div className="relative w-full max-w-md h-full bg-surface-primary border-l border-white/10 p-6 overflow-y-auto shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-4">
+          <div
+            className="relative w-full max-w-lg max-h-[85vh] rounded-t-3xl bg-surface-primary border-t border-white/10 p-6 overflow-y-auto shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <h3 className="text-base font-bold text-text-primary">Journey Filters</h3>
               <button
                 type="button"
                 onClick={() => setIsMobileFilterOpen(false)}
-                className="rounded-lg border border-white/10 p-1.5 text-text-secondary hover:text-text-primary cursor-pointer"
+                className="rounded-xl border border-white/10 p-1.5 text-text-secondary hover:text-text-primary cursor-pointer"
                 aria-label="Close filters"
               >
                 <X className="h-5 w-5" aria-hidden="true" />
@@ -329,6 +513,21 @@ export function ResultsPage({
         <JourneyDetailModal
           journey={selectedJourney}
           onClose={() => setSelectedJourney(null)}
+        />
+      )}
+
+      {/* Journey Comparison Modal (Section 21) */}
+      {isCompareModalOpen && comparedJourneys.length > 0 && (
+        <JourneyComparisonModal
+          journeys={comparedJourneys}
+          onClose={() => setIsCompareModalOpen(false)}
+          onSelectJourney={handleViewJourney}
+          onRemoveFromCompare={(id) => {
+            setComparedJourneyIds((prev) => prev.filter((item) => item !== id));
+            if (comparedJourneys.length <= 2) {
+              setIsCompareModalOpen(false);
+            }
+          }}
         />
       )}
     </div>

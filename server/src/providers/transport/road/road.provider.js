@@ -170,6 +170,11 @@ export class RoadTransportProvider extends BaseTransportProvider {
         duration: durationMinutes,
         totalDistance: distanceKm,
         totalPrice: estimatedPrice,
+        price: {
+          amount: estimatedPrice,
+          currency: 'INR',
+          type: 'estimated',
+        },
         currency: 'INR',
         numberOfTransfers: 0,
         transportModes: ['road'],
@@ -181,6 +186,9 @@ export class RoadTransportProvider extends BaseTransportProvider {
           isMock: false,
           provider: this.name,
           routingEngine: 'OSRM Driving',
+          isEstimatedPrice: true,
+          pricingType: 'estimated',
+          bookable: false,
         },
         legs: [
           {
@@ -194,22 +202,30 @@ export class RoadTransportProvider extends BaseTransportProvider {
             duration: durationMinutes,
             distance: distanceKm,
             price: estimatedPrice,
+            pricing: {
+              amount: estimatedPrice,
+              currency: 'INR',
+              type: 'estimated',
+            },
             currency: 'INR',
             vehicle: {
               type: 'Car / Cab',
               identifier: 'Road Transit',
             },
             service: {
-              name: 'Highway Driving Route',
+              name: 'Driving Route (OSRM)',
               operator: 'Road Transit Service',
               class: 'Standard',
             },
             booking: {
-              status: 'available',
-              reference: 'ROAD-DIRECT',
+              status: 'not_bookable',
+              reference: 'ROAD-ROUTING-ESTIMATE',
+              bookable: false,
             },
             metadata: {
               weight: primaryRoute.weight,
+              isEstimatedPrice: true,
+              bookable: false,
             },
           },
         ],

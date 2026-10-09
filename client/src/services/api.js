@@ -170,6 +170,17 @@ export const api = {
           timezone,
         }),
       }),
+
+    // Search Interpretation & Location Resolution Discovery
+    interpret: ({ query, referenceDate, timezone }) =>
+      request('/journeys/interpret', {
+        method: 'POST',
+        body: JSON.stringify({
+          query,
+          referenceDate,
+          timezone,
+        }),
+      }),
   },
 
   // Phase 13: User Profile & Preferences

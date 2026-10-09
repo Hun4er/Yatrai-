@@ -4,13 +4,18 @@ const { Schema } = mongoose;
 
 export const LOCATION_TYPES = [
   'city',
+  'town',
   'airport',
   'railway_station',
   'bus_station',
   'landmark',
   'address',
+  'road',
+  'highway',
   'region',
   'country',
+  'poi',
+  'unknown',
 ];
 
 const LocationSchema = new Schema(
@@ -117,6 +122,18 @@ const LocationSchema = new Schema(
     },
   }
 );
+
+LocationSchema.virtual('latitude').get(function () {
+  return Array.isArray(this.location?.coordinates) ? this.location.coordinates[1] : null;
+});
+
+LocationSchema.virtual('longitude').get(function () {
+  return Array.isArray(this.location?.coordinates) ? this.location.coordinates[0] : null;
+});
+
+LocationSchema.virtual('source').get(function () {
+  return this.metadata?.provider || 'nominatim';
+});
 
 // 2dsphere index for geospatial proximity queries
 LocationSchema.index({ location: '2dsphere' });
