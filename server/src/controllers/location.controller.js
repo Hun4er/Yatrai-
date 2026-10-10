@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import locationService from '../services/locationService.js';
+import { searchRailwayStations } from '../services/rail/stationRegistry.js';
 import { successResponse, errorResponse } from '../utils/apiResponse.js';
 
 /**
@@ -15,6 +16,7 @@ export const locationController = {
     try {
       const q = req.query.q || req.query.query;
       const limit = parseInt(req.query.limit || '5', 10);
+      const isRailway = req.query.railwayOnly === 'true' || req.query.type === 'railway_station';
 
       if (!q || typeof q !== 'string' || q.trim().length === 0) {
         return res
@@ -22,7 +24,12 @@ export const locationController = {
           .json(errorResponse('Search query parameter "q" is required.', 'VALIDATION_ERROR'));
       }
 
-      const locations = await locationService.search(q.trim(), { limit });
+      let locations;
+      if (isRailway) {
+        locations = searchRailwayStations(q.trim(), limit);
+      } else {
+        locations = await locationService.search(q.trim(), { limit });
+      }
 
       return res.status(200).json(
         successResponse('Locations retrieved successfully', {

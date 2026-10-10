@@ -1,6 +1,7 @@
 import { Location } from '../models/Location.js';
 import locationProvider from '../providers/location/location.provider.js';
 import { parseTravelIntent } from '../utils/locationParser.js';
+import { searchRailwayStations } from './rail/stationRegistry.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -127,11 +128,14 @@ export function formatLocationDoc(doc) {
   if (!doc) return null;
   const json = typeof doc.toJSON === 'function' ? doc.toJSON() : doc;
   const coords = json.location?.coordinates || json.coordinates || [];
+  const stationCode = json.stationCode || json.metadata?.stationCode || null;
   return {
     ...json,
     id: json._id ? json._id.toString() : json.id || null,
     name: json.name || '',
     type: json.type || 'unknown',
+    stationCode,
+    displayName: json.displayName || (stationCode ? `${json.name} - ${stationCode}` : json.name),
     latitude: typeof json.latitude === 'number' ? json.latitude : (coords[1] ?? null),
     longitude: typeof json.longitude === 'number' ? json.longitude : (coords[0] ?? null),
     city: json.city || '',
@@ -230,6 +234,40 @@ export const locationService = {
           );
           return rankedLocal.slice(0, limit).map(formatLocationDoc);
         }
+      }
+    }
+
+    // 2. If no custom provider adapter passed, check authoritative Indian Railway Station registry
+    if (!providerAdapter) {
+      const railwayMatches = searchRailwayStations(cleanQuery, limit);
+      if (railwayMatches.length > 0) {
+        // Persist or fetch from MongoDB to ensure valid ObjectIds
+        const persistedStations = [];
+        for (const st of railwayMatches.slice(0, limit)) {
+          let existing = await Location.findOne({
+            $or: [{ stationCode: st.stationCode }, { name: st.name }],
+          });
+          if (!existing) {
+            try {
+              existing = await Location.create({
+                name: st.name,
+                displayName: st.displayName,
+                type: 'railway_station',
+                stationCode: st.stationCode,
+                city: st.city,
+                state: st.state,
+                country: 'India',
+                countryCode: 'IN',
+                location: st.location,
+                placeId: `station:${st.stationCode}`,
+              });
+            } catch {
+              existing = st;
+            }
+          }
+          persistedStations.push(formatLocationDoc(existing));
+        }
+        return persistedStations;
       }
     }
 

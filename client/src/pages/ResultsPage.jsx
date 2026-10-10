@@ -204,15 +204,49 @@ export function ResultsPage({
   );
   const hasPartialFailures = failedProviders.length > 0;
 
+  const isMonthlyQuota =
+    error?.code === 'PROVIDER_MONTHLY_QUOTA_EXHAUSTED' ||
+    error?.subCode === 'MONTHLY_QUOTA_EXHAUSTED' ||
+    error?.details?.isMonthlyQuota ||
+    /monthly quota/i.test(error?.message || '');
+
   const isRateLimited =
-    status === 'rate_limited' ||
-    Boolean(data?.meta?.isRateLimited) ||
-    error?.code === 'RATE_LIMITED' ||
-    error?.code === 'PROVIDER_RATE_LIMITED' ||
-    error?.status === 429 ||
-    error?.statusCode === 429 ||
-    Boolean(error?.details?.isRateLimited) ||
-    /rate limit|quota exceeded|too many requests|429/i.test(error?.message || '');
+    backendJourneys.length === 0 &&
+    (status === 'rate_limited' ||
+      Boolean(data?.meta?.isRateLimited) ||
+      error?.code === 'RATE_LIMITED' ||
+      error?.code === 'PROVIDER_RATE_LIMITED' ||
+      error?.code === 'PROVIDER_MONTHLY_QUOTA_EXHAUSTED' ||
+      error?.status === 429 ||
+      error?.statusCode === 429 ||
+      Boolean(error?.details?.isRateLimited) ||
+      /rate limit|quota exceeded|too many requests|429/i.test(error?.message || ''));
+
+  const rawRetryAfter = Number(error?.details?.retryAfter || error?.retryAfter) || 0;
+  const [retryCountdown, setRetryCountdown] = useState(rawRetryAfter);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  useEffect(() => {
+    setRetryCountdown(rawRetryAfter);
+  }, [rawRetryAfter]);
+
+  useEffect(() => {
+    if (retryCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setRetryCountdown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [retryCountdown]);
+
+  const handleRetrySearch = async () => {
+    if (isRetrying || retryCountdown > 0 || !onRetry) return;
+    setIsRetrying(true);
+    try {
+      await onRetry();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const handleRankingSelect = (newStrategy) => {
     setActiveRanking(newStrategy);
@@ -440,32 +474,65 @@ export function ResultsPage({
       {/* Main Content Area */}
       {isLoading && <LoadingState />}
 
-      {/* Railway Rate Limit State */}
+      {/* Railway Rate Limit / Monthly Quota State */}
       {!isLoading && isRateLimited && (
         <div className="rounded-2xl border border-amber-500/30 bg-surface-primary p-6 sm:p-8 text-center space-y-4 shadow-xl">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
             <AlertTriangle className="h-6 w-6" aria-hidden="true" />
           </div>
-          <div className="space-y-1">
-            <h3 className="text-lg font-bold text-text-primary">Railway search temporarily rate-limited</h3>
-            <p className="text-sm text-text-secondary max-w-md mx-auto">
-              Railway search is temporarily rate-limited. Please try again shortly.
+
+          <div className="space-y-1.5">
+            <h3 className="text-lg font-bold text-text-primary">
+              {isMonthlyQuota
+                ? 'RailRadar Monthly Quota Exhausted'
+                : 'Railway search temporarily rate-limited'}
+            </h3>
+
+            <p className="text-sm text-text-secondary max-w-lg mx-auto leading-relaxed">
+              {isMonthlyQuota ? (
+                <>
+                  Your external RailRadar account quota of <strong>100 requests/month</strong> has been exhausted (0 remaining).
+                  Yatrai provides verified Indian Railways timetable schedules for core corridors.
+                </>
+              ) : (
+                <>
+                  Railway search is temporarily rate-limited by the provider (max 10 requests/minute).
+                  {retryCountdown > 0 ? (
+                    <span className="block mt-1 font-semibold text-amber-400">
+                      Please wait {retryCountdown}s before retrying.
+                    </span>
+                  ) : (
+                    ' Please try again shortly.'
+                  )}
+                </>
+              )}
             </p>
           </div>
+
           <div className="flex items-center justify-center gap-3 pt-2">
             {onRetry && (
               <button
                 type="button"
-                onClick={onRetry}
-                className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:bg-brand-hover transition-colors cursor-pointer"
+                onClick={handleRetrySearch}
+                disabled={isRetrying || retryCountdown > 0}
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer shadow-md shadow-brand-primary/25"
               >
-                <span>Retry search</span>
+                {isRetrying ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Retrying...</span>
+                  </>
+                ) : retryCountdown > 0 ? (
+                  <span>Retry in {retryCountdown}s</span>
+                ) : (
+                  <span>Retry search</span>
+                )}
               </button>
             )}
             <button
               type="button"
               onClick={onNavigateHome}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors cursor-pointer"
             >
               <span>Modify criteria</span>
             </button>

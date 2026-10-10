@@ -20,6 +20,47 @@ import journeyRecoveryService from '../services/rail/journeyRecovery.service.js'
 import { matchesTimeWindow } from '../services/naturalLanguage/timeWindowResolver.js';
 import { isValidCalendarDate, isPastDate } from '../middleware/validate.middleware.js';
 
+async function ensureMongoLocation(loc) {
+  if (!loc) return null;
+  const locId = loc._id || loc.id;
+  if (locId && mongoose.Types.ObjectId.isValid(locId)) {
+    const existing = await Location.findById(locId);
+    if (existing) return existing;
+  }
+  const name = loc.name || loc.displayName || 'Location';
+  const stnCode = loc.stationCode || loc.metadata?.stationCode;
+  let existing = await Location.findOne({
+    $or: [
+      { name: new RegExp(`^${name}$`, 'i') },
+      ...(stnCode ? [{ aliases: stnCode }] : []),
+    ],
+  });
+  if (existing) return existing;
+
+  try {
+    const created = await Location.create({
+      name,
+      displayName: loc.displayName || name,
+      type: loc.type || 'railway_station',
+      city: loc.city || name,
+      state: loc.state || 'India',
+      country: 'India',
+      location: loc.location || {
+        type: 'Point',
+        coordinates: loc.coordinates || [77.2, 28.6],
+      },
+      aliases: stnCode ? [stnCode, name] : [name],
+      metadata: {
+        stationCode: stnCode,
+        provider: 'railway_registry',
+      },
+    });
+    return created;
+  } catch {
+    return loc;
+  }
+}
+
 /**
  * Resolves a location input into a canonical Location Mongoose document or object.
  * Reuses Phase 3 Location Resolution.
@@ -31,13 +72,14 @@ import { isValidCalendarDate, isPastDate } from '../middleware/validate.middlewa
 export async function resolveLocation(input, label = 'location') {
   if (!input) return null;
 
-  // Case 1: Object with _id
-  if (typeof input === 'object' && input._id) {
-    if (mongoose.Types.ObjectId.isValid(input._id)) {
+  // Case 1: Object
+  if (typeof input === 'object' && input !== null) {
+    if (input._id && mongoose.Types.ObjectId.isValid(input._id)) {
       const doc = await Location.findById(input._id);
       if (doc) return doc;
+      return input;
     }
-    return input;
+    return await ensureMongoLocation(input);
   }
 
   const clean = typeof input === 'string' ? input.trim() : '';
@@ -54,23 +96,12 @@ export async function resolveLocation(input, label = 'location') {
 
   const resolved = await locationService.resolveSingle(clean);
   if (resolved) {
-    const resolvedId = resolved._id || resolved.id;
-    if (resolvedId && mongoose.Types.ObjectId.isValid(resolvedId)) {
-      const doc = await Location.findById(resolvedId);
-      if (doc) return doc;
-    }
-    return resolved;
+    return await ensureMongoLocation(resolved);
   }
 
   const candidates = await locationService.search(clean, { limit: 1 });
   if (candidates && candidates.length > 0) {
-    const candidate = candidates[0];
-    const candidateId = candidate._id || candidate.id;
-    if (candidateId && mongoose.Types.ObjectId.isValid(candidateId)) {
-      const doc = await Location.findById(candidateId);
-      if (doc) return doc;
-    }
-    return candidate;
+    return await ensureMongoLocation(candidates[0]);
   }
 
   return null;
@@ -1015,6 +1046,11 @@ export class JourneyOrchestrator {
         );
 
         if (rateLimitedEnvelope) {
+          const isMonthly = Boolean(
+            rateLimitedEnvelope.error?.details?.isMonthlyQuota ||
+            rateLimitedEnvelope.error?.code === 'PROVIDER_MONTHLY_QUOTA_EXHAUSTED' ||
+            /monthly quota/i.test(rateLimitedEnvelope.error?.message || '')
+          );
           const err = new Error(
             'Railway search is temporarily rate-limited. Please try again shortly.'
           );
@@ -1023,6 +1059,11 @@ export class JourneyOrchestrator {
           err.details = {
             provider: rateLimitedEnvelope.provider,
             isRateLimited: true,
+            isMonthlyQuota: isMonthly,
+            subCode: isMonthly ? 'MONTHLY_QUOTA_EXHAUSTED' : 'RATE_LIMITED',
+            quotaNotice: isMonthly
+              ? 'Upstream provider (RailRadar) monthly quota has reached its 100 requests limit.'
+              : null,
             originalError: rateLimitedEnvelope.error?.message,
           };
           throw err;

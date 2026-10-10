@@ -110,10 +110,11 @@ export class ResultAssembler {
     const successfulProviders = safeProviders.filter((p) => p.status === 'success').length;
     const failedProviders = safeProviders.filter((p) => p.status === 'failed').length;
 
-    const isRateLimited = Boolean(
+    const hasProviderRateLimit = Boolean(
       recoveryMeta?.isRateLimited ||
       safeProviders.some((p) => p.error?.code === 'RATE_LIMITED' || p.error?.code === 'PROVIDER_RATE_LIMITED' || /rate limit/i.test(p.error?.message || ''))
     );
+    const isRateLimited = journeys.length === 0 && hasProviderRateLimit;
 
     const meta = {
       searchedAt: searchedAt || new Date().toISOString(),
@@ -124,6 +125,7 @@ export class ResultAssembler {
       providersFailed: failedProviders,
       resultCount: journeys.length,
       isRateLimited,
+      hasPartialRateLimit: journeys.length > 0 && hasProviderRateLimit,
     };
 
     if (isRateLimited) {

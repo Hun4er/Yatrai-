@@ -59,7 +59,8 @@ export class DirectJourneyService {
     const destCode = resolveStationCode(destination);
 
     // 1. Query direct trains between primary stations via RailRadar
-    let searchResult = await this.railRadar.searchDirectTrains(originCode, destCode, options);
+    const searchOpts = { ...options, departureDate, date: departureDate };
+    let searchResult = await this.railRadar.searchDirectTrains(originCode, destCode, searchOpts);
 
     // If primary stations returned 0, try cluster station pairs (e.g. NDLS/DLI/NZM to PNBE/DNR/PPTA)
     let trainItems = searchResult.trains || [];
@@ -71,7 +72,7 @@ export class DirectJourneyService {
         for (const f of fromClusters.slice(0, 3)) {
           for (const t of toClusters.slice(0, 3)) {
             if (f === originCode && t === destCode) continue;
-            const clusterRes = await this.railRadar.searchDirectTrains(f, t, options);
+            const clusterRes = await this.railRadar.searchDirectTrains(f, t, searchOpts);
             if (clusterRes.trains && clusterRes.trains.length > 0) {
               trainItems.push(...clusterRes.trains);
             }
@@ -85,14 +86,21 @@ export class DirectJourneyService {
       const isRateLimited =
         searchResult.statusCode === 429 ||
         /rate limit|quota exceeded|429/i.test(String(searchResult.error));
+      const isMonthlyQuota = Boolean(
+        searchResult.isMonthlyQuota ||
+        /monthly quota/i.test(String(searchResult.error))
+      );
 
       return {
         status: isRateLimited ? 'RATE_LIMITED' : DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED,
         isRateLimited,
+        isMonthlyQuota,
         directJourneys: [],
-        failureReason: isRateLimited
-          ? 'Railway search is temporarily rate-limited. Please try again shortly.'
-          : (searchResult.error || 'Direct train search provider failed to respond or quota exhausted.'),
+        failureReason: isMonthlyQuota
+          ? 'Railway API monthly quota exceeded (100 requests limit). Real-time search is currently paused.'
+          : (isRateLimited
+              ? 'Railway search is temporarily rate-limited. Please try again shortly.'
+              : (searchResult.error || 'Direct train search provider failed to respond or quota exhausted.')),
         shouldTriggerRecovery: false, // Provider failure must not be treated as proof no direct train exists
       };
     }

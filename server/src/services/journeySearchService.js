@@ -26,45 +26,69 @@ export async function resolveLocation(input, label = 'location') {
       const doc = await Location.findById(input._id);
       if (doc) return doc;
     }
-    return input;
   }
 
   const clean = typeof input === 'string' ? input.trim() : '';
-  if (!clean) return null;
 
   // Case 2: 24-character hexadecimal ObjectId
-  if (/^[0-9a-fA-F]{24}$/.test(clean) && mongoose.Types.ObjectId.isValid(clean)) {
+  if (clean && /^[0-9a-fA-F]{24}$/.test(clean) && mongoose.Types.ObjectId.isValid(clean)) {
     const doc = await Location.findById(clean);
     if (doc) return doc;
   }
 
-  // Case 3: Text query — delegate directly to Phase 3 Location Resolution
-  logger.debug(`[JourneySearchService] Resolving ${label} text query: "${clean}"`);
-
-  // Try exact/cached resolution first
-  const resolved = await locationService.resolveSingle(clean);
-  if (resolved) {
-    const resolvedId = resolved._id || resolved.id;
-    if (resolvedId && mongoose.Types.ObjectId.isValid(resolvedId)) {
-      const doc = await Location.findById(resolvedId);
-      if (doc) return doc;
+  // Case 3: Text query or object without valid ObjectId
+  let target = input;
+  if (clean) {
+    logger.debug(`[JourneySearchService] Resolving ${label} text query: "${clean}"`);
+    const resolved = await locationService.resolveSingle(clean);
+    if (resolved) {
+      target = resolved;
+    } else {
+      const candidates = await locationService.search(clean, { limit: 1 });
+      if (candidates && candidates.length > 0) {
+        target = candidates[0];
+      }
     }
-    return resolved;
   }
 
-  // Fallback to location search candidates
-  const candidates = await locationService.search(clean, { limit: 1 });
-  if (candidates && candidates.length > 0) {
-    const candidate = candidates[0];
-    const candidateId = candidate._id || candidate.id;
-    if (candidateId && mongoose.Types.ObjectId.isValid(candidateId)) {
-      const doc = await Location.findById(candidateId);
-      if (doc) return doc;
-    }
-    return candidate;
+  if (!target) return null;
+
+  // Ensure target is backed by a real MongoDB Location document with a valid ObjectId
+  const currentId = target._id || target.id;
+  if (currentId && mongoose.Types.ObjectId.isValid(currentId)) {
+    const doc = await Location.findById(currentId);
+    if (doc) return doc;
   }
 
-  return null;
+  const query = {};
+  if (target.stationCode) query.stationCode = target.stationCode;
+  else if (target.placeId) query.placeId = target.placeId;
+  else if (target.name) query.name = target.name;
+
+  if (Object.keys(query).length > 0) {
+    const existing = await Location.findOne(query);
+    if (existing) return existing;
+  }
+
+  try {
+    const doc = new Location({
+      name: target.name || 'Unknown Location',
+      type: target.type || 'station',
+      stationCode: target.stationCode || undefined,
+      city: target.city || target.name,
+      state: target.state || undefined,
+      country: target.country || 'India',
+      location: target.location || {
+        type: 'Point',
+        coordinates: [target.longitude || 0, target.latitude || 0],
+      },
+      placeId: target.placeId || (target.stationCode ? `station:${target.stationCode}` : undefined),
+    });
+    return await doc.save();
+  } catch (err) {
+    logger.warn(`Failed to persist location in resolveLocation: ${err.message}`);
+    return target;
+  }
 }
 
 import journeyOrchestrator from '../orchestration/journeyOrchestrator.js';

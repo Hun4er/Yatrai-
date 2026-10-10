@@ -73,12 +73,37 @@ export async function httpFetch(url, options = {}) {
 
       // 2. Rate-limited HTTP 429 (Do not retry immediately)
       if (response.status === 429) {
-        throw new ProviderError(`Rate limit exceeded for provider "${provider}".`, {
+        const remainingMonthHeader = response.headers.get('x-ratelimit-remaining-month');
+        const limitMonthHeader = response.headers.get('x-ratelimit-limit-month');
+        const remainingMinHeader = response.headers.get('x-ratelimit-remaining-min');
+        const limitMinHeader = response.headers.get('x-ratelimit-limit-min');
+        const retryAfterHeader = response.headers.get('retry-after');
+
+        const rawBodyText = typeof data === 'string' ? data : JSON.stringify(data || '');
+        const isMonthlyQuota =
+          remainingMonthHeader === '0' ||
+          /monthly quota/i.test(data?.error?.message || '') ||
+          /monthly quota/i.test(rawBodyText);
+
+        const errorCode = isMonthlyQuota ? 'PROVIDER_MONTHLY_QUOTA_EXHAUSTED' : 'PROVIDER_RATE_LIMITED';
+        const errorMessage = isMonthlyQuota
+          ? `Monthly quota exceeded for provider "${provider}". Upstream provider limit reached.`
+          : `Rate limit exceeded for provider "${provider}".`;
+
+        throw new ProviderError(errorMessage, {
           provider,
-          code: 'PROVIDER_RATE_LIMITED',
+          code: errorCode,
           statusCode: 429,
           retryable: false,
-          details: sanitizeCredentials(data),
+          details: {
+            ...sanitizeCredentials(data),
+            isMonthlyQuota,
+            limitMonth: limitMonthHeader ? Number(limitMonthHeader) : 100,
+            remainingMonth: remainingMonthHeader ? Number(remainingMonthHeader) : (isMonthlyQuota ? 0 : null),
+            limitMin: limitMinHeader ? Number(limitMinHeader) : 10,
+            remainingMin: remainingMinHeader ? Number(remainingMinHeader) : null,
+            retryAfterSeconds: retryAfterHeader ? Number(retryAfterHeader) : null,
+          },
         });
       }
 

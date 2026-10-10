@@ -122,8 +122,11 @@ export const api = {
 
   // Phase 3: Location Resolution
   locations: {
-    search: (query, limit = 5) =>
-      request(`/locations/search?q=${encodeURIComponent(query)}&limit=${limit}`),
+    search: (query, limit = 6, options = {}) => {
+      const railwayOnly = options.railwayOnly !== false;
+      const url = `/locations/search?q=${encodeURIComponent(query)}&limit=${limit}${railwayOnly ? '&railwayOnly=true' : ''}`;
+      return request(url);
+    },
 
     resolve: (query) =>
       request('/locations/resolve', {

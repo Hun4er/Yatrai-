@@ -2,6 +2,7 @@ import config from '../../config/index.js';
 import logger from '../../utils/logger.js';
 import { httpFetch } from '../transport/httpClient.js';
 import { resolveStationCode } from '../transport/rail/rail.provider.js';
+import { findVerifiedDirectTrains } from '../../services/rail/verifiedTrainData.js';
 
 /**
  * RailRadar Provider Adapter
@@ -9,7 +10,8 @@ import { resolveStationCode } from '../transport/rail/rail.provider.js';
  * - In-flight request deduplication (prevents duplicate simultaneous calls)
  * - Short-lived memory caching with TTL
  * - Bounded concurrency & rate limit protection (10 req/min compliance)
- * - Safe fallback handling
+ * - Monthly quota tracking (100 req/month limit)
+ * - Verified schedule repository fallback upon provider quota exhaustion
  */
 export class RailRadarAdapter {
   constructor(options = {}) {
@@ -25,11 +27,29 @@ export class RailRadarAdapter {
     // In-flight request deduplication: key -> Promise
     this.inFlight = new Map();
 
-    // Cache TTLs in milliseconds
-    this.schedulesTtlMs = 10 * 60 * 1000; // 10 minutes
+    // Cache TTLs in milliseconds (2 hours for schedules to protect low 100/mo quota)
+    this.schedulesTtlMs = 2 * 60 * 60 * 1000;
     this.availabilityTtlMs = 2 * 60 * 1000; // 2 minutes
     this.fareTtlMs = 15 * 60 * 1000; // 15 minutes
     this.liveStatusTtlMs = 60 * 1000; // 1 minute
+
+    // Provider Request Budget & Rate Limiter (RailRadar basic tier: 10 req/min, 100 req/mo)
+    this.requestTimestamps = [];
+    this.maxRequestsPerMinute = 8;
+    this.isMonthlyQuotaExhausted = false;
+    this.quotaStats = {
+      limitMonth: 100,
+      remainingMonth: null,
+      limitMin: 10,
+      remainingMin: null,
+      totalCalls: 0,
+      cacheHits: 0,
+      rateLimits429: 0,
+    };
+
+    // Feature flags: RailRadar v1 basic tier does not expose real-time seat availability or standard tariff endpoints.
+    this.enableAvailabilityEndpoint = Boolean(options.enableAvailabilityEndpoint ?? config.providers.railradar?.enableAvailabilityEndpoint ?? false);
+    this.enableFareEndpoint = Boolean(options.enableFareEndpoint ?? config.providers.railradar?.enableFareEndpoint ?? false);
   }
 
   getHeaders() {
@@ -42,6 +62,18 @@ export class RailRadarAdapter {
       headers['X-API-Key'] = this.apiKey.trim();
     }
     return headers;
+  }
+
+  /**
+   * Checks current request budget against 10 req/min limit.
+   */
+  checkRateLimitBudget() {
+    const now = Date.now();
+    this.requestTimestamps = this.requestTimestamps.filter((ts) => now - ts < 60000);
+    if (this.requestTimestamps.length >= this.maxRequestsPerMinute) {
+      return { allowed: false, waitMs: 60000 - (now - this.requestTimestamps[0]) };
+    }
+    return { allowed: true, waitMs: 0 };
   }
 
   /**
@@ -58,6 +90,7 @@ export class RailRadarAdapter {
     const now = Date.now();
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > now) {
+      this.quotaStats.cacheHits++;
       return cached.data;
     }
 
@@ -91,10 +124,70 @@ export class RailRadarAdapter {
 
     const from = String(fromCode).trim().toUpperCase();
     const to = String(toCode).trim().toUpperCase();
+    const travelDate = options.date || options.departureDate || '';
     const cacheKey = `direct:${from}:${to}`;
 
     return this.cachedRequest(cacheKey, this.schedulesTtlMs, async () => {
+      // 1. If monthly quota is already known to be exhausted, avoid wasted 429 network roundtrips
+      if (this.isMonthlyQuotaExhausted) {
+        logger.info(`[RailRadarAdapter] RailRadar monthly quota exhausted. Resolving from verified schedules for ${from} -> ${to}`);
+        const verified = findVerifiedDirectTrains(from, to, travelDate);
+        if (verified.length > 0) {
+          return {
+            success: true,
+            from,
+            to,
+            trains: verified,
+            source: 'verified_schedule',
+            isVerifiedSchedule: true,
+            quotaExhausted: true,
+          };
+        }
+        return {
+          success: false,
+          from,
+          to,
+          trains: [],
+          statusCode: 429,
+          error: 'Monthly quota exceeded. Maximum 100 requests per month.',
+          isMonthlyQuota: true,
+        };
+      }
+
+      // 2. Budget gate: prevent bursting above 10 req/min
+      const budget = this.checkRateLimitBudget();
+      if (!budget.allowed) {
+        logger.warn(`[RailRadarAdapter] Rate limit budget reached (${this.maxRequestsPerMinute} req/min). Checking verified schedules...`);
+        const verified = findVerifiedDirectTrains(from, to, travelDate);
+        if (verified.length > 0) {
+          return {
+            success: true,
+            from,
+            to,
+            trains: verified,
+            source: 'verified_schedule',
+            isVerifiedSchedule: true,
+          };
+        }
+        if (budget.waitMs > 0 && budget.waitMs < 2000) {
+          await new Promise((resolve) => setTimeout(resolve, budget.waitMs));
+        } else {
+          return {
+            success: false,
+            from,
+            to,
+            trains: [],
+            statusCode: 429,
+            error: 'Local rate limit protection engaged. Please wait shortly before retrying.',
+            retryAfterMs: budget.waitMs,
+          };
+        }
+      }
+
       const url = `${this.apiUrl}/trains/between/${encodeURIComponent(from)}/${encodeURIComponent(to)}`;
+      this.requestTimestamps.push(Date.now());
+      this.quotaStats.totalCalls++;
+
       try {
         const res = await httpFetch(url, {
           method: 'GET',
@@ -102,6 +195,16 @@ export class RailRadarAdapter {
           timeoutMs: options.timeoutMs || this.timeoutMs,
           provider: 'railradar',
         });
+
+        if (res.headers) {
+          const remMonth = res.headers.get('x-ratelimit-remaining-month');
+          if (remMonth !== null && remMonth !== undefined) {
+            this.quotaStats.remainingMonth = Number(remMonth);
+            if (this.quotaStats.remainingMonth === 0) {
+              this.isMonthlyQuotaExhausted = true;
+            }
+          }
+        }
 
         const raw = res.data;
         let trains = [];
@@ -124,6 +227,34 @@ export class RailRadarAdapter {
         };
       } catch (err) {
         logger.warn(`[RailRadarAdapter] searchDirectTrains failed for ${from} -> ${to}: ${err.message}`);
+        this.quotaStats.rateLimits429++;
+
+        const isMonthly =
+          err.code === 'PROVIDER_MONTHLY_QUOTA_EXHAUSTED' ||
+          err.details?.isMonthlyQuota ||
+          /monthly quota/i.test(err.message || '') ||
+          err.statusCode === 429;
+
+        if (isMonthly) {
+          this.isMonthlyQuotaExhausted = true;
+          this.quotaStats.remainingMonth = 0;
+
+          // Seamless verified timetable fallback
+          const verified = findVerifiedDirectTrains(from, to, travelDate);
+          if (verified.length > 0) {
+            logger.info(`[RailRadarAdapter] Resolved ${verified.length} verified trains for ${from} -> ${to} despite upstream quota limit`);
+            return {
+              success: true,
+              from,
+              to,
+              trains: verified,
+              source: 'verified_schedule',
+              isVerifiedSchedule: true,
+              quotaExhausted: true,
+            };
+          }
+        }
+
         return {
           success: false,
           from,
@@ -131,6 +262,7 @@ export class RailRadarAdapter {
           trains: [],
           error: err.message,
           statusCode: err.statusCode || 500,
+          isMonthlyQuota: Boolean(isMonthly),
         };
       }
     });
@@ -195,6 +327,22 @@ export class RailRadarAdapter {
     const to = String(toCode).trim().toUpperCase();
     const dateStr = String(date).slice(0, 10);
     const cacheKey = `avail:${num}:${from}:${to}:${dateStr}:${travelClass}:${quota}`;
+
+    // Fast return if availability endpoint is not exposed on RailRadar tier
+    if (!this.enableAvailabilityEndpoint) {
+      return {
+        success: false,
+        provider: this.name,
+        trainNumber: num,
+        travelClass,
+        quota,
+        normalizedStatus: 'UNKNOWN',
+        originalStatus: null,
+        seatsAvailable: null,
+        lastUpdated: new Date().toISOString(),
+        isLive: false,
+      };
+    }
 
     return this.cachedRequest(cacheKey, this.availabilityTtlMs, async () => {
       const queryParams = new URLSearchParams({
@@ -266,6 +414,23 @@ export class RailRadarAdapter {
     const from = String(fromCode).trim().toUpperCase();
     const to = String(toCode).trim().toUpperCase();
     const cacheKey = `fare:${num}:${from}:${to}:${travelClass}`;
+
+    // Fast return if fare endpoint is not exposed on RailRadar tier
+    if (!this.enableFareEndpoint) {
+      return {
+        success: false,
+        provider: this.name,
+        trainNumber: num,
+        travelClass,
+        baseFare: null,
+        totalFare: null,
+        currency: 'INR',
+        isEstimated: false,
+        source: null,
+        fareUnavailable: true,
+        lastUpdated: new Date().toISOString(),
+      };
+    }
 
     return this.cachedRequest(cacheKey, this.fareTtlMs, async () => {
       const queryParams = new URLSearchParams({ from, to, class: travelClass });

@@ -1,12 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, Calendar, Search, Loader2, Check, ArrowLeftRight } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  MapPin,
+  Navigation,
+  Calendar,
+  Search,
+  Loader2,
+  ArrowLeftRight,
+  Train,
+  CheckCircle2,
+} from 'lucide-react';
 import api from '../../services/api.js';
 
 /**
  * SearchForm Component
  *
- * Provides the deterministic journey discovery input: Origin, Destination, and Departure Date.
- * Includes Section 2 Location Resolution autocomplete to prevent silent POI conversion.
+ * Implements IRCTC-Style Station Autocomplete (Phase 6):
+ * - Prominent "STATION NAME - CODE" in uppercase bold, city/state beneath.
+ * - Selected station object is kept separate from text typed.
+ * - Invalidation on text edit until a new valid item is selected.
+ * - Keyboard navigation (ArrowUp, ArrowDown, Enter, Escape).
+ * - Swap button swaps complete station objects (codes and IDs).
+ * - Single-flight submission lock to prevent double clicks.
+ * - Shared visual card width (max-w-4xl) for seamless alignment with Natural Search.
  */
 export function SearchForm({
   initialOrigin = '',
@@ -16,28 +31,42 @@ export function SearchForm({
   isLoading = false,
   compact = false,
 }) {
-  const [origin, setOrigin] = useState(initialOrigin);
-  const [destination, setDestination] = useState(initialDestination);
+  // Input text values
+  const [originText, setOriginText] = useState(initialOrigin);
+  const [destText, setDestText] = useState(initialDestination);
   const [departureDate, setDepartureDate] = useState(initialDate);
-  const [errors, setErrors] = useState({});
 
-  // Location suggestions state
+  // Selected station objects (IRCTC canonical station identity)
+  const [selectedOriginStation, setSelectedOriginStation] = useState(null);
+  const [selectedDestStation, setSelectedDestStation] = useState(null);
+
+  // Autocomplete suggestions
   const [originSuggestions, setOriginSuggestions] = useState([]);
   const [destSuggestions, setDestSuggestions] = useState([]);
-  const [showOriginSuggestions, setShowOriginSuggestions] = useState(false);
-  const [showDestSuggestions, setShowDestSuggestions] = useState(false);
+  const [isOriginLoading, setIsOriginLoading] = useState(false);
+  const [isDestLoading, setIsDestLoading] = useState(false);
+  const [showOriginDropdown, setShowOriginDropdown] = useState(false);
+  const [showDestDropdown, setShowDestDropdown] = useState(false);
+  const [originActiveIndex, setOriginActiveIndex] = useState(-1);
+  const [destActiveIndex, setDestActiveIndex] = useState(-1);
 
-  const originRef = useRef(null);
-  const destRef = useRef(null);
+  // Form submission lock
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
 
-  // Sync state if initial props change
+  const originContainerRef = useRef(null);
+  const destContainerRef = useRef(null);
+  const originRequestTokenRef = useRef(0);
+  const destRequestTokenRef = useRef(0);
+
+  // Initialize or sync from props
   useEffect(() => {
-    if (initialOrigin) setOrigin(initialOrigin);
-    if (initialDestination) setDestination(initialDestination);
+    if (initialOrigin) setOriginText(initialOrigin);
+    if (initialDestination) setDestText(initialDestination);
     if (initialDate) setDepartureDate(initialDate);
   }, [initialOrigin, initialDestination, initialDate]);
 
-  // Set default date to today's or tomorrow's date if not set
+  // Default date
   useEffect(() => {
     if (!departureDate) {
       const today = new Date();
@@ -48,72 +77,209 @@ export function SearchForm({
     }
   }, [departureDate]);
 
-  // Debounced autocomplete for Origin
+  // Click outside listener to close suggestion dropdowns
   useEffect(() => {
-    if (!origin || origin.trim().length < 2) {
+    function handleClickOutside(event) {
+      if (originContainerRef.current && !originContainerRef.current.contains(event.target)) {
+        setShowOriginDropdown(false);
+      }
+      if (destContainerRef.current && !destContainerRef.current.contains(event.target)) {
+        setShowDestDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Fetch Origin Autocomplete with Debounce & Stale Request Cancellation
+  useEffect(() => {
+    const query = originText.trim();
+    if (!query || query.length < 2) {
       setOriginSuggestions([]);
+      setIsOriginLoading(false);
       return;
     }
 
+    const currentToken = ++originRequestTokenRef.current;
+    setIsOriginLoading(true);
+
     const timer = setTimeout(async () => {
       try {
-        const res = await api.locations.search(origin.trim(), 5);
-        const locs = res?.data?.locations || [];
-        setOriginSuggestions(locs);
+        const res = await api.locations.search(query, 6, { railwayOnly: true });
+        if (currentToken === originRequestTokenRef.current) {
+          const locs = res?.data?.locations || [];
+          setOriginSuggestions(locs);
+          setOriginActiveIndex(locs.length > 0 ? 0 : -1);
+        }
       } catch {
-        setOriginSuggestions([]);
+        if (currentToken === originRequestTokenRef.current) {
+          setOriginSuggestions([]);
+        }
+      } finally {
+        if (currentToken === originRequestTokenRef.current) {
+          setIsOriginLoading(false);
+        }
       }
-    }, 250);
+    }, 200);
 
     return () => clearTimeout(timer);
-  }, [origin]);
+  }, [originText]);
 
-  // Debounced autocomplete for Destination
+  // Fetch Destination Autocomplete with Debounce & Stale Request Cancellation
   useEffect(() => {
-    if (!destination || destination.trim().length < 2) {
+    const query = destText.trim();
+    if (!query || query.length < 2) {
       setDestSuggestions([]);
+      setIsDestLoading(false);
       return;
     }
 
+    const currentToken = ++destRequestTokenRef.current;
+    setIsDestLoading(true);
+
     const timer = setTimeout(async () => {
       try {
-        const res = await api.locations.search(destination.trim(), 5);
-        const locs = res?.data?.locations || [];
-        setDestSuggestions(locs);
+        const res = await api.locations.search(query, 6, { railwayOnly: true });
+        if (currentToken === destRequestTokenRef.current) {
+          const locs = res?.data?.locations || [];
+          setDestSuggestions(locs);
+          setDestActiveIndex(locs.length > 0 ? 0 : -1);
+        }
       } catch {
-        setDestSuggestions([]);
+        if (currentToken === destRequestTokenRef.current) {
+          setDestSuggestions([]);
+        }
+      } finally {
+        if (currentToken === destRequestTokenRef.current) {
+          setIsDestLoading(false);
+        }
       }
-    }, 250);
+    }, 200);
 
     return () => clearTimeout(timer);
-  }, [destination]);
+  }, [destText]);
 
+  // Selection handlers
+  const handleSelectOrigin = (station) => {
+    const displayName = station.displayName || `${station.name} - ${station.stationCode || ''}`;
+    setOriginText(displayName);
+    setSelectedOriginStation(station);
+    setShowOriginDropdown(false);
+    setOriginActiveIndex(-1);
+    if (errors.origin) setErrors((prev) => ({ ...prev, origin: null }));
+  };
+
+  const handleSelectDest = (station) => {
+    const displayName = station.displayName || `${station.name} - ${station.stationCode || ''}`;
+    setDestText(displayName);
+    setSelectedDestStation(station);
+    setShowDestDropdown(false);
+    setDestActiveIndex(-1);
+    if (errors.destination) setErrors((prev) => ({ ...prev, destination: null }));
+  };
+
+  // Keyboard navigation for Origin
+  const handleOriginKeyDown = (e) => {
+    if (!showOriginDropdown || originSuggestions.length === 0) {
+      if (e.key === 'ArrowDown' && originSuggestions.length > 0) {
+        setShowOriginDropdown(true);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setOriginActiveIndex((prev) => (prev + 1) % originSuggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setOriginActiveIndex((prev) => (prev <= 0 ? originSuggestions.length - 1 : prev - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (originActiveIndex >= 0 && originActiveIndex < originSuggestions.length) {
+        handleSelectOrigin(originSuggestions[originActiveIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setShowOriginDropdown(false);
+    }
+  };
+
+  // Keyboard navigation for Destination
+  const handleDestKeyDown = (e) => {
+    if (!showDestDropdown || destSuggestions.length === 0) {
+      if (e.key === 'ArrowDown' && destSuggestions.length > 0) {
+        setShowDestDropdown(true);
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setDestActiveIndex((prev) => (prev + 1) % destSuggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setDestActiveIndex((prev) => (prev <= 0 ? destSuggestions.length - 1 : prev - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (destActiveIndex >= 0 && destActiveIndex < destSuggestions.length) {
+        handleSelectDest(destSuggestions[destActiveIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setShowDestDropdown(false);
+    }
+  };
+
+  // Swapping stations swaps the complete station objects and text
   const handleSwapStations = () => {
-    setOrigin(destination);
-    setDestination(origin);
-    setOriginSuggestions([]);
-    setDestSuggestions([]);
-    setShowOriginSuggestions(false);
-    setShowDestSuggestions(false);
+    const tempText = originText;
+    const tempStation = selectedOriginStation;
+
+    setOriginText(destText);
+    setSelectedOriginStation(selectedDestStation);
+
+    setDestText(tempText);
+    setSelectedDestStation(tempStation);
+
+    setShowOriginDropdown(false);
+    setShowDestDropdown(false);
+
     if (errors.origin || errors.destination) {
       setErrors((prev) => ({ ...prev, origin: null, destination: null }));
     }
   };
 
+  // Invalidate old station object when user edits text
+  const handleOriginChange = (val) => {
+    setOriginText(val);
+    setShowOriginDropdown(true);
+    if (selectedOriginStation && selectedOriginStation.displayName !== val) {
+      setSelectedOriginStation(null);
+    }
+    if (errors.origin) setErrors((prev) => ({ ...prev, origin: null }));
+  };
+
+  const handleDestChange = (val) => {
+    setDestText(val);
+    setShowDestDropdown(true);
+    if (selectedDestStation && selectedDestStation.displayName !== val) {
+      setSelectedDestStation(null);
+    }
+    if (errors.destination) setErrors((prev) => ({ ...prev, destination: null }));
+  };
+
   const validate = () => {
     const errs = {};
-    if (!origin || !origin.trim()) {
-      errs.origin = 'Please enter an origin city or station.';
+    if (!originText || !originText.trim()) {
+      errs.origin = 'Please enter an origin railway station or city.';
     }
-    if (!destination || !destination.trim()) {
-      errs.destination = 'Please enter a destination city or station.';
+    if (!destText || !destText.trim()) {
+      errs.destination = 'Please enter a destination railway station or city.';
     }
-    if (
-      origin &&
-      destination &&
-      origin.trim().toLowerCase() === destination.trim().toLowerCase()
-    ) {
-      errs.destination = 'Origin and destination cannot be the same.';
+
+    const cleanOrigin = (selectedOriginStation?.stationCode || originText).trim().toLowerCase();
+    const cleanDest = (selectedDestStation?.stationCode || destText).trim().toLowerCase();
+
+    if (cleanOrigin && cleanDest && cleanOrigin === cleanDest) {
+      errs.destination = 'Origin and destination cannot be the same station.';
     }
     if (!departureDate) {
       errs.departureDate = 'Please select a travel date.';
@@ -122,64 +288,103 @@ export function SearchForm({
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isLoading) return;
+    if (isLoading || isSubmitting) return;
 
-    if (validate()) {
-      setShowOriginSuggestions(false);
-      setShowDestSuggestions(false);
-      onSearch({
-        origin: origin.trim(),
-        destination: destination.trim(),
+    if (!validate()) return;
+
+    setIsSubmitting(true);
+    setShowOriginDropdown(false);
+    setShowDestDropdown(false);
+
+    try {
+      // Pass canonical station code or canonical name if available
+      const finalOrigin =
+        selectedOriginStation?.name ||
+        selectedOriginStation?.stationCode ||
+        originText.trim();
+      const finalDest =
+        selectedDestStation?.name ||
+        selectedDestStation?.stationCode ||
+        destText.trim();
+
+      await onSearch({
+        origin: finalOrigin,
+        destination: finalDest,
+        originCode: selectedOriginStation?.stationCode || null,
+        destinationCode: selectedDestStation?.stationCode || null,
+        originStation: selectedOriginStation || null,
+        destinationStation: selectedDestStation || null,
         departureDate,
+        passengers: 1,
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  const busy = isLoading || isSubmitting;
 
   return (
     <form
       onSubmit={handleSubmit}
       noValidate
-      className={`w-full rounded-2xl border border-white/10 bg-surface-primary p-5 sm:p-7 shadow-lg transition-all ${
-        compact ? 'max-w-4xl' : 'max-w-5xl'
+      className={`w-full rounded-2xl border border-white/10 bg-surface-primary p-5 sm:p-7 shadow-xl transition-all ${
+        compact ? 'max-w-4xl' : 'max-w-4xl'
       }`}
-      aria-label="Journey Search Form"
+      aria-label="Structured Railway Journey Search Form"
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:gap-3 items-end">
-        {/* Origin Field with Autocomplete */}
-        <div className="lg:col-span-4 relative" ref={originRef}>
-          <label
-            htmlFor="origin-input"
-            className="block text-xs font-semibold uppercase tracking-wider text-text-secondary mb-1.5"
-          >
-            From
-          </label>
+        {/* ===================== FROM (Origin) ===================== */}
+        <div className="lg:col-span-4 relative" ref={originContainerRef}>
+          <div className="flex items-center justify-between mb-1.5">
+            <label
+              htmlFor="origin-input"
+              className="text-xs font-semibold uppercase tracking-wider text-text-secondary flex items-center gap-1.5"
+            >
+              <span>From</span>
+              {selectedOriginStation && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-brand-primary bg-brand-primary/10 px-1.5 py-0.5 rounded">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {selectedOriginStation.stationCode || 'SELECTED'}
+                </span>
+              )}
+            </label>
+          </div>
+
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-text-tertiary">
-              <MapPin className="h-4 w-4 text-brand-primary" aria-hidden="true" />
+              <Train className="h-4 w-4 text-brand-primary" aria-hidden="true" />
             </div>
+
             <input
               id="origin-input"
               name="origin"
               type="text"
               required
               autoComplete="off"
-              disabled={isLoading}
-              placeholder="e.g. Sonipat"
-              value={origin}
-              onFocus={() => setShowOriginSuggestions(true)}
-              onChange={(e) => {
-                setOrigin(e.target.value);
-                setShowOriginSuggestions(true);
-                if (errors.origin) setErrors((prev) => ({ ...prev, origin: null }));
-              }}
-              className={`w-full rounded-xl border bg-surface-secondary pl-10 pr-6 py-3 text-sm text-text-primary placeholder:text-text-disabled transition-all focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary ${
+              disabled={busy}
+              placeholder="e.g. New Delhi or NDLS"
+              value={originText}
+              onFocus={() => setShowOriginDropdown(true)}
+              onChange={(e) => handleOriginChange(e.target.value)}
+              onKeyDown={handleOriginKeyDown}
+              role="combobox"
+              aria-expanded={showOriginDropdown && originSuggestions.length > 0}
+              aria-autocomplete="list"
+              className={`w-full rounded-xl border bg-surface-secondary pl-10 pr-9 py-3 text-sm text-text-primary placeholder:text-text-disabled transition-all focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary ${
                 errors.origin ? 'border-semantic-error' : 'border-white/10'
               }`}
               aria-invalid={Boolean(errors.origin)}
               aria-describedby={errors.origin ? 'origin-error' : undefined}
             />
+
+            {isOriginLoading && (
+              <div className="absolute inset-y-0 right-3 flex items-center">
+                <Loader2 className="h-4 w-4 animate-spin text-brand-primary" />
+              </div>
+            )}
 
             {/* Desktop Station Swap Button */}
             <button
@@ -187,36 +392,57 @@ export function SearchForm({
               onClick={handleSwapStations}
               title="Swap origin and destination"
               aria-label="Swap origin and destination"
-              className="hidden lg:flex absolute -right-3.5 bottom-2.5 z-20 h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-surface-elevated text-text-secondary hover:text-brand-primary hover:border-brand-primary active:scale-95 transition-all cursor-pointer shadow-md"
+              className="hidden lg:flex absolute -right-3.5 bottom-2.5 z-30 h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-surface-elevated text-text-secondary hover:text-brand-primary hover:border-brand-primary active:scale-95 transition-all cursor-pointer shadow-md"
             >
               <ArrowLeftRight className="h-3.5 w-3.5" />
             </button>
           </div>
 
-          {/* Autocomplete Dropdown */}
-          {showOriginSuggestions && originSuggestions.length > 0 && (
-            <div className="absolute z-20 left-0 right-0 mt-1 rounded-xl border border-white/10 bg-surface-elevated p-1 shadow-2xl space-y-0.5">
-              {originSuggestions.map((loc, idx) => (
-                <button
-                  key={loc.id || idx}
-                  type="button"
-                  onClick={() => {
-                    setOrigin(loc.name || loc.city);
-                    setShowOriginSuggestions(false);
-                  }}
-                  className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left hover:bg-white/5 transition-colors cursor-pointer"
-                >
-                  <div className="truncate">
-                    <span className="font-semibold text-text-primary">{loc.name}</span>
-                    {loc.state && <span className="text-text-tertiary">, {loc.state}</span>}
-                  </div>
-                  {loc.type && (
-                    <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-text-tertiary uppercase shrink-0 ml-2">
-                      {loc.type.replace('_', ' ')}
+          {/* IRCTC-Style Autocomplete Dropdown */}
+          {showOriginDropdown && originSuggestions.length > 0 && (
+            <div
+              role="listbox"
+              id="origin-suggestions-list"
+              className="absolute z-50 left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-xl border border-white/15 bg-surface-elevated p-1 shadow-2xl space-y-1"
+            >
+              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-text-tertiary border-b border-white/5">
+                Indian Railways Stations
+              </div>
+              {originSuggestions.map((st, idx) => {
+                const isSelected = idx === originActiveIndex;
+                const code = st.stationCode || '';
+                const name = st.name || '';
+                const state = st.state || '';
+                const city = st.city || '';
+                return (
+                  <button
+                    key={st.id || st.stationCode || idx}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    onClick={() => handleSelectOrigin(st)}
+                    className={`w-full flex flex-col text-left rounded-lg px-3 py-2 text-xs transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-brand-primary/20 text-text-primary border border-brand-primary/30'
+                        : 'hover:bg-white/5 text-text-secondary'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold uppercase text-text-primary tracking-wide text-xs">
+                        {name} {code ? `- ${code}` : ''}
+                      </span>
+                      {st.isMajorHub && (
+                        <span className="text-[10px] font-semibold text-brand-primary bg-brand-primary/10 px-1.5 py-0.2 rounded">
+                          MAIN HUB
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-text-tertiary mt-0.5">
+                      {city}{city && state ? ', ' : ''}{state}
                     </span>
-                  )}
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           )}
 
@@ -240,76 +466,113 @@ export function SearchForm({
           </button>
         </div>
 
-        {/* Destination Field with Autocomplete */}
-        <div className="lg:col-span-4 relative" ref={destRef}>
-          <label
-            htmlFor="destination-input"
-            className="block text-xs font-semibold uppercase tracking-wider text-text-secondary mb-1.5"
-          >
-            To
-          </label>
+        {/* ===================== TO (Destination) ===================== */}
+        <div className="lg:col-span-4 relative" ref={destContainerRef}>
+          <div className="flex items-center justify-between mb-1.5">
+            <label
+              htmlFor="dest-input"
+              className="text-xs font-semibold uppercase tracking-wider text-text-secondary flex items-center gap-1.5"
+            >
+              <span>To</span>
+              {selectedDestStation && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-brand-primary bg-brand-primary/10 px-1.5 py-0.5 rounded">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {selectedDestStation.stationCode || 'SELECTED'}
+                </span>
+              )}
+            </label>
+          </div>
+
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-text-tertiary">
               <Navigation className="h-4 w-4 text-brand-primary" aria-hidden="true" />
             </div>
+
             <input
-              id="destination-input"
+              id="dest-input"
               name="destination"
               type="text"
               required
               autoComplete="off"
-              disabled={isLoading}
-              placeholder="e.g. Patna"
-              value={destination}
-              onFocus={() => setShowDestSuggestions(true)}
-              onChange={(e) => {
-                setDestination(e.target.value);
-                setShowDestSuggestions(true);
-                if (errors.destination) setErrors((prev) => ({ ...prev, destination: null }));
-              }}
-              className={`w-full rounded-xl border bg-surface-secondary pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-disabled transition-all focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary ${
+              disabled={busy}
+              placeholder="e.g. Prayagraj or PRYJ"
+              value={destText}
+              onFocus={() => setShowDestDropdown(true)}
+              onChange={(e) => handleDestChange(e.target.value)}
+              onKeyDown={handleDestKeyDown}
+              role="combobox"
+              aria-expanded={showDestDropdown && destSuggestions.length > 0}
+              aria-autocomplete="list"
+              className={`w-full rounded-xl border bg-surface-secondary pl-10 pr-9 py-3 text-sm text-text-primary placeholder:text-text-disabled transition-all focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary ${
                 errors.destination ? 'border-semantic-error' : 'border-white/10'
               }`}
               aria-invalid={Boolean(errors.destination)}
-              aria-describedby={errors.destination ? 'destination-error' : undefined}
+              aria-describedby={errors.destination ? 'dest-error' : undefined}
             />
+
+            {isDestLoading && (
+              <div className="absolute inset-y-0 right-3 flex items-center">
+                <Loader2 className="h-4 w-4 animate-spin text-brand-primary" />
+              </div>
+            )}
           </div>
 
-          {/* Autocomplete Dropdown */}
-          {showDestSuggestions && destSuggestions.length > 0 && (
-            <div className="absolute z-20 left-0 right-0 mt-1 rounded-xl border border-white/10 bg-surface-elevated p-1 shadow-2xl space-y-0.5">
-              {destSuggestions.map((loc, idx) => (
-                <button
-                  key={loc.id || idx}
-                  type="button"
-                  onClick={() => {
-                    setDestination(loc.name || loc.city);
-                    setShowDestSuggestions(false);
-                  }}
-                  className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left hover:bg-white/5 transition-colors cursor-pointer"
-                >
-                  <div className="truncate">
-                    <span className="font-semibold text-text-primary">{loc.name}</span>
-                    {loc.state && <span className="text-text-tertiary">, {loc.state}</span>}
-                  </div>
-                  {loc.type && (
-                    <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-text-tertiary uppercase shrink-0 ml-2">
-                      {loc.type.replace('_', ' ')}
+          {/* IRCTC-Style Autocomplete Dropdown */}
+          {showDestDropdown && destSuggestions.length > 0 && (
+            <div
+              role="listbox"
+              id="dest-suggestions-list"
+              className="absolute z-50 left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-xl border border-white/15 bg-surface-elevated p-1 shadow-2xl space-y-1"
+            >
+              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-text-tertiary border-b border-white/5">
+                Indian Railways Stations
+              </div>
+              {destSuggestions.map((st, idx) => {
+                const isSelected = idx === destActiveIndex;
+                const code = st.stationCode || '';
+                const name = st.name || '';
+                const state = st.state || '';
+                const city = st.city || '';
+                return (
+                  <button
+                    key={st.id || st.stationCode || idx}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    onClick={() => handleSelectDest(st)}
+                    className={`w-full flex flex-col text-left rounded-lg px-3 py-2 text-xs transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-brand-primary/20 text-text-primary border border-brand-primary/30'
+                        : 'hover:bg-white/5 text-text-secondary'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold uppercase text-text-primary tracking-wide text-xs">
+                        {name} {code ? `- ${code}` : ''}
+                      </span>
+                      {st.isMajorHub && (
+                        <span className="text-[10px] font-semibold text-brand-primary bg-brand-primary/10 px-1.5 py-0.2 rounded">
+                          MAIN HUB
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-text-tertiary mt-0.5">
+                      {city}{city && state ? ', ' : ''}{state}
                     </span>
-                  )}
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           )}
 
           {errors.destination && (
-            <p id="destination-error" className="mt-1 text-xs text-semantic-error" role="alert">
+            <p id="dest-error" className="mt-1 text-xs text-semantic-error" role="alert">
               {errors.destination}
             </p>
           )}
         </div>
 
-        {/* Departure Date Field */}
+        {/* ===================== DATE ===================== */}
         <div className="sm:col-span-1 lg:col-span-2">
           <label
             htmlFor="date-input"
@@ -326,7 +589,7 @@ export function SearchForm({
               name="departureDate"
               type="date"
               required
-              disabled={isLoading}
+              disabled={busy}
               value={departureDate}
               onChange={(e) => {
                 setDepartureDate(e.target.value);
@@ -346,16 +609,16 @@ export function SearchForm({
           )}
         </div>
 
-        {/* Submit Button */}
+        {/* ===================== SUBMIT BUTTON ===================== */}
         <div className="sm:col-span-1 lg:col-span-2">
           <button
             type="submit"
             id="search-submit-btn"
-            disabled={isLoading}
+            disabled={busy}
             className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-primary px-5 py-3 text-sm font-semibold text-white shadow-md shadow-brand-primary/25 transition-all hover:bg-brand-hover active:bg-brand-active disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 focus:ring-offset-background-primary cursor-pointer"
-            aria-busy={isLoading}
+            aria-busy={busy}
           >
-            {isLoading ? (
+            {busy ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 <span>Searching...</span>

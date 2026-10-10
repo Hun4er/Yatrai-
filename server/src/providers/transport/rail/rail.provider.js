@@ -3,6 +3,7 @@ import { BaseTransportProvider } from '../interface.js';
 import { httpFetch } from '../httpClient.js';
 import { ProviderError } from '../errors.js';
 import { calculateJourneyTiming } from '../../../utils/railwayTime.js';
+import railRadarAdapter from '../../rail/railRadar.adapter.js';
 
 /**
  * Built-in Station Code Mapping for major Indian cities and railway hubs.
@@ -486,8 +487,34 @@ export class RailTransportProvider extends BaseTransportProvider {
         }
 
         let endpointUrl;
-        if (isRailRadar) {
+        if (isRailRadar && fetchFn === globalThis.fetch) {
+          const directResult = await railRadarAdapter.searchDirectTrains(fromCode, toCode, {
+            timeoutMs: options.timeoutMs || this.timeoutMs,
+            departureDate: travelDateStr,
+            date: travelDateStr,
+          });
+          if (!directResult.success && directResult.statusCode === 429) {
+            throw new ProviderError(`Rate limit exceeded for provider "rail".`, {
+              provider: 'rail',
+              code: 'PROVIDER_RATE_LIMITED',
+              statusCode: 429,
+              retryable: false,
+              details: {
+                isMonthlyQuota: directResult.isMonthlyQuota,
+              },
+            });
+          }
+          rawResponse = directResult.rawResponse || { data: { trains: directResult.trains || [] } };
+        } else if (isRailRadar) {
           endpointUrl = `${apiUrl.replace(/\/$/, '')}/trains/between/${encodeURIComponent(fromCode)}/${encodeURIComponent(toCode)}`;
+          const res = await httpFetch(endpointUrl, {
+            method: 'GET',
+            headers,
+            timeoutMs: options.timeoutMs || this.timeoutMs,
+            provider: 'rail',
+            fetchFn,
+          });
+          rawResponse = res.data;
         } else {
           const fromStation = origin.name || origin.city || 'ORIGIN';
           const toStation = destination.name || destination.city || 'DESTINATION';
@@ -497,16 +524,15 @@ export class RailTransportProvider extends BaseTransportProvider {
             date: travelDateStr,
           });
           endpointUrl = `${apiUrl.replace(/\/$/, '')}/trains/between-stations?${queryParams.toString()}`;
+          const res = await httpFetch(endpointUrl, {
+            method: 'GET',
+            headers,
+            timeoutMs: options.timeoutMs || this.timeoutMs,
+            provider: 'rail',
+            fetchFn,
+          });
+          rawResponse = res.data;
         }
-
-        const res = await httpFetch(endpointUrl, {
-          method: 'GET',
-          headers,
-          timeoutMs: options.timeoutMs || this.timeoutMs,
-          provider: 'rail',
-          fetchFn,
-        });
-        rawResponse = res.data;
       }
 
       this.validateResponse(rawResponse);
@@ -539,6 +565,12 @@ export class RailTransportProvider extends BaseTransportProvider {
           // Query up to 6 most relevant cluster station pairs concurrently
           const queries = clusterPairs.slice(0, 6).map(async ({ from: f, to: t }) => {
             try {
+              if (fetchFn === globalThis.fetch) {
+                const cRes = await railRadarAdapter.searchDirectTrains(f, t, {
+                  timeoutMs: Math.min(options.timeoutMs || this.timeoutMs, 4000),
+                });
+                return cRes.trains || [];
+              }
               const cUrl = `${apiUrl.replace(/\/$/, '')}/trains/between/${encodeURIComponent(f)}/${encodeURIComponent(t)}`;
               const cRes = await httpFetch(cUrl, {
                 method: 'GET',
@@ -616,7 +648,8 @@ export class RailTransportProvider extends BaseTransportProvider {
         const distanceKm = Math.round(Number(item.distance) || 750);
 
         // Verified fare handling: never fabricate prices from distance/speed assumptions
-        const rawFare = item.price !== undefined ? item.price : item.fare;
+        const classFare = item.fares ? (item.fares['3A'] || item.fares['CC'] || Object.values(item.fares)[0]) : undefined;
+        const rawFare = classFare !== undefined ? classFare : (item.price !== undefined ? item.price : item.fare);
         const baseFare = Number(rawFare);
         const hasVerifiedFare = !isNaN(baseFare) && baseFare > 0;
         const totalFare = hasVerifiedFare ? baseFare * Number(passengers || 1) : null;
