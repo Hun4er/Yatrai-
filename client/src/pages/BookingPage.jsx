@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../services/api.js';
+import TicketModal from '../components/booking/TicketModal.jsx';
 import {
   formatDuration,
   formatPrice,
@@ -87,6 +88,7 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
   const [bookingResult, setBookingResult] = useState(null);
   const [submitError, setSubmitError] = useState(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [showTicketModal, setShowTicketModal] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState(() => `idemp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`);
 
   // 1. Initial Authentication Check & Journey Recovery (Section 2)
@@ -927,6 +929,15 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
             <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-white/10">
               <button
                 type="button"
+                onClick={() => setShowTicketModal(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-3 text-xs font-bold text-white shadow-lg hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer"
+              >
+                <Ticket className="h-4 w-4 text-amber-300" />
+                <span>View Official E-Ticket</span>
+              </button>
+
+              <button
+                type="button"
                 id="download-ticket-pdf-btn"
                 onClick={handleDownloadPdf}
                 disabled={downloadingPdf}
@@ -935,12 +946,12 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
                 {downloadingPdf ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Generating PDF...</span>
+                    <span>Generating E-Ticket...</span>
                   </>
                 ) : (
                   <>
                     <Download className="h-4 w-4" />
-                    <span>Download Journey Summary PDF</span>
+                    <span>Download E-Ticket (PDF)</span>
                   </>
                 )}
               </button>
@@ -965,6 +976,16 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Interactive E-Ticket Modal Preview */}
+      {showTicketModal && bookingResult && (
+        <TicketModal
+          booking={bookingResult}
+          onClose={() => setShowTicketModal(false)}
+          onDownload={handleDownloadPdf}
+          isDownloading={downloadingPdf}
+        />
       )}
     </div>
   );

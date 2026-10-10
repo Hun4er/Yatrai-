@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../services/api.js';
+import TicketModal from '../components/booking/TicketModal.jsx';
 import {
   formatDuration,
   formatPrice,
@@ -31,6 +32,7 @@ export function MyBookingsPage({ onNavigate, onNavigateHome }) {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'upcoming' | 'past'
   const [downloadingId, setDownloadingId] = useState(null);
+  const [selectedTicket, setSelectedTicket] = useState(null);
 
   const fetchBookings = async () => {
     if (!isAuthenticated) return;
@@ -307,6 +309,15 @@ export function MyBookingsPage({ onNavigate, onNavigateHome }) {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      onClick={() => setSelectedTicket(booking)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-xs font-semibold text-text-primary hover:bg-white/10 transition-colors cursor-pointer"
+                    >
+                      <Ticket className="h-3.5 w-3.5 text-amber-300" />
+                      <span>View Ticket</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => handleDownload(booking)}
                       disabled={downloadingId === booking._id}
                       className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-3.5 py-2 text-xs font-bold text-white shadow hover:bg-brand-hover active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer"
@@ -339,6 +350,16 @@ export function MyBookingsPage({ onNavigate, onNavigateHome }) {
             );
           })}
         </div>
+      )}
+
+      {/* Interactive E-Ticket Modal Preview */}
+      {selectedTicket && (
+        <TicketModal
+          booking={selectedTicket}
+          onClose={() => setSelectedTicket(null)}
+          onDownload={handleDownload}
+          isDownloading={downloadingId === selectedTicket._id}
+        />
       )}
     </div>
   );
