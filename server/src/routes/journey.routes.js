@@ -43,4 +43,10 @@ router.get('/:id/availability', optionalAuthenticate, journeyController.getAvail
  */
 router.get('/:id/fare', optionalAuthenticate, journeyController.getFare);
 
+/**
+ * GET /api/journeys/:id
+ * Retrieve authoritative journey with legs.
+ */
+router.get('/:id', optionalAuthenticate, journeyController.getById);
+
 export default router;

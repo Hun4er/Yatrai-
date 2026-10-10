@@ -304,6 +304,188 @@ export const VERIFIED_TRAIN_SCHEDULES = [
   },
 
   // ============================================================================
+  // CORRIDOR: MUMBAI (CSMT / MMCT / BDTS / LTT) -> NEW DELHI (NDLS / NZM)
+  // ============================================================================
+  {
+    trainNumber: '12951',
+    trainName: 'Mumbai Tejas Rajdhani Express',
+    fromStation: 'MMCT',
+    fromName: 'Mumbai Central',
+    toStation: 'NDLS',
+    toName: 'New Delhi',
+    departureTime: '17:00',
+    arrivalTime: '08:32',
+    dayOffset: 1,
+    durationMinutes: 932, // 15h 32m
+    distanceKm: 1386,
+    runDays: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
+    classes: ['1A', '2A', '3A'],
+    fares: { '1A': 4200, '2A': 3100, '3A': 2250 },
+    operator: 'Western Railway',
+  },
+  {
+    trainNumber: '12953',
+    trainName: 'August Kranti Tejas Rajdhani',
+    fromStation: 'MMCT',
+    fromName: 'Mumbai Central',
+    toStation: 'NZM',
+    toName: 'Hazrat Nizamuddin',
+    departureTime: '17:10',
+    arrivalTime: '09:43',
+    dayOffset: 1,
+    durationMinutes: 993, // 16h 33m
+    distanceKm: 1377,
+    runDays: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
+    classes: ['1A', '2A', '3A', '3E'],
+    fares: { '1A': 4150, '2A': 3050, '3A': 2200, '3E': 1950 },
+    operator: 'Western Railway',
+  },
+  {
+    trainNumber: '22221',
+    trainName: 'CSMT NZM Rajdhani Express',
+    fromStation: 'CSMT',
+    fromName: 'Chhatrapati Shivaji Maharaj Terminus',
+    toStation: 'NZM',
+    toName: 'Hazrat Nizamuddin',
+    departureTime: '16:00',
+    arrivalTime: '09:55',
+    dayOffset: 1,
+    durationMinutes: 1075, // 17h 55m
+    distanceKm: 1543,
+    runDays: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
+    classes: ['1A', '2A', '3A'],
+    fares: { '1A': 4300, '2A': 3150, '3A': 2300 },
+    operator: 'Central Railway',
+  },
+  {
+    trainNumber: '12137',
+    trainName: 'Punjab Mail',
+    fromStation: 'CSMT',
+    fromName: 'Chhatrapati Shivaji Maharaj Terminus',
+    toStation: 'NDLS',
+    toName: 'New Delhi',
+    departureTime: '19:35',
+    arrivalTime: '21:30',
+    dayOffset: 1,
+    durationMinutes: 1555, // 25h 55m
+    distanceKm: 1543,
+    runDays: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
+    classes: ['1A', '2A', '3A', 'SL'],
+    fares: { '1A': 3800, '2A': 2450, '3A': 1700, SL: 640 },
+    operator: 'Central Railway',
+  },
+
+  // ============================================================================
+  // CORRIDOR: MUMBAI (CSMT / MMCT / BDTS / LTT) -> PATNA (PNBE / DNR / PPTA)
+  // ============================================================================
+  {
+    trainNumber: '13202',
+    trainName: 'Mumbai LTT - Patna Express',
+    fromStation: 'LTT',
+    fromName: 'Lokmanya Tilak Terminus',
+    toStation: 'PNBE',
+    toName: 'Patna Junction',
+    departureTime: '14:45',
+    arrivalTime: '23:45',
+    dayOffset: 1,
+    durationMinutes: 1980, // 33h 00m
+    distanceKm: 1695,
+    runDays: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
+    classes: ['2A', '3A', '3E', 'SL'],
+    fares: { '2A': 2650, '3A': 1850, '3E': 1700, SL: 710 },
+    operator: 'East Central Railway',
+  },
+  {
+    trainNumber: '22971',
+    trainName: 'Bandra Terminus - Patna SF Express',
+    fromStation: 'BDTS',
+    fromName: 'Bandra Terminus',
+    toStation: 'PNBE',
+    toName: 'Patna Junction',
+    departureTime: '19:25',
+    arrivalTime: '01:40',
+    dayOffset: 2,
+    durationMinutes: 1815, // 30h 15m
+    distanceKm: 1855,
+    runDays: ['sun', 'mon', 'wed', 'fri'],
+    classes: ['2A', '3A', 'SL'],
+    fares: { '2A': 2750, '3A': 1920, SL: 735 },
+    operator: 'Western Railway',
+  },
+  {
+    trainNumber: '12141',
+    trainName: 'Mumbai LTT - Patliputra SF Express',
+    fromStation: 'LTT',
+    fromName: 'Lokmanya Tilak Terminus',
+    toStation: 'PPTA',
+    toName: 'Patliputra Junction',
+    departureTime: '23:35',
+    arrivalTime: '03:50',
+    dayOffset: 2,
+    durationMinutes: 1695, // 28h 15m
+    distanceKm: 1683,
+    runDays: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
+    classes: ['2A', '3A', '3E', 'SL'],
+    fares: { '2A': 2680, '3A': 1870, '3E': 1720, SL: 720 },
+    operator: 'Central Railway',
+  },
+  {
+    trainNumber: '82356',
+    trainName: 'Suvidha Superfast Express',
+    fromStation: 'CSMT',
+    fromName: 'Chhatrapati Shivaji Maharaj Terminus',
+    toStation: 'PNBE',
+    toName: 'Patna Junction',
+    departureTime: '11:05',
+    arrivalTime: '15:00',
+    dayOffset: 1,
+    durationMinutes: 1675,
+    distanceKm: 1710,
+    runDays: ['sun', 'tue', 'fri'],
+    classes: ['2A', '3A', 'SL'],
+    fares: { '2A': 2950, '3A': 2100, SL: 820 },
+    operator: 'East Central Railway',
+  },
+
+  // ============================================================================
+  // CORRIDOR: PATNA (PNBE) -> NEW DELHI (NDLS) [Return]
+  // ============================================================================
+  {
+    trainNumber: '12309',
+    trainName: 'Patna Rajdhani Express',
+    fromStation: 'PNBE',
+    fromName: 'Patna Junction',
+    toStation: 'NDLS',
+    toName: 'New Delhi',
+    departureTime: '19:10',
+    arrivalTime: '07:40',
+    dayOffset: 1,
+    durationMinutes: 750, // 12h 30m
+    distanceKm: 1000,
+    runDays: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
+    classes: ['1A', '2A', '3A'],
+    fares: { '1A': 3240, '2A': 2350, '3A': 1720 },
+    operator: 'East Central Railway',
+  },
+  {
+    trainNumber: '12393',
+    trainName: 'Sampoorna Kranti Express',
+    fromStation: 'PNBE',
+    fromName: 'Patna Junction',
+    toStation: 'NDLS',
+    toName: 'New Delhi',
+    departureTime: '19:25',
+    arrivalTime: '07:55',
+    dayOffset: 1,
+    durationMinutes: 750,
+    distanceKm: 1000,
+    runDays: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
+    classes: ['1A', '2A', '3A', '3E', 'SL'],
+    fares: { '1A': 2980, '2A': 1880, '3A': 1340, '3E': 1220, SL: 485 },
+    operator: 'East Central Railway',
+  },
+
+  // ============================================================================
   // CORRIDOR: CHENNAI (MAS) -> BENGALURU (SBC)
   // ============================================================================
   {
@@ -380,9 +562,10 @@ const STATION_EQUIVALENCES = {
   SMVB: ['SMVB', 'SBC'],
   YPR: ['YPR', 'SBC'],
   CSMT: ['CSMT', 'MMCT', 'BDTS', 'LTT', 'DR'],
-  MMCT: ['MMCT', 'CSMT', 'BDTS'],
-  BDTS: ['BDTS', 'MMCT', 'CSMT'],
-  LTT: ['LTT', 'CSMT'],
+  MMCT: ['MMCT', 'CSMT', 'BDTS', 'LTT', 'DR'],
+  BDTS: ['BDTS', 'MMCT', 'CSMT', 'LTT', 'DR'],
+  LTT: ['LTT', 'CSMT', 'MMCT', 'BDTS', 'DR'],
+  DR: ['DR', 'CSMT', 'MMCT', 'BDTS', 'LTT'],
 };
 
 /**

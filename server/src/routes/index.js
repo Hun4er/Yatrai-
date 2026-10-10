@@ -49,6 +49,13 @@ apiRouter.get('/', (req, res) => {
       favoriteRoutes: '/api/favorite-routes',
       journeyHistory: '/api/journey-history',
       notifications: '/api/notifications',
+      booking: {
+        prepare: '/api/booking/prepare',
+        create: '/api/booking',
+        myBookings: '/api/booking/my-bookings',
+        getById: '/api/booking/:id',
+        pdf: '/api/booking/:id/pdf',
+      },
       admin: {
         overview: '/api/admin/overview',
         users: '/api/admin/users',

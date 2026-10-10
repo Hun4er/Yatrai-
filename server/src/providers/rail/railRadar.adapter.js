@@ -102,7 +102,9 @@ export class RailRadarAdapter {
       try {
         const data = await requestFn();
         if (data !== null && data !== undefined) {
-          this.cache.set(cacheKey, { data, expiresAt: Date.now() + durationMs });
+          // If request was unsuccessful, only cache for 5s to avoid duplicate bursts while allowing fast recovery
+          const cacheTtl = data?.success === false ? 5000 : durationMs;
+          this.cache.set(cacheKey, { data, expiresAt: Date.now() + cacheTtl });
         }
         return data;
       } finally {
@@ -200,9 +202,11 @@ export class RailRadarAdapter {
           const remMonth = res.headers.get('x-ratelimit-remaining-month');
           if (remMonth !== null && remMonth !== undefined) {
             this.quotaStats.remainingMonth = Number(remMonth);
-            if (this.quotaStats.remainingMonth === 0) {
-              this.isMonthlyQuotaExhausted = true;
-            }
+            this.isMonthlyQuotaExhausted = (this.quotaStats.remainingMonth === 0);
+          }
+          const remMin = res.headers.get('x-ratelimit-remaining-min');
+          if (remMin !== null && remMin !== undefined) {
+            this.quotaStats.remainingMin = Number(remMin);
           }
         }
 
@@ -229,30 +233,31 @@ export class RailRadarAdapter {
         logger.warn(`[RailRadarAdapter] searchDirectTrains failed for ${from} -> ${to}: ${err.message}`);
         this.quotaStats.rateLimits429++;
 
+        // Only classify as monthly exhaustion if explicitly stated or header confirmed 0 remaining
         const isMonthly =
           err.code === 'PROVIDER_MONTHLY_QUOTA_EXHAUSTED' ||
           err.details?.isMonthlyQuota ||
           /monthly quota/i.test(err.message || '') ||
-          err.statusCode === 429;
+          (this.quotaStats.remainingMonth !== null && this.quotaStats.remainingMonth === 0);
 
         if (isMonthly) {
           this.isMonthlyQuotaExhausted = true;
           this.quotaStats.remainingMonth = 0;
+        }
 
-          // Seamless verified timetable fallback
-          const verified = findVerifiedDirectTrains(from, to, travelDate);
-          if (verified.length > 0) {
-            logger.info(`[RailRadarAdapter] Resolved ${verified.length} verified trains for ${from} -> ${to} despite upstream quota limit`);
-            return {
-              success: true,
-              from,
-              to,
-              trains: verified,
-              source: 'verified_schedule',
-              isVerifiedSchedule: true,
-              quotaExhausted: true,
-            };
-          }
+        // Seamless verified timetable fallback on ANY failure (including transient 429 rate limits)
+        const verified = findVerifiedDirectTrains(from, to, travelDate);
+        if (verified.length > 0) {
+          logger.info(`[RailRadarAdapter] Resolved ${verified.length} verified trains for ${from} -> ${to} despite upstream error (${err.message})`);
+          return {
+            success: true,
+            from,
+            to,
+            trains: verified,
+            source: 'verified_schedule',
+            isVerifiedSchedule: true,
+            quotaExhausted: Boolean(isMonthly),
+          };
         }
 
         return {

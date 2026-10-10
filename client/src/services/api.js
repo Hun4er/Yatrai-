@@ -202,6 +202,7 @@ export const api = {
 
     getAvailability: (id) => request(`/journeys/${id}/availability`),
     getFare: (id) => request(`/journeys/${id}/fare`),
+    getById: (id) => request(`/journeys/${id}`),
   },
 
   // Railway Booking Preparation & Compliance
@@ -217,6 +218,46 @@ export const api = {
           contactDetails,
         }),
       }),
+    create: (bookingData) =>
+      request('/booking', {
+        method: 'POST',
+        body: JSON.stringify(bookingData),
+      }),
+    myBookings: (params = {}) => {
+      const q = params.status ? `?status=${encodeURIComponent(params.status)}` : '';
+      return request(`/booking/my-bookings${q}`);
+    },
+    getById: (id) => request(`/booking/${id}`),
+    downloadPdf: async (id, bookingReference) => {
+      const token = getAccessToken();
+      const response = await fetch(`${API_BASE_URL}/booking/${id}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        let errMsg = `Failed to generate PDF (${response.status})`;
+        try {
+          const errData = await response.json();
+          if (errData?.error?.message) errMsg = errData.error.message;
+        } catch {
+          // ignore
+        }
+        throw new Error(errMsg);
+      }
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = downloadUrl;
+      a.download = `Yatrai_${bookingReference || id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        window.URL.revokeObjectURL(downloadUrl);
+        a.remove();
+      }, 100);
+      return true;
+    },
   },
 
   // Phase 13: User Profile & Preferences

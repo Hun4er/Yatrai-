@@ -73,7 +73,10 @@ export class JourneyRecoveryService {
     const dateObj = departureDate instanceof Date ? departureDate : new Date(departureDate);
 
     // Step 2-4: For each topology, query real train schedules and pair connections
-    for (const topo of topologies) {
+    for (const topo of topologies.slice(0, 6)) {
+      if (candidateJourneys.length >= maxAlternatives) {
+        break;
+      }
       const { stages, originExpansionHops, destinationExpansionHops, trainChanges } = topo;
       const leg1Stage = stages[0];
       const leg2Stage = stages[1];

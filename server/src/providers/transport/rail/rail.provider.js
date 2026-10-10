@@ -4,6 +4,7 @@ import { httpFetch } from '../httpClient.js';
 import { ProviderError } from '../errors.js';
 import { calculateJourneyTiming } from '../../../utils/railwayTime.js';
 import railRadarAdapter from '../../rail/railRadar.adapter.js';
+import { findVerifiedDirectTrains } from '../../../services/rail/verifiedTrainData.js';
 
 /**
  * Built-in Station Code Mapping for major Indian cities and railway hubs.
@@ -494,17 +495,23 @@ export class RailTransportProvider extends BaseTransportProvider {
             date: travelDateStr,
           });
           if (!directResult.success && directResult.statusCode === 429) {
-            throw new ProviderError(`Rate limit exceeded for provider "rail".`, {
-              provider: 'rail',
-              code: 'PROVIDER_RATE_LIMITED',
-              statusCode: 429,
-              retryable: false,
-              details: {
-                isMonthlyQuota: directResult.isMonthlyQuota,
-              },
-            });
+            const verified = findVerifiedDirectTrains(fromCode, toCode, travelDateStr);
+            if (verified.length > 0) {
+              rawResponse = { data: { trains: verified } };
+            } else {
+              throw new ProviderError(`Rate limit exceeded for provider "rail".`, {
+                provider: 'rail',
+                code: 'PROVIDER_RATE_LIMITED',
+                statusCode: 429,
+                retryable: false,
+                details: {
+                  isMonthlyQuota: directResult.isMonthlyQuota,
+                },
+              });
+            }
+          } else {
+            rawResponse = directResult.rawResponse || { data: { trains: directResult.trains || [] } };
           }
-          rawResponse = directResult.rawResponse || { data: { trains: directResult.trains || [] } };
         } else if (isRailRadar) {
           endpointUrl = `${apiUrl.replace(/\/$/, '')}/trains/between/${encodeURIComponent(fromCode)}/${encodeURIComponent(toCode)}`;
           const res = await httpFetch(endpointUrl, {
@@ -556,51 +563,51 @@ export class RailTransportProvider extends BaseTransportProvider {
             }
           }
 
-          const headers = { Accept: 'application/json' };
-          if (apiKey) {
-            headers['Authorization'] = `Bearer ${apiKey.trim()}`;
-            headers['X-API-Key'] = apiKey.trim();
+          // 1. Check verified schedules first across cluster pairs (0 external API calls, instantaneous)
+          for (const { from: f, to: t } of clusterPairs) {
+            const verified = findVerifiedDirectTrains(f, t, travelDateStr);
+            if (verified.length > 0) {
+              trainList.push(...verified);
+            }
           }
 
-          // Query up to 6 most relevant cluster station pairs concurrently
-          const queries = clusterPairs.slice(0, 6).map(async ({ from: f, to: t }) => {
-            try {
-              if (fetchFn === globalThis.fetch) {
-                const cRes = await railRadarAdapter.searchDirectTrains(f, t, {
-                  timeoutMs: Math.min(options.timeoutMs || this.timeoutMs, 4000),
-                });
-                return cRes.trains || [];
-              }
-              const cUrl = `${apiUrl.replace(/\/$/, '')}/trains/between/${encodeURIComponent(f)}/${encodeURIComponent(t)}`;
-              const cRes = await httpFetch(cUrl, {
-                method: 'GET',
-                headers,
-                timeoutMs: Math.min(options.timeoutMs || this.timeoutMs, 4000),
-                provider: 'rail',
-                fetchFn,
-              });
-              return this.extractTrains(cRes.data) || [];
-            } catch {
-              return [];
+          // 2. If still 0, sequentially query at most 2 top cluster pairs (never burst 6 concurrently)
+          if (trainList.length === 0) {
+            const headers = { Accept: 'application/json' };
+            if (apiKey) {
+              headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+              headers['X-API-Key'] = apiKey.trim();
             }
-          });
 
-          const clusterResults = await Promise.allSettled(queries);
-          const trainMap = new Map();
-
-          for (const cr of clusterResults) {
-            if (cr.status === 'fulfilled' && Array.isArray(cr.value)) {
-              for (const tr of cr.value) {
-                const num = String(tr.train?.number || tr.trainNumber || tr.number || '');
-                if (num && !trainMap.has(num)) {
-                  trainMap.set(num, tr);
+            for (const { from: f, to: t } of clusterPairs.slice(0, 2)) {
+              try {
+                if (fetchFn === globalThis.fetch) {
+                  const cRes = await railRadarAdapter.searchDirectTrains(f, t, {
+                    timeoutMs: Math.min(options.timeoutMs || this.timeoutMs, 4000),
+                  });
+                  if (cRes.trains && cRes.trains.length > 0) {
+                    trainList.push(...cRes.trains);
+                    break; // Stop immediately upon finding viable trains to protect quota
+                  }
+                } else {
+                  const cUrl = `${apiUrl.replace(/\/$/, '')}/trains/between/${encodeURIComponent(f)}/${encodeURIComponent(t)}`;
+                  const cRes = await httpFetch(cUrl, {
+                    method: 'GET',
+                    headers,
+                    timeoutMs: Math.min(options.timeoutMs || this.timeoutMs, 4000),
+                    provider: 'rail',
+                    fetchFn,
+                  });
+                  const extracted = this.extractTrains(cRes.data) || [];
+                  if (extracted.length > 0) {
+                    trainList.push(...extracted);
+                    break;
+                  }
                 }
+              } catch {
+                // Continue to next pair
               }
             }
-          }
-
-          if (trainMap.size > 0) {
-            trainList = Array.from(trainMap.values());
           }
         }
       }

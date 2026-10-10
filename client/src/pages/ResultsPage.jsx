@@ -50,10 +50,30 @@ export function ResultsPage({
   onNavigateHome,
   onRankingChange,
   onRetry,
+  onNavigate,
 }) {
   const { status, data, error, isLoading } = searchState;
   const { isAuthenticated } = useAuth();
   const [activeRanking, setActiveRanking] = useState(searchParams?.ranking || 'overall');
+
+  const handleBookJourney = (journey, isUserAuthed) => {
+    if (!isUserAuthed) {
+      if (onNavigate) {
+        onNavigate('/profile');
+      } else {
+        window.history.pushState(null, '', '/profile');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+    } else {
+      const journeyId = journey.id || journey._id;
+      if (onNavigate) {
+        onNavigate(`/booking?journeyId=${journeyId}`);
+      } else {
+        window.history.pushState(null, '', `/booking?journeyId=${journeyId}`);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+    }
+  };
 
   // Filter state
   const [filters, setFilters] = useState(getDefaultFilters);
@@ -609,6 +629,7 @@ export function ResultsPage({
                       isTopPick={true}
                       allJourneys={backendJourneys}
                       onViewJourney={handleViewJourney}
+                      onBookJourney={handleBookJourney}
                       onToggleCompare={handleToggleCompare}
                       isCompared={comparedJourneyIds.includes(topJourney.id)}
                     />
@@ -659,6 +680,7 @@ export function ResultsPage({
                               isTopPick={false}
                               allJourneys={backendJourneys}
                               onViewJourney={handleViewJourney}
+                              onBookJourney={handleBookJourney}
                               onToggleCompare={handleToggleCompare}
                               isCompared={comparedJourneyIds.includes(journey.id)}
                             />

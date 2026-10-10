@@ -53,6 +53,30 @@ export function ProfilePage({ onNavigate }) {
     };
   }, [isAuthenticated, authUser]);
 
+  // Automatic return to booking workflow upon successful login (Section 2)
+  useEffect(() => {
+    if (isAuthenticated) {
+      const pendingRaw = sessionStorage.getItem('yatrai_pending_booking');
+      if (pendingRaw) {
+        try {
+          const parsed = JSON.parse(pendingRaw);
+          if (parsed && (parsed.journeyId || parsed.journeySnapshot)) {
+            const jId = parsed.journeyId || parsed.journeySnapshot?.id || parsed.journeySnapshot?._id;
+            const targetUrl = jId ? `/booking?journeyId=${jId}` : '/booking';
+            if (onNavigate) {
+              onNavigate(targetUrl);
+            } else {
+              window.history.pushState(null, '', targetUrl);
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }
+          }
+        } catch {
+          // ignore parsing error
+        }
+      }
+    }
+  }, [isAuthenticated, onNavigate]);
+
   if (authLoading || (loading && !profileData)) {
     return (
       <div className="flex h-64 items-center justify-center">

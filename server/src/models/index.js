@@ -12,6 +12,7 @@ export { JourneyHistory } from './JourneyHistory.js';
 export { Notification, NOTIFICATION_TYPES } from './Notification.js';
 export { RefreshSession } from './RefreshSession.js';
 export { ErrorLog, ERROR_SEVERITIES } from './ErrorLog.js';
+export { Booking, BOOKING_STATUSES } from './Booking.js';
 
 export default {
   User: () => import('./User.js').then((m) => m.User),
@@ -28,4 +29,5 @@ export default {
   Notification: () => import('./Notification.js').then((m) => m.Notification),
   RefreshSession: () => import('./RefreshSession.js').then((m) => m.RefreshSession),
   ErrorLog: () => import('./ErrorLog.js').then((m) => m.ErrorLog),
+  Booking: () => import('./Booking.js').then((m) => m.Booking),
 };

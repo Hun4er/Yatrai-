@@ -4,6 +4,7 @@ import availabilityService, { AVAILABILITY_STATUS, JOURNEY_AVAILABILITY } from '
 import fareService from './fare.service.js';
 import logger from '../../utils/logger.js';
 import { calculateJourneyTiming } from '../../utils/railwayTime.js';
+import { findVerifiedDirectTrains } from './verifiedTrainData.js';
 
 /**
  * Direct Search Status Codes (Section 3)
@@ -64,17 +65,35 @@ export class DirectJourneyService {
 
     // If primary stations returned 0, try cluster station pairs (e.g. NDLS/DLI/NZM to PNBE/DNR/PPTA)
     let trainItems = searchResult.trains || [];
-    if (trainItems.length === 0 && searchResult.success) {
+    if (trainItems.length === 0) {
       const fromClusters = getClusterStationCodes(origin, originCode);
       const toClusters = getClusterStationCodes(destination, destCode);
 
       if (fromClusters.length > 1 || toClusters.length > 1) {
+        // 1. Check verified schedules first across cluster pairs (0 external API cost)
         for (const f of fromClusters.slice(0, 3)) {
           for (const t of toClusters.slice(0, 3)) {
-            if (f === originCode && t === destCode) continue;
+            const verified = findVerifiedDirectTrains(f, t, departureDate);
+            if (verified.length > 0) {
+              trainItems.push(...verified);
+            }
+          }
+        }
+
+        // 2. If still 0 and searchResult was success, query at most 1 primary cluster pair
+        if (trainItems.length === 0 && searchResult.success) {
+          const clusterPairs = [];
+          for (const f of fromClusters.slice(0, 2)) {
+            for (const t of toClusters.slice(0, 2)) {
+              if (f === originCode && t === destCode) continue;
+              clusterPairs.push({ f, t });
+            }
+          }
+          for (const { f, t } of clusterPairs.slice(0, 1)) {
             const clusterRes = await this.railRadar.searchDirectTrains(f, t, searchOpts);
             if (clusterRes.trains && clusterRes.trains.length > 0) {
               trainItems.push(...clusterRes.trains);
+              break;
             }
           }
         }

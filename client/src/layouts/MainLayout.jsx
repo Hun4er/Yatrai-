@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   Shield,
+  Ticket,
 } from 'lucide-react';
 
 export function MainLayout({ children, currentPath = '/', onNavigate, onNavigateHome }) {
@@ -49,6 +50,7 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
 
   const navLinks = [
     { label: 'Search', path: '/', icon: Search },
+    { label: 'Bookings', path: '/bookings', icon: Ticket },
     { label: 'Saved', path: '/saved', icon: Bookmark },
     { label: 'Recent', path: '/recent', icon: History },
     { label: 'Favorites', path: '/favorites', icon: Heart },

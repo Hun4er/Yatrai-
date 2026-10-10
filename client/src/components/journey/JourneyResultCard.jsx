@@ -13,6 +13,7 @@ import {
   AlertCircle,
   ExternalLink,
   X,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../services/api.js';
@@ -48,6 +49,7 @@ export function JourneyResultCard({
   isTopPick = false,
   allJourneys = [],
   onViewJourney,
+  onBookJourney,
   isSaved: initialSaved,
   onRemoveSaved,
   onToggleCompare,
@@ -58,6 +60,49 @@ export function JourneyResultCard({
   const [saved, setSaved] = useState(initialSaved || false);
   const [saving, setSaving] = useState(false);
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingError, setBookingError] = useState(null);
+
+  const handleBookNow = async () => {
+    setBookingLoading(true);
+    setBookingError(null);
+    try {
+      const journeyId = journey.id || journey._id;
+      // Preserve current booking context in sessionStorage
+      sessionStorage.setItem(
+        'yatrai_pending_booking',
+        JSON.stringify({
+          journeyId,
+          journeySnapshot: journey,
+          savedAt: Date.now(),
+        })
+      );
+
+      setBookingModalOpen(false);
+
+      if (!isAuthenticated) {
+        // Case A: Redirect to login page
+        if (onBookJourney) {
+          onBookJourney(journey, false);
+        } else {
+          window.history.pushState(null, '', '/profile');
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }
+      } else {
+        // Case B: Logged in - proceed to booking page
+        if (onBookJourney) {
+          onBookJourney(journey, true);
+        } else {
+          window.history.pushState(null, '', `/booking?journeyId=${journeyId}`);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }
+      }
+    } catch (err) {
+      setBookingError(err.message || 'Unable to proceed to booking.');
+    } finally {
+      setBookingLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (initialSaved !== undefined) {
@@ -555,16 +600,29 @@ export function JourneyResultCard({
               >
                 Close
               </button>
-              <a
-                href="https://www.irctc.co.in/nget/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-xs font-bold text-white shadow hover:bg-brand-hover cursor-pointer"
+              <button
+                type="button"
+                id="modal-book-now-btn"
+                onClick={handleBookNow}
+                disabled={bookingLoading}
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-brand-hover active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
               >
-                <span>Continue to IRCTC</span>
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
+                {bookingLoading ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Book Now</span>
+                    <Ticket className="h-3.5 w-3.5" />
+                  </>
+                )}
+              </button>
             </div>
+            {bookingError && (
+              <p className="text-xs text-red-400 text-right mt-1">{bookingError}</p>
+            )}
           </div>
         </div>
       )}

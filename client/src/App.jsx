@@ -9,6 +9,8 @@ import FavoriteRoutesPage from './pages/FavoriteRoutesPage.jsx';
 import JourneyHistoryPage from './pages/JourneyHistoryPage.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
+import BookingPage from './pages/BookingPage.jsx';
+import MyBookingsPage from './pages/MyBookingsPage.jsx';
 import AdminLayout from './layouts/AdminLayout.jsx';
 import {
   AdminOverviewPage,
@@ -248,6 +250,21 @@ export function App() {
               onNavigateHome={handleNavigateHome}
               onRankingChange={handleRankingChange}
               onRetry={searchState.retry}
+              onNavigate={handleNavigate}
+            />
+          )}
+
+          {currentPath.startsWith('/booking') && (
+            <BookingPage
+              onNavigate={handleNavigate}
+              onNavigateHome={handleNavigateHome}
+            />
+          )}
+
+          {(currentPath === '/bookings' || currentPath === '/my-bookings') && (
+            <MyBookingsPage
+              onNavigate={handleNavigate}
+              onNavigateHome={handleNavigateHome}
             />
           )}
 
@@ -290,6 +307,9 @@ export function App() {
           )}
 
           {currentPath !== '/results' &&
+            !currentPath.startsWith('/booking') &&
+            currentPath !== '/bookings' &&
+            currentPath !== '/my-bookings' &&
             currentPath !== '/saved' &&
             currentPath !== '/recent' &&
             currentPath !== '/favorites' &&

@@ -266,6 +266,22 @@ export const journeyController = {
   },
 
   /**
+   * GET /api/journeys/:id
+   * Retrieve authoritative journey with legs.
+   */
+  async getById(req, res, next) {
+    try {
+      const journey = await journeyService.getJourneyWithLegs(req.params.id);
+      if (!journey) {
+        return res.status(404).json(errorResponse('Journey not found', 'NOT_FOUND'));
+      }
+      return res.status(200).json(successResponse('Journey retrieved successfully', { journey }));
+    } catch (error) {
+      return next(error);
+    }
+  },
+
+  /**
    * GET /api/journeys/:id/availability
    * Refresh real-time seat availability for a specific journey.
    */
