@@ -60,10 +60,16 @@ export class FareService {
     const toStr = String(to || '').trim().toUpperCase();
     const pCount = Math.max(1, Number(passengers) || 1);
 
+    const budgetTracker = typeof trainNumberOrParams === 'object' ? trainNumberOrParams?.budgetTracker : null;
+    const isRecovery = typeof trainNumberOrParams === 'object' ? trainNumberOrParams?.isRecovery !== false : true;
+
     // 1. Try RailRadar primary provider
     let fareRes = null;
     try {
-      fareRes = await this.railRadar.getFare(numStr, fromStr, toStr, tClass, distanceKm);
+      fareRes = await this.railRadar.getFare(numStr, fromStr, toStr, tClass, distanceKm, {
+        budgetTracker,
+        isRecovery,
+      });
     } catch (err) {
       logger.debug(`[FareService] RailRadar fare retrieval failed: ${err.message}`);
     }

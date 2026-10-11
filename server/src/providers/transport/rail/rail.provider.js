@@ -299,6 +299,15 @@ export function getClusterStationCodes(location, defaultCode) {
 export function resolveStationCode(location) {
   if (!location) return 'NDLS';
 
+  if (typeof location === 'string') {
+    const trimmed = location.trim();
+    const lower = trimmed.toLowerCase();
+    if (STATION_CODE_MAP[lower]) {
+      return STATION_CODE_MAP[lower];
+    }
+    return trimmed.toUpperCase();
+  }
+
   // 1. Explicit station code properties
   const directCode = location.code || location.stationCode;
   if (directCode && /^[A-Za-z]{2,5}$/.test(directCode.trim())) {

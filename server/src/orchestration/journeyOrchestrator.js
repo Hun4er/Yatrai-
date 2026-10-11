@@ -17,6 +17,7 @@ import resultAssembler from './resultAssembler.js';
 import multiModalEngine from '../multimodal/index.js';
 import directJourneyService from '../services/rail/directJourney.service.js';
 import journeyRecoveryService from '../services/rail/journeyRecovery.service.js';
+import RequestBudgetTracker from '../services/rail/requestBudget.js';
 import { matchesTimeWindow } from '../services/naturalLanguage/timeWindowResolver.js';
 import { isValidCalendarDate, isPastDate } from '../middleware/validate.middleware.js';
 
@@ -1105,9 +1106,16 @@ export class JourneyOrchestrator {
 
       if (shouldRunRailPipeline) {
         try {
+          const budgetTracker =
+            options.budgetTracker ||
+            new RequestBudgetTracker({
+              correlationId: searchContext.searchId || searchContext.correlationId,
+            });
+          const searchOpts = { ...options, budgetTracker };
+
           const directResult = await this.directJourneyService.searchDirectTrains(
             searchContext,
-            options
+            searchOpts
           );
 
           if (directResult.isRateLimited) {
@@ -1120,6 +1128,7 @@ export class JourneyOrchestrator {
               directCount: 0,
               additionalDirectCount: 0,
               hasMoreDirect: false,
+              budgetStats: budgetTracker.getSummary(),
             };
           } else if (!directResult.shouldTriggerRecovery && directResult.directJourneys?.length > 0) {
             recoveryMeta = {
@@ -1131,12 +1140,13 @@ export class JourneyOrchestrator {
               additionalDirectCount: Math.max(0, directResult.directJourneys.length - 1),
               hasMoreDirect: directResult.directJourneys.length > 1,
               message: 'Suitable direct train available with verified confirmed-seat availability.',
+              budgetStats: budgetTracker.getSummary(),
             };
             railwayCandidates = directResult.directJourneys;
           } else {
             const recoveryResult = await this.journeyRecoveryService.recoverJourneys(
               searchContext,
-              options
+              searchOpts
             );
 
             recoveryMeta = {
@@ -1151,6 +1161,7 @@ export class JourneyOrchestrator {
               bestAlternative: recoveryResult.bestAlternative || recoveryResult.recoveredJourneys?.[0],
               additionalAlternativesCount: Math.max(0, (recoveryResult.recoveredJourneys?.length || 0) - 1),
               hasMoreAlternatives: (recoveryResult.recoveredJourneys?.length || 0) > 1,
+              budgetStats: recoveryResult.budgetStats || budgetTracker.getSummary(),
             };
 
             if (recoveryResult.recoveredJourneys?.length > 0) {

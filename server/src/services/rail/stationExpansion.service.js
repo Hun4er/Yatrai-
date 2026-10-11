@@ -1,4 +1,5 @@
 import { resolveStationCode, STATION_CODE_MAP, METRO_CLUSTERS } from '../../providers/transport/rail/rail.provider.js';
+import { INDIAN_RAILWAY_STATIONS } from './stationRegistry.js';
 import logger from '../../utils/logger.js';
 
 /**
@@ -30,6 +31,12 @@ export const RAILWAY_CORRIDORS = [
 
   // 8. Bengaluru - Jolarpettai - Katpadi - Chennai / Coimbatore
   ['SBC', 'BNC', 'BNCE', 'KJM', 'WFD', 'MLO', 'BWT', 'KPN', 'JTJ', 'VN', 'AB', 'KPD', 'WJR', 'SHU', 'AJJ', 'TRL', 'PER', 'MAS'],
+
+  // 9. Mumbai - Bhusawal - Itarsi - Jabalpur - Prayagraj / DDU (Central-East Mainline)
+  ['CSMT', 'DR', 'KYN', 'IGP', 'NK', 'MMR', 'JL', 'BSL', 'KNW', 'ET', 'PPI', 'GAR', 'JBP', 'KTE', 'MYR', 'STA', 'MKP', 'PRYJ', 'DDU'],
+
+  // 10. Delhi - Ambala - Ludhiana - Jalandhar - Amritsar (Northern Mainline)
+  ['NDLS', 'SNP', 'PNP', 'KKDE', 'UMB', 'RPJ', 'SIR', 'LDH', 'PGW', 'JUC', 'BEAS', 'ASR'],
 ];
 
 /**
@@ -65,20 +72,158 @@ export const INTERCHANGE_JUNCTIONS = [
 /**
  * StationExpansionService
  *
- * Implements Section 4:
- * - 1 to 5 railway-network hops backward and forward along physical tracks
- * - Separates network hops from train changes:
- *   tracks `originExpansionHops`, `destinationExpansionHops`, `intermediateStations`, `trainChanges`
- * - Prioritizes real railway connectivity and route orientation over geographic radius
+ * Implements Section 4 & 5:
+ * - Bounded directional station expansion: up to 5 stations before and 5 stations after
+ * - Verified railway network connectivity: strictly along verified physical railway tracks
+ * - Excludes origin station from alternatives; eliminates circular routes and duplicate station codes
+ * - Generates candidate topologies for:
+ *   1. Direct trains (alternate origin or alternate destination)
+ *   2. Two-train journeys (1 interchange)
+ *   3. Three-train journeys (2 interchanges) when permitted by configuration
  */
 export class StationExpansionService {
   constructor(options = {}) {
     this.maxHops = options.maxHops || 5;
-    this.maxTrainChanges = options.maxTrainChanges || 2;
+    this.maxTrainChanges = options.maxTrainChanges ?? 2;
+  }
+
+  /**
+   * Verifies if a station has established railway network connectivity in the verified dataset.
+   *
+   * @param {string|Object} station
+   * @returns {boolean} True if railway connectivity is established
+   */
+  hasRailwayConnectivity(station) {
+    if (!station) return false;
+    const rawCode = typeof station === 'string' ? station : resolveStationCode(station);
+    const code = String(rawCode || '').trim().toUpperCase();
+    if (!code || code === 'NONEXISTENT_ORIGIN' || code === 'NONEXISTENT_DEST') {
+      return false;
+    }
+
+    // 1. Check verified railway corridors
+    const inCorridor = RAILWAY_CORRIDORS.some((line) => line.includes(code));
+    if (inCorridor) return true;
+
+    // 2. Check metropolitan clusters
+    const inCluster = Boolean(METRO_CLUSTERS[code.toLowerCase()]);
+    if (inCluster) return true;
+
+    // 3. Check known station map
+    const inCodeMap = Boolean(STATION_CODE_MAP[code.toLowerCase()]);
+    if (inCodeMap) return true;
+
+    // 4. Check authoritative station registry
+    return INDIAN_RAILWAY_STATIONS.some((stn) => stn.stationCode === code);
+  }
+
+  /**
+   * Bounded directional station expansion around an endpoint.
+   *
+   * Section 4 requirement:
+   * For origin A: up to five stations before A, up to five stations after A.
+   * For destination B: up to five stations before B, up to five stations after B.
+   *
+   * @param {string|Object} station - Station code or location object
+   * @param {Object} [options={}]
+   * @param {number} [options.maxBefore=5] - Maximum stations before (upstream)
+   * @param {number} [options.maxAfter=5] - Maximum stations after (downstream)
+   * @param {string} [options.targetStation] - Endpoint for corridor direction alignment
+   * @returns {Object} { station, before: Array<Object>, after: Array<Object>, allAlternatives: Array<Object>, hasConnectivity: boolean }
+   */
+  expandStationDirectional(station, options = {}) {
+    const rawCode = typeof station === 'string' ? station : resolveStationCode(station);
+    const stationCode = String(rawCode || '').trim().toUpperCase();
+
+    const maxBefore = Math.min(Math.max(0, options.maxBefore ?? 5), 5);
+    const maxAfter = Math.min(Math.max(0, options.maxAfter ?? 5), 5);
+    const targetCode = options.targetStation ? String(resolveStationCode(options.targetStation)).trim().toUpperCase() : null;
+
+    if (!this.hasRailwayConnectivity(stationCode)) {
+      return {
+        station: stationCode,
+        before: [],
+        after: [],
+        allAlternatives: [],
+        hasConnectivity: false,
+      };
+    }
+
+    const beforeMap = new Map();
+    const afterMap = new Map();
+
+    // Check metropolitan cluster stations (e.g. NDLS has DLI, NZM, ANVT)
+    const clusterCodes = METRO_CLUSTERS[stationCode.toLowerCase()] || [];
+    for (const cCode of clusterCodes) {
+      if (cCode !== stationCode) {
+        // Place cluster stations as lateral alternatives (hop 1)
+        if (!beforeMap.has(cCode) && beforeMap.size < maxBefore) {
+          beforeMap.set(cCode, {
+            code: cCode,
+            hops: 1,
+            direction: 'metro_cluster',
+            isCluster: true,
+          });
+        }
+      }
+    }
+
+    // Traverse verified railway corridors containing this station
+    for (let cIdx = 0; cIdx < RAILWAY_CORRIDORS.length; cIdx++) {
+      const line = RAILWAY_CORRIDORS[cIdx];
+      const stationIdx = line.indexOf(stationCode);
+
+      if (stationIdx !== -1) {
+        // Upstream stations along corridor (indices < stationIdx)
+        for (let hop = 1; hop <= maxBefore; hop++) {
+          const idx = stationIdx - hop;
+          if (idx >= 0) {
+            const code = line[idx];
+            if (code !== stationCode && !beforeMap.has(code) && beforeMap.size < maxBefore) {
+              beforeMap.set(code, {
+                code,
+                hops: hop,
+                direction: 'before',
+                corridorIndex: cIdx,
+              });
+            }
+          }
+        }
+
+        // Downstream stations along corridor (indices > stationIdx)
+        for (let hop = 1; hop <= maxAfter; hop++) {
+          const idx = stationIdx + hop;
+          if (idx < line.length) {
+            const code = line[idx];
+            if (code !== stationCode && !afterMap.has(code) && !beforeMap.has(code) && afterMap.size < maxAfter) {
+              afterMap.set(code, {
+                code,
+                hops: hop,
+                direction: 'after',
+                corridorIndex: cIdx,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    const before = Array.from(beforeMap.values()).slice(0, maxBefore);
+    const after = Array.from(afterMap.values()).slice(0, maxAfter);
+    const allAlternatives = [...before, ...after];
+
+    return {
+      station: stationCode,
+      before,
+      after,
+      allAlternatives,
+      hasConnectivity: true,
+    };
   }
 
   /**
    * Expands a station along verified railway corridors up to `maxHops` hops backward & forward.
+   * Backward-compatible method returning array with hops and directions.
    *
    * @param {string|Object} station - Station entity or code
    * @param {number} [maxHops=5] - Maximum network hops (1 to 5)
@@ -88,6 +233,10 @@ export class StationExpansionService {
     const rawCode = typeof station === 'string' ? station : resolveStationCode(station);
     const stationCode = String(rawCode).trim().toUpperCase();
     const effectiveHops = Math.min(Math.max(1, maxHops), 5);
+
+    if (!this.hasRailwayConnectivity(stationCode)) {
+      return [];
+    }
 
     const expandedMap = new Map();
 
@@ -212,23 +361,94 @@ export class StationExpansionService {
     const seen = new Set();
     const unique = [];
     for (const h of candidateHubs) {
-      if (!seen.has(h.code)) {
+      if (!seen.has(h.code) && h.code !== o && h.code !== d) {
         seen.add(h.code);
         unique.push(h);
       }
     }
 
-    return unique.slice(0, 6); // Limit to top 6 most relevant intermediate junctions
+    return unique.slice(0, 6);
+  }
+
+  /**
+   * Finds pairs of connected interchange hubs along mainline corridors.
+   * Used for generating 3-train journeys with 2 interchanges when maxTransfers >= 2.
+   *
+   * @param {string} originCode
+   * @param {string} destCode
+   * @returns {Array<Object>} Pairs of connected intermediate hubs [{ hub1, hub2 }]
+   */
+  findConnectedHubPairs(originCode, destCode) {
+    const o = String(originCode).trim().toUpperCase();
+    const d = String(destCode).trim().toUpperCase();
+    const hubPairs = [];
+    const seen = new Set();
+
+    // Check corridors where origin, hub1, hub2, dest are aligned
+    for (const line of RAILWAY_CORRIDORS) {
+      const oIdx = line.indexOf(o);
+      const dIdx = line.indexOf(d);
+
+      if (oIdx !== -1 && dIdx !== -1 && Math.abs(oIdx - dIdx) > 2) {
+        const step = oIdx < dIdx ? 1 : -1;
+        const intermediatesOnLine = [];
+        for (let i = oIdx + step; i !== dIdx; i += step) {
+          const code = line[i];
+          if (INTERCHANGE_JUNCTIONS.some((j) => j.code === code)) {
+            intermediatesOnLine.push(code);
+          }
+        }
+
+        for (let a = 0; a < intermediatesOnLine.length - 1; a++) {
+          const h1 = intermediatesOnLine[a];
+          const h2 = intermediatesOnLine[a + 1];
+          const sig = `${h1}->${h2}`;
+          if (!seen.has(sig) && h1 !== o && h2 !== d && h1 !== h2) {
+            seen.add(sig);
+            hubPairs.push({ hub1: h1, hub2: h2, corridor: true });
+          }
+        }
+      }
+    }
+
+    // High-connectivity standard national junction pairs (bidirectional)
+    const nationalCorridorHubPairs = [
+      { hub1: 'PRYJ', hub2: 'CNB' },
+      { hub1: 'CNB', hub2: 'PRYJ' },
+      { hub1: 'DDU', hub2: 'PRYJ' },
+      { hub1: 'PRYJ', hub2: 'DDU' },
+      { hub1: 'DDU', hub2: 'GAYA' },
+      { hub1: 'GAYA', hub2: 'DDU' },
+      { hub1: 'DDU', hub2: 'CNB' },
+      { hub1: 'CNB', hub2: 'DDU' },
+      { hub1: 'VGLJ', hub2: 'BPL' },
+      { hub1: 'BPL', hub2: 'VGLJ' },
+      { hub1: 'BPL', hub2: 'ET' },
+      { hub1: 'ET', hub2: 'BPL' },
+      { hub1: 'ET', hub2: 'NGP' },
+      { hub1: 'NGP', hub2: 'ET' },
+      { hub1: 'BRC', hub2: 'ST' },
+      { hub1: 'ST', hub2: 'BRC' },
+    ];
+
+    for (const pair of nationalCorridorHubPairs) {
+      const sig = `${pair.hub1}->${pair.hub2}`;
+      if (!seen.has(sig) && pair.hub1 !== o && pair.hub2 !== d && pair.hub1 !== d && pair.hub2 !== o) {
+        seen.add(sig);
+        hubPairs.push(pair);
+      }
+    }
+
+    return hubPairs.slice(0, 8);
   }
 
   /**
    * Generates candidate connecting route topologies.
    *
    * Supports:
-   * 1. Origin -> Interchange Hub -> Destination (1 train change)
-   * 2. Origin -> Nearby Origin Station -> Interchange -> Destination
-   * 3. Origin -> Interchange -> Nearby Destination Station -> Destination
-   * 4. Nearby Origin Station -> Interchange -> Nearby Destination Station
+   * 1. Direct alternate trains (0 transfers, alternate boarding or arrival)
+   * 2. Two-train journeys with 1 interchange (1 transfer)
+   * 3. Three-train journeys with 2 interchanges (2 transfers) when maxTransfers >= 2
    *
    * @param {Object} origin
    * @param {Object} destination
@@ -239,6 +459,14 @@ export class StationExpansionService {
     const originCode = resolveStationCode(origin);
     const destCode = resolveStationCode(destination);
     const maxHops = Math.min(options.maxHops || this.maxHops, 5);
+    const maxTransfers = Number(options.maxTransfers ?? options.maxTrainChanges ?? this.maxTrainChanges ?? 2);
+
+    if (!this.hasRailwayConnectivity(originCode) || !this.hasRailwayConnectivity(destCode)) {
+      logger.debug(
+        `[StationExpansionService] Station connectivity cannot be established for ${originCode} or ${destCode}. Excluding from route generation.`
+      );
+      return [];
+    }
 
     const originExpansions = this.expandStation(originCode, maxHops);
     const destExpansions = this.expandStation(destCode, maxHops);
@@ -247,75 +475,186 @@ export class StationExpansionService {
     const topologies = [];
     const seenSignatures = new Set();
 
-    const addTopology = (pattern, originStation, hub, destStation, oHops, dHops) => {
-      const signature = `${pattern}:${originStation.code}->${hub.code}->${destStation.code}`;
+    // Helper to add 2-leg (1-interchange) topology
+    const addTwoLegTopology = (pattern, originStation, hub, destStation, oHops, dHops) => {
+      const oCode = originStation.code || originStation;
+      const hCode = hub.code || hub;
+      const dCode = destStation.code || destStation;
+
+      if (oCode === hCode || hCode === dCode || oCode === dCode) return;
+
+      const signature = `${pattern}:${oCode}->${hCode}->${dCode}`;
       if (seenSignatures.has(signature)) return;
       seenSignatures.add(signature);
 
-      // Total train changes for Origin -> Hub -> Destination is 1 train change (2 trains)
-      const isOriginSuburbanHop = originStation.code !== originCode;
-      const isDestSuburbanHop = destStation.code !== destCode;
-      const trainChanges = 1 + (isOriginSuburbanHop ? 1 : 0) + (isDestSuburbanHop ? 1 : 0);
-
-      // Enforce max train changes constraint (default 2)
-      if (trainChanges > this.maxTrainChanges) return;
+      const isAlternateOrigin = oCode !== originCode;
+      const isAlternateDest = dCode !== destCode;
 
       topologies.push({
         pattern,
         originExpansionHops: oHops,
         destinationExpansionHops: dHops,
-        originStation: originStation.code,
-        interchangeHub: hub.code,
-        destinationStation: destStation.code,
-        trainChanges,
+        originStation: oCode,
+        interchangeHub: hCode,
+        destinationStation: dCode,
+        isAlternateOrigin,
+        isAlternateDest,
+        requestedOrigin: originCode,
+        requestedDestination: destCode,
+        trainChanges: 1,
+        numberOfTransfers: 1,
         stationTransfers: 0,
         stages: [
-          { from: originStation.code, to: hub.code, legIndex: 1 },
-          { from: hub.code, to: destStation.code, legIndex: 2 },
+          { from: oCode, to: hCode, legIndex: 1 },
+          { from: hCode, to: dCode, legIndex: 2 },
         ],
       });
     };
 
-    // Pattern 1: Direct Origin -> Interchange Hub -> Destination (0 expansion hops, 1 train change)
-    for (const hub of intermediateHubs) {
-      if (hub.code !== originCode && hub.code !== destCode) {
-        addTopology('DirectOrigin_Interchange_DirectDest', { code: originCode }, hub, { code: destCode }, 0, 0);
+    // Helper to add 3-leg (2-interchange) topology
+    const addThreeLegTopology = (pattern, originStation, hub1, hub2, destStation, oHops, dHops) => {
+      const oCode = originStation.code || originStation;
+      const h1Code = hub1.code || hub1;
+      const h2Code = hub2.code || hub2;
+      const dCode = destStation.code || destStation;
+
+      if (
+        oCode === h1Code ||
+        h1Code === h2Code ||
+        h2Code === dCode ||
+        oCode === h2Code ||
+        h1Code === dCode ||
+        oCode === dCode
+      ) {
+        return;
       }
+
+      const signature = `${pattern}:${oCode}->${h1Code}->${h2Code}->${dCode}`;
+      if (seenSignatures.has(signature)) return;
+      seenSignatures.add(signature);
+
+      topologies.push({
+        pattern,
+        originExpansionHops: oHops,
+        destinationExpansionHops: dHops,
+        originStation: oCode,
+        interchangeHubs: [h1Code, h2Code],
+        destinationStation: dCode,
+        isAlternateOrigin: oCode !== originCode,
+        isAlternateDest: dCode !== destCode,
+        requestedOrigin: originCode,
+        requestedDestination: destCode,
+        trainChanges: 2,
+        numberOfTransfers: 2,
+        stationTransfers: 0,
+        stages: [
+          { from: oCode, to: h1Code, legIndex: 1 },
+          { from: h1Code, to: h2Code, legIndex: 2 },
+          { from: h2Code, to: dCode, legIndex: 3 },
+        ],
+      });
+    };
+
+    // Helper to add direct alternate (0-transfer) topology
+    const addDirectAlternateTopology = (pattern, originStation, destStation, oHops, dHops) => {
+      const oCode = originStation.code || originStation;
+      const dCode = destStation.code || destStation;
+
+      if (oCode === dCode) return;
+      if (oCode === originCode && dCode === destCode) return; // original direct was already searched
+
+      const signature = `${pattern}:${oCode}->${dCode}`;
+      if (seenSignatures.has(signature)) return;
+      seenSignatures.add(signature);
+
+      topologies.push({
+        pattern,
+        originExpansionHops: oHops,
+        destinationExpansionHops: dHops,
+        originStation: oCode,
+        destinationStation: dCode,
+        isAlternateOrigin: oCode !== originCode,
+        isAlternateDest: dCode !== destCode,
+        requestedOrigin: originCode,
+        requestedDestination: destCode,
+        trainChanges: 0,
+        numberOfTransfers: 0,
+        stationTransfers: 0,
+        stages: [{ from: oCode, to: dCode, legIndex: 1 }],
+      });
+    };
+
+    // 1. Direct Alternate Topologies (0 transfers: alternate origin or alternate destination)
+    for (const oExp of originExpansions.slice(1, 3)) {
+      addDirectAlternateTopology('AlternateOrigin_DirectDest', oExp, { code: destCode }, oExp.hops, 0);
+    }
+    for (const dExp of destExpansions.slice(1, 3)) {
+      addDirectAlternateTopology('DirectOrigin_AlternateDest', { code: originCode }, dExp, 0, dExp.hops);
     }
 
-    // Pattern 2: Nearby Origin Station (up to 5 hops) -> Interchange Hub -> Destination
+    // 2. Pattern: Origin -> Interchange Hub -> Destination (1 train change)
+    for (const hub of intermediateHubs) {
+      addTwoLegTopology('DirectOrigin_Interchange_DirectDest', { code: originCode }, hub, { code: destCode }, 0, 0);
+    }
+
+    // 3. Pattern: Nearby Origin Station -> Interchange Hub -> Destination
     for (const oExp of originExpansions.slice(1, 4)) {
       for (const hub of intermediateHubs.slice(0, 3)) {
-        if (hub.code !== oExp.code && hub.code !== destCode) {
-          addTopology('ExpandedOrigin_Interchange_DirectDest', oExp, hub, { code: destCode }, oExp.hops, 0);
-        }
+        addTwoLegTopology('ExpandedOrigin_Interchange_DirectDest', oExp, hub, { code: destCode }, oExp.hops, 0);
       }
     }
 
-    // Pattern 3: Origin -> Interchange Hub -> Nearby Destination Station (up to 5 hops)
+    // 4. Pattern: Origin -> Interchange Hub -> Nearby Destination Station
     for (const dExp of destExpansions.slice(1, 4)) {
       for (const hub of intermediateHubs.slice(0, 3)) {
-        if (hub.code !== originCode && hub.code !== dExp.code) {
-          addTopology('DirectOrigin_Interchange_ExpandedDest', { code: originCode }, hub, dExp, 0, dExp.hops);
-        }
+        addTwoLegTopology('DirectOrigin_Interchange_ExpandedDest', { code: originCode }, hub, dExp, 0, dExp.hops);
       }
     }
 
-    // Pattern 4: Nearby Origin -> Interchange -> Nearby Destination
+    // 5. Pattern: Nearby Origin -> Interchange -> Nearby Destination
     for (const oExp of originExpansions.slice(1, 3)) {
       for (const dExp of destExpansions.slice(1, 3)) {
         for (const hub of intermediateHubs.slice(0, 2)) {
-          if (hub.code !== oExp.code && hub.code !== dExp.code) {
-            addTopology('ExpandedOrigin_Interchange_ExpandedDest', oExp, hub, dExp, oExp.hops, dExp.hops);
-          }
+          addTwoLegTopology('ExpandedOrigin_Interchange_ExpandedDest', oExp, hub, dExp, oExp.hops, dExp.hops);
         }
+      }
+    }
+
+    // 6. Three-Train Journeys with 2 Interchanges (when permitted by configuration)
+    if (maxTransfers >= 2) {
+      const hubPairs = this.findConnectedHubPairs(originCode, destCode);
+      for (const pair of hubPairs) {
+        addThreeLegTopology(
+          'DirectOrigin_TwoInterchanges_DirectDest',
+          { code: originCode },
+          { code: pair.hub1 },
+          { code: pair.hub2 },
+          { code: destCode },
+          0,
+          0
+        );
+      }
+
+      // Origin expansion with 2 interchanges
+      if (originExpansions.length > 1 && hubPairs.length > 0) {
+        const oExp = originExpansions[1];
+        const pair = hubPairs[0];
+        addThreeLegTopology(
+          'ExpandedOrigin_TwoInterchanges_DirectDest',
+          oExp,
+          { code: pair.hub1 },
+          { code: pair.hub2 },
+          { code: destCode },
+          oExp.hops,
+          0
+        );
       }
     }
 
     logger.debug(
       `[StationExpansionService] Generated ${topologies.length} candidate recovery topologies for ${originCode} -> ${destCode}`
     );
-    return topologies.slice(0, 15); // Bounded candidate pipeline
+    return topologies.slice(0, 18);
   }
 }
 

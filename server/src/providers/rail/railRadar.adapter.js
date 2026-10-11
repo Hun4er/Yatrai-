@@ -3,6 +3,8 @@ import logger from '../../utils/logger.js';
 import { httpFetch } from '../transport/httpClient.js';
 import { resolveStationCode } from '../transport/rail/rail.provider.js';
 import { findVerifiedDirectTrains } from '../../services/rail/verifiedTrainData.js';
+import { normalizeSeatAvailability, AVAILABILITY_STATUS } from '../../services/rail/availabilityNorm.js';
+import { formatJourneyDate } from '../../utils/railwayTime.js';
 
 /**
  * RailRadar Provider Adapter
@@ -26,10 +28,12 @@ export class RailRadarAdapter {
     this.cache = new Map();
     // In-flight request deduplication: key -> Promise
     this.inFlight = new Map();
+    // Injectable HTTP fetch client for testability and isolation
+    this.httpFetch = options.httpFetch || httpFetch;
 
     // Cache TTLs in milliseconds (2 hours for schedules to protect low 100/mo quota)
     this.schedulesTtlMs = 2 * 60 * 60 * 1000;
-    this.availabilityTtlMs = 2 * 60 * 1000; // 2 minutes
+    this.availabilityTtlMs = options.availabilityTtlMs || config.providers.railradar?.availabilityTtlMs || 5 * 60 * 1000; // 5 minutes
     this.fareTtlMs = 15 * 60 * 1000; // 15 minutes
     this.liveStatusTtlMs = 60 * 1000; // 1 minute
 
@@ -47,8 +51,8 @@ export class RailRadarAdapter {
       rateLimits429: 0,
     };
 
-    // Feature flags: RailRadar v1 basic tier does not expose real-time seat availability or standard tariff endpoints.
-    this.enableAvailabilityEndpoint = Boolean(options.enableAvailabilityEndpoint ?? config.providers.railradar?.enableAvailabilityEndpoint ?? false);
+    // Feature flags: RailRadar seat-availability endpoint
+    this.enableAvailabilityEndpoint = Boolean(options.enableAvailabilityEndpoint ?? config.providers.railradar?.enableAvailabilityEndpoint ?? true);
     this.enableFareEndpoint = Boolean(options.enableFareEndpoint ?? config.providers.railradar?.enableFareEndpoint ?? false);
   }
 
@@ -79,7 +83,7 @@ export class RailRadarAdapter {
   /**
    * Safe cached fetch with in-flight deduplication.
    */
-  async cachedRequest(cacheKey, ttlMs, requestFn) {
+  async cachedRequest(cacheKey, ttlMs, requestFn, options = {}) {
     if (typeof ttlMs === 'function') {
       const fn = ttlMs;
       ttlMs = typeof requestFn === 'number' ? requestFn : 60000;
@@ -91,6 +95,9 @@ export class RailRadarAdapter {
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > now) {
       this.quotaStats.cacheHits++;
+      if (options?.budgetTracker) {
+        options.budgetTracker.recordCacheHit();
+      }
       return cached.data;
     }
 
@@ -156,7 +163,38 @@ export class RailRadarAdapter {
         };
       }
 
-      // 2. Budget gate: prevent bursting above 10 req/min
+      // 2. Per-search request budget check
+      const budgetTracker = options.budgetTracker;
+      if (budgetTracker) {
+        const isRecovery = options.isRecovery !== false;
+        const canQuery = isRecovery ? budgetTracker.canMakeRecoveryRequest() : budgetTracker.canMakeDirectRequest();
+        if (!canQuery) {
+          logger.info(`[RailRadarAdapter] Request budget exhausted for ${from} -> ${to}. Checking verified schedules...`);
+          const verified = findVerifiedDirectTrains(from, to, travelDate);
+          if (verified.length > 0) {
+            return {
+              success: true,
+              from,
+              to,
+              trains: verified,
+              source: 'verified_schedule',
+              isVerifiedSchedule: true,
+              budgetExhausted: true,
+            };
+          }
+          return {
+            success: false,
+            from,
+            to,
+            trains: [],
+            statusCode: 429,
+            error: 'Request budget exhausted for current search.',
+            isBudgetExhausted: true,
+          };
+        }
+      }
+
+      // 3. Provider rate limit budget gate: prevent bursting above 10 req/min
       const budget = this.checkRateLimitBudget();
       if (!budget.allowed) {
         logger.warn(`[RailRadarAdapter] Rate limit budget reached (${this.maxRequestsPerMinute} req/min). Checking verified schedules...`);
@@ -172,7 +210,8 @@ export class RailRadarAdapter {
           };
         }
         if (budget.waitMs > 0 && budget.waitMs < 2000) {
-          await new Promise((resolve) => setTimeout(resolve, budget.waitMs));
+          const jitter = Math.floor(Math.random() * 50);
+          await new Promise((resolve) => setTimeout(resolve, budget.waitMs + jitter));
         } else {
           return {
             success: false,
@@ -189,6 +228,14 @@ export class RailRadarAdapter {
       const url = `${this.apiUrl}/trains/between/${encodeURIComponent(from)}/${encodeURIComponent(to)}`;
       this.requestTimestamps.push(Date.now());
       this.quotaStats.totalCalls++;
+
+      if (budgetTracker) {
+        budgetTracker.recordOutboundRequest({
+          isRecovery: options.isRecovery !== false,
+          endpoint: '/trains/between',
+          queryKey: cacheKey,
+        });
+      }
 
       try {
         const res = await httpFetch(url, {
@@ -270,7 +317,7 @@ export class RailRadarAdapter {
           isMonthlyQuota: Boolean(isMonthly),
         };
       }
-    });
+    }, options);
   }
 
   /**
@@ -325,96 +372,218 @@ export class RailRadarAdapter {
 
   /**
    * Check real-time seat availability for a specific train leg.
+   * Documented RailRadar endpoint: GET /v1/trains/{number}/seats
+   * Query parameters: source, destination, journeyDate, classCode, quotaCode
+   * Response structure: data.avlDayList[] with availablityDate and availablityStatus
    */
-  async getAvailability(trainNumber, fromCode, toCode, date, travelClass = '3A', quota = 'GN') {
-    const num = String(trainNumber).trim();
-    const from = String(fromCode).trim().toUpperCase();
-    const to = String(toCode).trim().toUpperCase();
-    const dateStr = String(date).slice(0, 10);
-    const cacheKey = `avail:${num}:${from}:${to}:${dateStr}:${travelClass}:${quota}`;
+  async getAvailability(trainNumber, fromCode, toCode, date, travelClass = '3A', quota = 'GN', options = {}) {
+    const num = String(trainNumber || '').trim();
+    const from = String(fromCode || '').trim().toUpperCase();
+    const to = String(toCode || '').trim().toUpperCase();
+    const targetDateStr = formatJourneyDate(date);
+    const classCode = String(travelClass || '3A').trim().toUpperCase();
+    const quotaCode = String(quota || 'GN').trim().toUpperCase();
 
-    // Fast return if availability endpoint is not exposed on RailRadar tier
+    if (!targetDateStr) {
+      return {
+        success: false,
+        provider: this.name,
+        trainNumber: num,
+        fromStation: from,
+        toStation: to,
+        journeyDate: '',
+        travelClass: classCode,
+        quota: quotaCode,
+        normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
+        originalStatus: null,
+        seatsAvailable: null,
+        isAvailable: false,
+        lastUpdated: new Date().toISOString(),
+        isLive: false,
+        error: 'INVALID_JOURNEY_DATE',
+      };
+    }
+
+    const cacheKey = `avail:${num}:${from}:${to}:${targetDateStr}:${classCode}:${quotaCode}`;
+
+    // Fast return if availability endpoint is explicitly disabled
     if (!this.enableAvailabilityEndpoint) {
       return {
         success: false,
         provider: this.name,
         trainNumber: num,
-        travelClass,
-        quota,
-        normalizedStatus: 'UNKNOWN',
+        fromStation: from,
+        toStation: to,
+        journeyDate: targetDateStr,
+        travelClass: classCode,
+        quota: quotaCode,
+        normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
         originalStatus: null,
         seatsAvailable: null,
+        isAvailable: false,
         lastUpdated: new Date().toISOString(),
         isLive: false,
+        error: 'ENDPOINT_DISABLED',
+      };
+    }
+
+    const budgetTracker = options.budgetTracker;
+    if (budgetTracker && options.isRecovery !== false && !budgetTracker.canMakeRecoveryRequest()) {
+      return {
+        success: false,
+        provider: this.name,
+        trainNumber: num,
+        fromStation: from,
+        toStation: to,
+        journeyDate: targetDateStr,
+        travelClass: classCode,
+        quota: quotaCode,
+        normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
+        originalStatus: null,
+        seatsAvailable: null,
+        isAvailable: false,
+        lastUpdated: new Date().toISOString(),
+        isLive: false,
+        isBudgetExhausted: true,
       };
     }
 
     return this.cachedRequest(cacheKey, this.availabilityTtlMs, async () => {
       const queryParams = new URLSearchParams({
-        from,
-        to,
-        date: dateStr,
-        class: travelClass,
-        quota,
+        source: from,
+        destination: to,
+        journeyDate: targetDateStr,
+        classCode,
+        quotaCode,
       });
-      const url = `${this.apiUrl}/trains/${encodeURIComponent(num)}/availability?${queryParams.toString()}`;
+      const url = `${this.apiUrl}/trains/${encodeURIComponent(num)}/seats?${queryParams.toString()}`;
+
+      if (budgetTracker) {
+        budgetTracker.recordOutboundRequest({
+          isRecovery: options.isRecovery !== false,
+          endpoint: '/trains/seats',
+          queryKey: cacheKey,
+        });
+      }
 
       try {
-        const res = await httpFetch(url, {
+        const res = await this.httpFetch(url, {
           method: 'GET',
           headers: this.getHeaders(),
           timeoutMs: Math.min(this.timeoutMs, 4000),
           provider: 'railradar',
         });
 
-        const data = res.data?.data || res.data;
-        const rawStatus = (data?.status || data?.availability || '').toUpperCase();
+        const rawData = res.data;
+        const payload = rawData?.data || rawData || {};
+        const avlList = Array.isArray(payload.calendar)
+          ? payload.calendar
+          : (Array.isArray(payload.avlDayList)
+              ? payload.avlDayList
+              : (Array.isArray(payload.availabilityList)
+                  ? payload.availabilityList
+                  : (Array.isArray(payload.seats) ? payload.seats : [])));
 
-        let normalizedStatus = 'UNKNOWN';
-        if (rawStatus.includes('AVAILABLE') || rawStatus.includes('AVL') || rawStatus.includes('CURR_AVBL')) {
-          normalizedStatus = 'AVAILABLE';
-        } else if (rawStatus.includes('RAC')) {
-          normalizedStatus = 'RAC';
-        } else if (rawStatus.includes('WL') || rawStatus.includes('WAITLIST')) {
-          normalizedStatus = 'WAITLISTED';
-        } else if (rawStatus.includes('NOT AVAILABLE') || rawStatus.includes('REGRET') || rawStatus.includes('TRAIN DEPARTED')) {
-          normalizedStatus = 'NOT_AVAILABLE';
+        let matchedEntry = null;
+        if (avlList.length > 0) {
+          matchedEntry = avlList.find((entry) => {
+            const entryDateStr = formatJourneyDate(
+              entry?.date || entry?.rawDate || entry?.availablityDate || entry?.availabilityDate
+            );
+            return entryDateStr === targetDateStr;
+          });
         }
+
+        // Provider uses "status" in live calendar and "availablityStatus" in documented IRCTC avlDayList
+        const rawStatus = matchedEntry
+          ? (matchedEntry.status || matchedEntry.availablityStatus || matchedEntry.availabilityStatus || '')
+          : (payload.status || payload.availablityStatus || payload.availabilityStatus || '');
+
+        if (!rawStatus) {
+          return {
+            success: false,
+            provider: this.name,
+            trainNumber: num,
+            fromStation: from,
+            toStation: to,
+            journeyDate: targetDateStr,
+            travelClass: classCode,
+            quota: quotaCode,
+            normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
+            originalStatus: null,
+            seatsAvailable: null,
+            isAvailable: false,
+            lastUpdated: new Date().toISOString(),
+            isLive: true,
+            source: 'railradar_seats_api',
+            error: 'NO_MATCHING_DATE_IN_AVL_DAY_LIST',
+          };
+        }
+
+        const norm = normalizeSeatAvailability(rawStatus);
+        const seatsCount = typeof matchedEntry?.availableSeats === 'number'
+          ? matchedEntry.availableSeats
+          : norm.seatsAvailable;
 
         return {
           success: true,
           provider: this.name,
           trainNumber: num,
-          travelClass,
-          quota,
-          originalStatus: data?.status || rawStatus || 'UNKNOWN',
-          normalizedStatus,
-          seatsAvailable: typeof data?.seats === 'number' ? data.seats : null,
+          fromStation: from,
+          toStation: to,
+          journeyDate: targetDateStr,
+          travelClass: classCode,
+          quota: quotaCode,
+          normalizedStatus: norm.normalizedStatus,
+          originalStatus: norm.rawStatus,
+          seatsAvailable: seatsCount,
+          isAvailable: norm.isAvailable,
+          reasonType: matchedEntry?.reasonType || null,
+          currentBkgFlag: matchedEntry?.currentBkgFlag || null,
           lastUpdated: new Date().toISOString(),
+          providerTimestamp: payload.lastUpdated || payload.timestamp || new Date().toISOString(),
           isLive: true,
+          source: 'railradar_seats_api',
+          rawEntry: matchedEntry || null,
         };
       } catch (err) {
-        // Fallback or unavailable endpoint
+        logger.warn(
+          `[RailRadarAdapter] getAvailability failed for ${num} (${from} -> ${to}): ${err.message}`
+        );
+        let errorCode = 'PROVIDER_ERROR';
+        const status = err.statusCode || err.response?.status || err.status;
+        if (status === 429) errorCode = 'RATE_LIMITED';
+        else if (status === 401 || status === 403) errorCode = 'UNSUPPORTED_ENDPOINT';
+        else if (status >= 500) errorCode = 'SERVER_ERROR';
+        else if (err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '')) errorCode = 'TIMEOUT';
+
         return {
           success: false,
           provider: this.name,
           trainNumber: num,
-          travelClass,
-          quota,
-          normalizedStatus: 'UNKNOWN',
+          fromStation: from,
+          toStation: to,
+          journeyDate: targetDateStr,
+          travelClass: classCode,
+          quota: quotaCode,
+          normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
           originalStatus: null,
+          seatsAvailable: null,
+          isAvailable: false,
           error: err.message,
+          errorCode,
+          statusCode: status || 500,
           lastUpdated: new Date().toISOString(),
           isLive: false,
         };
       }
-    });
+    }, options);
   }
 
   /**
    * Retrieve or calculate realistic fare for a train leg.
    */
-  async getFare(trainNumber, fromCode, toCode, travelClass = '3A', distanceKm = 0) {
+  async getFare(trainNumber, fromCode, toCode, travelClass = '3A', distanceKm = 0, options = {}) {
     const num = String(trainNumber).trim();
     const from = String(fromCode).trim().toUpperCase();
     const to = String(toCode).trim().toUpperCase();
@@ -437,9 +606,35 @@ export class RailRadarAdapter {
       };
     }
 
+    const budgetTracker = options.budgetTracker;
+    if (budgetTracker && options.isRecovery !== false && !budgetTracker.canMakeRecoveryRequest()) {
+      return {
+        success: false,
+        provider: this.name,
+        trainNumber: num,
+        travelClass,
+        baseFare: null,
+        totalFare: null,
+        currency: 'INR',
+        isEstimated: false,
+        source: null,
+        fareUnavailable: true,
+        lastUpdated: new Date().toISOString(),
+        isBudgetExhausted: true,
+      };
+    }
+
     return this.cachedRequest(cacheKey, this.fareTtlMs, async () => {
       const queryParams = new URLSearchParams({ from, to, class: travelClass });
       const url = `${this.apiUrl}/trains/${encodeURIComponent(num)}/fare?${queryParams.toString()}`;
+
+      if (budgetTracker) {
+        budgetTracker.recordOutboundRequest({
+          isRecovery: options.isRecovery !== false,
+          endpoint: '/trains/fare',
+          queryKey: cacheKey,
+        });
+      }
 
       try {
         const res = await httpFetch(url, {
@@ -485,7 +680,7 @@ export class RailRadarAdapter {
         fareUnavailable: true,
         lastUpdated: new Date().toISOString(),
       };
-    });
+    }, options);
   }
 
   /**

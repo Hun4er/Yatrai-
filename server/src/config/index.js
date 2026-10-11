@@ -87,6 +87,8 @@ export const config = Object.freeze({
       apiUrl: process.env.RAILRADAR_BASE_URL || process.env.RAIL_API_URL || 'https://api.railradar.in/v1',
       timeoutMs: parseInt(process.env.RAILRADAR_TIMEOUT_MS || process.env.RAIL_TIMEOUT_MS || '5000', 10),
       enabled: process.env.RAILRADAR_ENABLED !== 'false' && process.env.RAIL_ENABLED !== 'false',
+      enableAvailabilityEndpoint: process.env.RAILRADAR_ENABLE_AVAILABILITY !== 'false',
+      availabilityTtlMs: parseInt(process.env.RAILRADAR_AVAILABILITY_TTL_MS || '300000', 10),
     },
     aopay: {
       apiKey: process.env.AOPAY_API_KEY || null,
@@ -139,6 +141,19 @@ export const config = Object.freeze({
     priceChangeMinPercent: parseFloat(process.env.PRICE_CHANGE_MIN_PERCENT || '0'),
     maxPerUser: parseInt(process.env.NOTIFICATIONS_MAX_PER_USER || '100', 10),
     retentionDays: parseInt(process.env.NOTIFICATIONS_RETENTION_DAYS || '30', 10),
+  },
+  railRecovery: {
+    maxStationsBefore: parseInt(process.env.RAIL_RECOVERY_MAX_STATIONS_BEFORE || '5', 10),
+    maxStationsAfter: parseInt(process.env.RAIL_RECOVERY_MAX_STATIONS_AFTER || '5', 10),
+    maxTransfers: parseInt(process.env.RAIL_RECOVERY_MAX_TRANSFERS || '2', 10),
+    maxReturnedJourneys: parseInt(process.env.RAIL_RECOVERY_MAX_RETURNED_JOURNEYS || '5', 10),
+    maxRecoveryRequests: parseInt(process.env.RAIL_RECOVERY_MAX_REQUESTS || '10', 10),
+    maxTotalRequests: parseInt(process.env.RAIL_RECOVERY_MAX_TOTAL_REQUESTS || '16', 10),
+    maxCandidatesToValidate: parseInt(process.env.RAIL_RECOVERY_MAX_CANDIDATES_VALIDATE || '8', 10),
+    minSameStationBufferMinutes: parseInt(process.env.RAIL_RECOVERY_MIN_SAME_STATION_BUFFER || '25', 10),
+    minCrossStationBufferMinutes: parseInt(process.env.RAIL_RECOVERY_MIN_CROSS_STATION_BUFFER || '60', 10),
+    maxTransferBufferMinutes: parseInt(process.env.RAIL_RECOVERY_MAX_TRANSFER_BUFFER || '720', 10),
+    maxDetourRatio: parseFloat(process.env.RAIL_RECOVERY_MAX_DETOUR_RATIO || '1.8'),
   },
 });
 

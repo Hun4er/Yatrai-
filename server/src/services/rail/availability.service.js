@@ -1,45 +1,39 @@
 import railRadarAdapter from '../../providers/rail/railRadar.adapter.js';
 import aopayAdapter from '../../providers/rail/aopay.adapter.js';
+import { formatJourneyDate } from '../../utils/railwayTime.js';
 import logger from '../../utils/logger.js';
+import {
+  AVAILABILITY_STATUS,
+  JOURNEY_AVAILABILITY,
+  normalizeSeatAvailability,
+} from './availabilityNorm.js';
 
-/**
- * Normalized Availability Status Enums
- */
-export const AVAILABILITY_STATUS = {
-  AVAILABLE: 'AVAILABLE',
-  RAC: 'RAC',
-  WAITLISTED: 'WAITLISTED',
-  NOT_AVAILABLE: 'NOT_AVAILABLE',
-  NOT_RUNNING: 'NOT_RUNNING',
-  UNKNOWN: 'UNKNOWN',
-};
-
-/**
- * Journey-Level Bookability Status Enums
- */
-export const JOURNEY_AVAILABILITY = {
-  AVAILABILITY_VERIFIED: 'AVAILABILITY_VERIFIED',
-  RAC_AVAILABLE: 'RAC_AVAILABLE',
-  WAITLIST_ONLY: 'WAITLIST_ONLY',
-  NOT_BOOKABLE: 'NOT_BOOKABLE',
-  UNKNOWN: 'UNKNOWN',
-};
+export { AVAILABILITY_STATUS, JOURNEY_AVAILABILITY, normalizeSeatAvailability };
 
 /**
  * AvailabilityService
  *
  * Implements Section 7:
  * - Independent validation of every train leg
- * - Normalized statuses: AVAILABLE, RAC, WAITLISTED, NOT_AVAILABLE, NOT_RUNNING, UNKNOWN
+ * - Normalized statuses: AVAILABLE, RAC, WAITLIST, UNAVAILABLE, UNKNOWN
+ * - Strict confirmed availability enforcement
  * - Journey-level availability aggregation
  * - Short-lived caching and request deduplication
  */
 export class AvailabilityService {
   constructor(dependencies = {}) {
-    this.railRadar = dependencies.railRadar || railRadarAdapter;
-    this.aopay = dependencies.aopay || aopayAdapter;
+    this._railRadar = dependencies.railRadar;
+    this._aopay = dependencies.aopay;
     this.cache = new Map();
-    this.cacheTtlMs = 2 * 60 * 1000; // 2 minutes
+    this.cacheTtlMs = 5 * 60 * 1000; // 5 minutes
+  }
+
+  get railRadar() {
+    return this._railRadar || railRadarAdapter;
+  }
+
+  get aopay() {
+    return this._aopay || aopayAdapter;
   }
 
   /**
@@ -61,30 +55,54 @@ export class AvailabilityService {
     date,
     travelClass = '3A',
     quota = 'GN',
+    budgetTracker = null,
+    isRecovery = true,
   }) {
     const num = String(trainNumber || '').trim();
     const from = String(fromCode || '').trim().toUpperCase();
     const to = String(toCode || '').trim().toUpperCase();
-    const dateStr = date ? String(date).slice(0, 10) : new Date().toISOString().slice(0, 10);
+    const dateStr = formatJourneyDate(date) || (typeof date === 'string' ? date.slice(0, 10) : new Date().toISOString().slice(0, 10));
 
-    const cacheKey = `${num}:${from}:${to}:${dateStr}:${travelClass}:${quota}`;
+    const cacheKey = this.buildCacheKey(num, from, to, dateStr, travelClass, quota);
     const now = Date.now();
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > now) {
+      if (budgetTracker) budgetTracker.recordCacheHit();
       return cached.data;
+    }
+
+    if (budgetTracker && isRecovery && !budgetTracker.canMakeRecoveryRequest()) {
+      return {
+        success: false,
+        provider: 'RailRadar',
+        trainNumber: num,
+        travelClass,
+        quota,
+        normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
+        originalStatus: 'UNKNOWN',
+        seatsAvailable: null,
+        isAvailable: false,
+        lastUpdated: new Date().toISOString(),
+        isLive: false,
+        isBudgetExhausted: true,
+        reason: 'BUDGET_EXHAUSTED',
+      };
     }
 
     let result = null;
 
     // 1. Primary provider: RailRadar
     try {
-      result = await this.railRadar.getAvailability(num, from, to, dateStr, travelClass, quota);
+      result = await this.railRadar.getAvailability(num, from, to, dateStr, travelClass, quota, {
+        budgetTracker,
+        isRecovery,
+      });
     } catch (err) {
       logger.debug(`[AvailabilityService] RailRadar availability check failed: ${err.message}`);
     }
 
     // 2. Secondary fallback: AOPAY (if authorized and primary was unknown)
-    if ((!result || result.normalizedStatus === AVAILABILITY_STATUS.UNKNOWN) && this.aopay.isAuthorized()) {
+    if ((!result || result.normalizedStatus === AVAILABILITY_STATUS.UNKNOWN) && this.aopay?.isAuthorized?.()) {
       try {
         const aopayRes = await this.aopay.checkAvailability(num, from, to, dateStr, travelClass, quota);
         if (aopayRes && aopayRes.normalizedStatus !== AVAILABILITY_STATUS.UNKNOWN) {
@@ -106,6 +124,7 @@ export class AvailabilityService {
         normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
         originalStatus: 'UNKNOWN',
         seatsAvailable: null,
+        isAvailable: false,
         lastUpdated: new Date().toISOString(),
         isLive: false,
       };
@@ -116,17 +135,21 @@ export class AvailabilityService {
   }
 
   /**
+   * Builds distinct cache key separating train number, origin, destination, date, class, and quota.
+   */
+  buildCacheKey(trainNumber, fromCode, toCode, date, travelClass = '3A', quota = 'GN') {
+    const num = String(trainNumber || '').trim();
+    const from = String(fromCode || '').trim().toUpperCase();
+    const to = String(toCode || '').trim().toUpperCase();
+    const dateStr = formatJourneyDate(date) || (typeof date === 'string' ? date.slice(0, 10) : new Date().toISOString().slice(0, 10));
+    return `avail:${num}:${from}:${to}:${dateStr}:${travelClass}:${quota}`;
+  }
+
+  /**
    * Normalizes raw availability string to canonical enum.
    */
   normalizeAvailabilityStatus(raw) {
-    if (!raw) return AVAILABILITY_STATUS.UNKNOWN;
-    const str = String(raw).toUpperCase();
-    if (str.includes('AVAILABLE') || str.includes('AVL') || str.includes('CURR_AVBL')) return AVAILABILITY_STATUS.AVAILABLE;
-    if (str.includes('RAC')) return AVAILABILITY_STATUS.RAC;
-    if (str.includes('WL') || str.includes('WAITLIST') || str.includes('GNWL')) return AVAILABILITY_STATUS.WAITLISTED;
-    if (str.includes('REGRET') || str.includes('NOT AVAILABLE') || str.includes('TRAIN CANCELLED')) return AVAILABILITY_STATUS.NOT_AVAILABLE;
-    if (str.includes('NOT RUNNING')) return AVAILABILITY_STATUS.NOT_RUNNING;
-    return AVAILABILITY_STATUS.UNKNOWN;
+    return normalizeSeatAvailability(raw).normalizedStatus;
   }
 
   /**
@@ -147,6 +170,7 @@ export class AvailabilityService {
         journeyStatus: JOURNEY_AVAILABILITY.UNKNOWN,
         isBookable: false,
         hasUnavailableLeg: false,
+        isConfirmedAvailable: false,
         legStatuses: [],
         reason: 'NO_LEGS',
       };
@@ -154,10 +178,11 @@ export class AvailabilityService {
 
     const legStatuses = legs.map((leg) => {
       const avail = leg.availability || leg.booking?.availability || {};
-      const status =
+      const rawStatus =
         avail.normalizedStatus ||
         avail.status ||
         (leg.booking?.status === 'available' ? AVAILABILITY_STATUS.AVAILABLE : AVAILABILITY_STATUS.UNKNOWN);
+      const status = normalizeSeatAvailability(rawStatus).normalizedStatus;
       return {
         sequence: leg.sequence || 1,
         trainNumber: leg.vehicle?.identifier || leg.service?.number || leg.trainNumber,
@@ -169,7 +194,7 @@ export class AvailabilityService {
 
     // Check if any leg is completely unavailable or not running
     const hasUnavailable = legStatuses.some(
-      (l) => l.status === AVAILABILITY_STATUS.NOT_AVAILABLE || l.status === AVAILABILITY_STATUS.NOT_RUNNING
+      (l) => l.status === AVAILABILITY_STATUS.UNAVAILABLE || l.status === AVAILABILITY_STATUS.NOT_AVAILABLE || l.status === AVAILABILITY_STATUS.NOT_RUNNING
     );
     if (hasUnavailable) {
       return {
@@ -177,19 +202,23 @@ export class AvailabilityService {
         journeyStatus: JOURNEY_AVAILABILITY.NOT_BOOKABLE,
         isBookable: false,
         hasUnavailableLeg: true,
+        isConfirmedAvailable: false,
         legStatuses,
         reason: 'ONE_OR_MORE_LEGS_UNAVAILABLE',
       };
     }
 
     // Check if any leg is waitlisted
-    const hasWaitlist = legStatuses.some((l) => l.status === AVAILABILITY_STATUS.WAITLISTED);
+    const hasWaitlist = legStatuses.some(
+      (l) => l.status === AVAILABILITY_STATUS.WAITLIST || l.status === AVAILABILITY_STATUS.WAITLISTED
+    );
     if (hasWaitlist) {
       return {
         status: JOURNEY_AVAILABILITY.WAITLIST_ONLY,
         journeyStatus: JOURNEY_AVAILABILITY.WAITLIST_ONLY,
         isBookable: options.allowWaitlist ?? false,
         hasUnavailableLeg: false,
+        isConfirmedAvailable: false,
         legStatuses,
         reason: 'LEGS_WAITLISTED',
       };
@@ -203,6 +232,7 @@ export class AvailabilityService {
         journeyStatus: JOURNEY_AVAILABILITY.RAC_AVAILABLE,
         isBookable: options.allowRac ?? true,
         hasUnavailableLeg: false,
+        isConfirmedAvailable: false,
         legStatuses,
         reason: 'LEGS_RAC',
       };
@@ -216,6 +246,7 @@ export class AvailabilityService {
         journeyStatus: JOURNEY_AVAILABILITY.UNKNOWN,
         isBookable: false,
         hasUnavailableLeg: false,
+        isConfirmedAvailable: false,
         legStatuses,
         reason: 'AVAILABILITY_UNVERIFIED',
       };
@@ -227,6 +258,7 @@ export class AvailabilityService {
       journeyStatus: JOURNEY_AVAILABILITY.AVAILABILITY_VERIFIED,
       isBookable: true,
       hasUnavailableLeg: false,
+      isConfirmedAvailable: true,
       legStatuses,
       reason: 'ALL_LEGS_AVAILABLE',
     };

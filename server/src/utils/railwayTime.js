@@ -267,10 +267,55 @@ export function calculateJourneyTiming(
   };
 }
 
+/**
+ * Converts any date representation (JS Date, ISO string, timestamp, or string)
+ * into a valid YYYY-MM-DD calendar date in Indian Standard Time (IST).
+ * Never uses string slicing on arbitrary Date objects.
+ *
+ * @param {string|Date|number} dateVal
+ * @returns {string} YYYY-MM-DD
+ */
+export function formatJourneyDate(dateVal) {
+  if (!dateVal) return '';
+
+  if (typeof dateVal === 'string') {
+    const trimmed = dateVal.trim();
+    // 1. If already in YYYY-MM-DD format
+    const ymdMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
+    if (ymdMatch) {
+      return `${ymdMatch[1]}-${ymdMatch[2]}-${ymdMatch[3]}`;
+    }
+    // 2. If in DD-MM-YYYY or DD/MM/YYYY format
+    const dmyMatch = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/.exec(trimmed);
+    if (dmyMatch) {
+      const [, d, m, y] = dmyMatch;
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      return formatInIST(parsed).localDate;
+    }
+  }
+
+  if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
+    return formatInIST(dateVal).localDate;
+  }
+
+  if (typeof dateVal === 'number' && !isNaN(dateVal)) {
+    const parsed = new Date(dateVal);
+    if (!isNaN(parsed.getTime())) {
+      return formatInIST(parsed).localDate;
+    }
+  }
+
+  return '';
+}
+
 export default {
   normalizeRailwayDateTime,
   formatInIST,
   calculateJourneyTiming,
+  formatJourneyDate,
   IST_OFFSET_STR,
   IST_OFFSET_MS,
 };

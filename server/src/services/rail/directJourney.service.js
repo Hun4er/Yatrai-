@@ -1,6 +1,6 @@
 import railRadarAdapter from '../../providers/rail/railRadar.adapter.js';
 import { resolveStationCode, getClusterStationCodes } from '../../providers/transport/rail/rail.provider.js';
-import availabilityService, { AVAILABILITY_STATUS, JOURNEY_AVAILABILITY } from './availability.service.js';
+import availabilityService, { AVAILABILITY_STATUS, JOURNEY_AVAILABILITY, normalizeSeatAvailability } from './availability.service.js';
 import fareService from './fare.service.js';
 import logger from '../../utils/logger.js';
 import { calculateJourneyTiming } from '../../utils/railwayTime.js';
@@ -60,8 +60,32 @@ export class DirectJourneyService {
     const destCode = resolveStationCode(destination);
 
     // 1. Query direct trains between primary stations via RailRadar
-    const searchOpts = { ...options, departureDate, date: departureDate };
+    const searchOpts = { ...options, departureDate, date: departureDate, isRecovery: false };
     let searchResult = await this.railRadar.searchDirectTrains(originCode, destCode, searchOpts);
+
+    // Handle provider complete failure (e.g. timeout, 429 quota exceeded, connection error)
+    if (!searchResult.success) {
+      const isRateLimited =
+        searchResult.statusCode === 429 ||
+        /rate limit|quota exceeded|429/i.test(String(searchResult.error));
+      const isMonthlyQuota = Boolean(
+        searchResult.isMonthlyQuota ||
+        /monthly quota/i.test(String(searchResult.error))
+      );
+
+      return {
+        status: isRateLimited ? 'RATE_LIMITED' : DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED,
+        isRateLimited,
+        isMonthlyQuota,
+        directJourneys: [],
+        failureReason: isMonthlyQuota
+          ? 'Railway API monthly quota exceeded (100 requests limit). Real-time search is currently paused.'
+          : (isRateLimited
+              ? 'Railway search is temporarily rate-limited. Please try again shortly.'
+              : (searchResult.error || 'Direct train search provider failed to respond or quota exhausted.')),
+        shouldTriggerRecovery: false, // Provider failure must not be treated as proof no direct train exists
+      };
+    }
 
     // If primary stations returned 0, try cluster station pairs (e.g. NDLS/DLI/NZM to PNBE/DNR/PPTA)
     let trainItems = searchResult.trains || [];
@@ -98,30 +122,6 @@ export class DirectJourneyService {
           }
         }
       }
-    }
-
-    // Handle provider complete failure (e.g. timeout, 429 quota exceeded, connection error)
-    if (!searchResult.success && trainItems.length === 0) {
-      const isRateLimited =
-        searchResult.statusCode === 429 ||
-        /rate limit|quota exceeded|429/i.test(String(searchResult.error));
-      const isMonthlyQuota = Boolean(
-        searchResult.isMonthlyQuota ||
-        /monthly quota/i.test(String(searchResult.error))
-      );
-
-      return {
-        status: isRateLimited ? 'RATE_LIMITED' : DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED,
-        isRateLimited,
-        isMonthlyQuota,
-        directJourneys: [],
-        failureReason: isMonthlyQuota
-          ? 'Railway API monthly quota exceeded (100 requests limit). Real-time search is currently paused.'
-          : (isRateLimited
-              ? 'Railway search is temporarily rate-limited. Please try again shortly.'
-              : (searchResult.error || 'Direct train search provider failed to respond or quota exhausted.')),
-        shouldTriggerRecovery: false, // Provider failure must not be treated as proof no direct train exists
-      };
     }
 
     // Handle no direct trains found
@@ -209,6 +209,8 @@ export class DirectJourneyService {
             date: cand.departureTime,
             travelClass,
             quota,
+            budgetTracker: options.budgetTracker,
+            isRecovery: false,
           }),
           this.fareService.getLegFare({
             trainNumber: cand.trainNumber,
@@ -217,6 +219,8 @@ export class DirectJourneyService {
             travelClass,
             distanceKm: cand.distance,
             passengers,
+            budgetTracker: options.budgetTracker,
+            isRecovery: false,
           }),
         ]);
 
@@ -369,16 +373,16 @@ export class DirectJourneyService {
     if (hasRac && allowRac) {
       return {
         status: DIRECT_SEARCH_STATUS.DIRECT_RAC_ONLY,
-        directJourneys: suitableJourneys,
+        directJourneys: options.confirmedOnly === false ? suitableJourneys : [],
         failureReason: 'Direct trains have RAC seating only.',
-        shouldTriggerRecovery: !preferences.acceptRac, // trigger recovery unless user specifically accepts RAC
+        shouldTriggerRecovery: !preferences.acceptRac,
       };
     }
 
     if (hasWaitlist) {
       return {
         status: DIRECT_SEARCH_STATUS.DIRECT_WAITLIST_ONLY,
-        directJourneys: suitableJourneys,
+        directJourneys: options.confirmedOnly === false ? suitableJourneys : [],
         failureReason: 'Direct trains are waitlisted only. No confirmed seats available.',
         shouldTriggerRecovery: !allowWaitlist,
       };
@@ -387,7 +391,7 @@ export class DirectJourneyService {
     if (allUnavailable) {
       return {
         status: DIRECT_SEARCH_STATUS.DIRECT_UNAVAILABLE,
-        directJourneys: suitableJourneys,
+        directJourneys: [],
         failureReason: 'Direct trains are sold out. No seats or waitlists remaining.',
         shouldTriggerRecovery: true,
       };
@@ -395,9 +399,9 @@ export class DirectJourneyService {
 
     return {
       status: allUnknown ? DIRECT_SEARCH_STATUS.DIRECT_AVAILABILITY_UNKNOWN : DIRECT_SEARCH_STATUS.DIRECT_AVAILABLE,
-      directJourneys: suitableJourneys,
+      directJourneys: options.confirmedOnly === false ? suitableJourneys : [],
       failureReason: allUnknown ? 'Direct train seat availability could not be verified in real-time.' : null,
-      shouldTriggerRecovery: false,
+      shouldTriggerRecovery: true,
     };
   }
 
@@ -427,7 +431,8 @@ export class DirectJourneyService {
       const trainNum = String(train.trainNumber || train.number || '');
       const key = `${trainNum}-${travelClass}-GN`;
       const avail = availabilityMap[key] || train.availability || {};
-      const status = avail.status || avail.normalizedStatus || 'UNKNOWN';
+      const rawStatus = avail.status || avail.normalizedStatus || 'UNKNOWN';
+      const status = normalizeSeatAvailability(rawStatus).normalizedStatus;
 
       if (status === AVAILABILITY_STATUS.AVAILABLE) {
         hasAvailable = true;
@@ -435,7 +440,7 @@ export class DirectJourneyService {
       } else if (status === AVAILABILITY_STATUS.RAC) {
         hasRac = true;
         if (allowRac) suitableTrains.push(train);
-      } else if (status === AVAILABILITY_STATUS.WAITLISTED) {
+      } else if (status === AVAILABILITY_STATUS.WAITLIST) {
         hasWaitlist = true;
         if (allowWaitlist) suitableTrains.push(train);
       }
