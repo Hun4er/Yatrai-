@@ -126,6 +126,8 @@ const BookingSchema = new Schema(
       type: String,
       default: null,
       trim: true,
+      index: true,
+      sparse: true,
     },
     idempotencyKey: {
       type: String,

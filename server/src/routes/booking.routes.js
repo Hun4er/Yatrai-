@@ -23,6 +23,13 @@ router.post('/', authenticate, bookingController.create);
 router.get('/my-bookings', authenticate, bookingController.getMyBookings);
 
 /**
+ * GET /api/booking/pnr/:pnr
+ * Checks PNR status for Yatrai-generated bookings.
+ */
+router.get('/pnr/:pnr', optionalAuthenticate, bookingController.checkPnr);
+router.get('/pnr', optionalAuthenticate, bookingController.checkPnr);
+
+/**
  * GET /api/booking/:id
  * Retrieves a single booking record by ID or Reference.
  */

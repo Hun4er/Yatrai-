@@ -11,10 +11,10 @@ export function FilterEmptyState({ onClearFilters }) {
   return (
     <div
       role="status"
-      className="mx-auto max-w-xl rounded-2xl border border-white/10 bg-surface-primary p-8 text-center shadow-lg animate-in fade-in"
+      className="mx-auto max-w-xl rounded-card border border-border-default bg-surface-primary p-7 sm:p-9 text-center"
     >
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-secondary text-brand-primary border border-white/10">
-        <FilterX className="h-7 w-7" aria-hidden="true" />
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-control bg-surface-secondary text-text-secondary border border-border-default">
+        <FilterX className="h-7 w-7 text-text-secondary" aria-hidden="true" />
       </div>
 
       <h3 className="mt-5 text-xl font-bold tracking-tight text-text-primary">
@@ -30,7 +30,7 @@ export function FilterEmptyState({ onClearFilters }) {
           <button
             type="button"
             onClick={onClearFilters}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand-primary/20 hover:bg-brand-hover active:bg-brand-active transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary"
+            className="inline-flex items-center gap-2 rounded-control bg-amber-accent px-5 py-2.5 text-sm font-semibold text-amber-on hover:bg-amber-hover transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-accent focus:ring-offset-2 focus:ring-offset-graphite-bg"
           >
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
             <span>Clear Filters</span>

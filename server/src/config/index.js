@@ -54,7 +54,10 @@ export const config = Object.freeze({
   // Database — Phase 1 (MongoDB)
   database: {
     mongodbUri:
-      process.env.MONGODB_URI || process.env.DATABASE_URL || 'mongodb://127.0.0.1:27017/yatrai_dev',
+      process.env.MONGODB_URI ||
+      process.env.MONGO_URI ||
+      process.env.DATABASE_URL ||
+      'mongodb://127.0.0.1:27017/yatrai_dev',
     url: process.env.DATABASE_URL || null,
   },
   cache: {
@@ -77,13 +80,13 @@ export const config = Object.freeze({
   },
   providers: {
     rail: {
-      apiKey: process.env.RAIL_API_KEY ? process.env.RAIL_API_KEY.trim() : null,
+      apiKey: (process.env.RAIL_API_KEY || process.env.RAIL_API || '').trim() || null,
       apiUrl: process.env.RAIL_API_URL ? process.env.RAIL_API_URL.trim() : null,
       timeoutMs: parseInt(process.env.RAIL_TIMEOUT_MS || '5000', 10),
       enabled: process.env.RAIL_ENABLED !== 'false',
     },
     railradar: {
-      apiKey: process.env.RAILRADAR_API_KEY || process.env.RAIL_API_KEY || null,
+      apiKey: process.env.RAILRADAR_API_KEY || process.env.RAIL_API_KEY || process.env.RAIL_API || null,
       apiUrl: process.env.RAILRADAR_BASE_URL || process.env.RAIL_API_URL || 'https://api.railradar.in/v1',
       timeoutMs: parseInt(process.env.RAILRADAR_TIMEOUT_MS || process.env.RAIL_TIMEOUT_MS || '5000', 10),
       enabled: process.env.RAILRADAR_ENABLED !== 'false' && process.env.RAIL_ENABLED !== 'false',

@@ -63,28 +63,47 @@ export class DirectJourneyService {
     const searchOpts = { ...options, departureDate, date: departureDate, isRecovery: false };
     let searchResult = await this.railRadar.searchDirectTrains(originCode, destCode, searchOpts);
 
-    // Handle provider complete failure (e.g. timeout, 429 quota exceeded, connection error)
+    // Handle provider complete failure (e.g. timeout, 429 quota exceeded, disabled, connection error)
     if (!searchResult.success) {
+      const isDisabled = searchResult.reason === 'PROVIDER_DISABLED';
       const isRateLimited =
-        searchResult.statusCode === 429 ||
-        /rate limit|quota exceeded|429/i.test(String(searchResult.error));
+        !isDisabled &&
+        (searchResult.statusCode === 429 ||
+          /rate limit|quota exceeded|429/i.test(String(searchResult.error)));
       const isMonthlyQuota = Boolean(
         searchResult.isMonthlyQuota ||
         /monthly quota/i.test(String(searchResult.error))
       );
 
-      return {
-        status: isRateLimited ? 'RATE_LIMITED' : DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED,
-        isRateLimited,
-        isMonthlyQuota,
-        directJourneys: [],
-        failureReason: isMonthlyQuota
-          ? 'Railway API monthly quota exceeded (100 requests limit). Real-time search is currently paused.'
-          : (isRateLimited
-              ? 'Railway search is temporarily rate-limited. Please try again shortly.'
-              : (searchResult.error || 'Direct train search provider failed to respond or quota exhausted.')),
-        shouldTriggerRecovery: false, // Provider failure must not be treated as proof no direct train exists
-      };
+      // Immediately attempt verified schedule fallback before returning an error
+      const fromClusters = getClusterStationCodes(origin, originCode);
+      const toClusters = getClusterStationCodes(destination, destCode);
+      const verifiedFallback = [];
+      for (const f of fromClusters.slice(0, 3)) {
+        for (const t of toClusters.slice(0, 3)) {
+          const v = findVerifiedDirectTrains(f, t, departureDate);
+          if (v.length > 0) verifiedFallback.push(...v);
+        }
+      }
+      if (verifiedFallback.length > 0) {
+        // Continue with the verified data as if RailRadar returned it
+        searchResult = { success: true, trains: verifiedFallback, source: 'verified_schedule' };
+      } else {
+        return {
+          status: isRateLimited ? 'RATE_LIMITED' : DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED,
+          isRateLimited,
+          isMonthlyQuota,
+          directJourneys: [],
+          failureReason: isMonthlyQuota
+            ? 'Railway API monthly quota exceeded (100 requests limit). Real-time search is currently paused.'
+            : (isRateLimited
+                ? 'Railway search is temporarily rate-limited. Please try again shortly.'
+                : isDisabled
+                  ? 'Railway provider is currently disabled. Please configure a valid API key.'
+                  : (searchResult.error || 'Direct train search provider failed to respond or quota exhausted.')),
+          shouldTriggerRecovery: false, // Provider failure must not be treated as proof no direct train exists
+        };
+      }
     }
 
     // If primary stations returned 0, try cluster station pairs (e.g. NDLS/DLI/NZM to PNBE/DNR/PPTA)
@@ -397,11 +416,40 @@ export class DirectJourneyService {
       };
     }
 
+    // When all availability checks returned UNKNOWN (typically due to provider rate-limits),
+    // we still surface the journeys based on verified schedule data rather than returning
+    // an empty list. The availability field is marked UNKNOWN so the UI can display an
+    // appropriate "unconfirmed availability" badge instead of "No journey found".
+    if (allUnknown) {
+      // Sort by duration (fastest first) as a sensible default
+      suitableJourneys.sort((a, b) => a.duration - b.duration);
+      if (suitableJourneys.length > 0) {
+        suitableJourneys[0].isTopPick = true;
+        suitableJourneys[0].ranking = {
+          strategy: 'overall',
+          label: 'Best Overall',
+          rank: 1,
+        };
+      }
+      return {
+        status: DIRECT_SEARCH_STATUS.DIRECT_AVAILABILITY_UNKNOWN,
+        directJourneys: suitableJourneys,
+        bestDirectJourney: suitableJourneys[0] || null,
+        additionalDirectJourneys: suitableJourneys.slice(1),
+        hasMoreDirect: suitableJourneys.length > 1,
+        totalDirectConfirmedCount: 0,
+        failureReason: 'Real-time seat availability could not be verified (provider rate-limited). Showing scheduled trains.',
+        // Do NOT trigger recovery when we already have valid schedule data
+        shouldTriggerRecovery: false,
+      };
+    }
+
     return {
-      status: allUnknown ? DIRECT_SEARCH_STATUS.DIRECT_AVAILABILITY_UNKNOWN : DIRECT_SEARCH_STATUS.DIRECT_AVAILABLE,
-      directJourneys: options.confirmedOnly === false ? suitableJourneys : [],
-      failureReason: allUnknown ? 'Direct train seat availability could not be verified in real-time.' : null,
-      shouldTriggerRecovery: true,
+      status: DIRECT_SEARCH_STATUS.DIRECT_AVAILABLE,
+      directJourneys: suitableJourneys,
+      bestDirectJourney: suitableJourneys[0] || null,
+      failureReason: null,
+      shouldTriggerRecovery: false,
     };
   }
 

@@ -896,6 +896,15 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
                 <h2 className="text-lg font-bold text-text-primary mt-1">
                   Booking Recorded · {bookingResult.bookingReference}
                 </h2>
+                {bookingResult.pnr && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs text-text-tertiary">Yatrai PNR:</span>
+                    <span className="font-mono text-base font-black text-[#E8B04A] tracking-wider">
+                      {bookingResult.pnr}
+                    </span>
+                    <span className="text-[10px] text-text-tertiary">(use this for PNR Status check)</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -907,9 +916,15 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
 
             {/* Quick Details Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 border-t border-white/10 pt-4 text-xs">
+              {bookingResult.pnr && (
+                <div className="col-span-2 sm:col-span-1">
+                  <span className="text-text-tertiary uppercase text-[10px] font-semibold">Yatrai PNR</span>
+                  <div className="font-mono font-black text-[#E8B04A] text-base tracking-wider">{bookingResult.pnr}</div>
+                </div>
+              )}
               <div>
                 <span className="text-text-tertiary uppercase text-[10px] font-semibold">Booking Ref</span>
-                <div className="font-mono font-bold text-brand-primary">{bookingResult.bookingReference}</div>
+                <div className="font-mono font-bold text-brand-primary text-[11px]">{bookingResult.bookingReference}</div>
               </div>
               <div>
                 <span className="text-text-tertiary uppercase text-[10px] font-semibold">Train Service</span>

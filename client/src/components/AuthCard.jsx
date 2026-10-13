@@ -56,9 +56,9 @@ export function AuthCard() {
   // 1. Loading / Session Restoration State
   if (status === 'loading') {
     return (
-      <div className="rounded-2xl border border-white/10 bg-surface-primary p-6 shadow-sm">
+      <div className="rounded-card border border-border-default bg-surface-primary p-6">
         <div className="flex items-center gap-3">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-primary border-t-transparent" />
+          <div className="h-5 w-5 animate-spin motion-reduce:animate-none rounded-full border-2 border-border-strong border-t-amber-accent" />
           <span className="text-sm font-medium text-text-secondary">
             Verifying authentication session...
           </span>
@@ -70,27 +70,27 @@ export function AuthCard() {
   // 2. Authenticated State
   if (status === 'authenticated' && user) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-surface-primary p-6 shadow-sm space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5">
+      <div className="rounded-card border border-border-default bg-surface-primary p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border-default pb-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-soft text-brand-primary font-bold text-lg border border-brand-primary/20">
+            <div className="flex h-11 w-11 items-center justify-center rounded-control bg-surface-secondary text-amber-accent font-bold text-lg border border-border-default">
               {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-base font-semibold text-text-primary">{user.name}</span>
-                <span className="inline-flex items-center rounded-full bg-semantic-success/15 px-2 py-0.5 text-[11px] font-medium text-semantic-success border border-semantic-success/20">
+                <span className="inline-flex items-center rounded-full bg-semantic-success/15 px-2.5 py-0.5 text-[11px] font-semibold text-semantic-success border border-semantic-success/30">
                   {user.status || 'active'}
                 </span>
               </div>
-              <p className="text-xs text-text-tertiary">{user.email}</p>
+              <p className="text-xs text-text-muted mt-0.5">{user.email}</p>
             </div>
           </div>
 
           <button
             id="auth-logout-btn"
             onClick={logout}
-            className="inline-flex items-center justify-center rounded-lg border border-white/10 bg-surface-secondary px-4 py-2 text-xs font-medium text-text-secondary hover:bg-surface-elevated hover:text-text-primary transition-colors"
+            className="inline-flex items-center justify-center rounded-control border border-border-strong bg-surface-primary px-4 py-2 text-xs font-medium text-text-primary hover:bg-surface-secondary transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-border-strong"
           >
             Sign Out
           </button>
@@ -100,12 +100,12 @@ export function AuthCard() {
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                 Backend Authentication Guard
               </h3>
               <p className="text-xs text-text-secondary mt-0.5">
                 Verify Bearer access token dispatch against the protected{' '}
-                <code className="text-brand-primary font-mono text-[11px]">GET /api/auth/me</code>{' '}
+                <code className="text-text-primary font-mono text-[11px] bg-surface-secondary px-1.5 py-0.5 rounded border border-border-default">GET /api/auth/me</code>{' '}
                 endpoint.
               </p>
             </div>
@@ -114,7 +114,7 @@ export function AuthCard() {
               id="auth-test-me-btn"
               onClick={handleTestProtectedRoute}
               disabled={testingProtected}
-              className="inline-flex items-center justify-center rounded-lg bg-brand-primary px-3.5 py-1.5 text-xs font-medium text-white hover:bg-brand-hover active:bg-brand-active transition-colors disabled:opacity-50"
+              className="inline-flex items-center justify-center rounded-control border border-border-strong bg-surface-secondary px-3.5 py-1.5 text-xs font-medium text-text-primary hover:bg-surface-elevated transition-colors disabled:opacity-50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-border-strong"
             >
               {testingProtected ? 'Verifying...' : 'Test GET /api/auth/me'}
             </button>
@@ -122,13 +122,13 @@ export function AuthCard() {
 
           {testResponse && (
             <div
-              className={`rounded-lg p-3 text-xs font-mono border ${
+              className={`rounded-control p-3 text-xs font-mono border ${
                 testResponse.success
                   ? 'border-semantic-success/30 bg-semantic-success/10 text-semantic-success'
                   : 'border-semantic-error/30 bg-semantic-error/10 text-semantic-error'
               }`}
             >
-              <div className="flex items-center justify-between pb-1 mb-1 border-b border-white/5 font-sans font-semibold">
+              <div className="flex items-center justify-between pb-1 mb-1 border-b border-border-default font-sans font-semibold">
                 <span>Response [{testResponse.status}]</span>
                 <span>{testResponse.success ? 'Protected Route Verified' : 'Access Denied'}</span>
               </div>
@@ -144,19 +144,19 @@ export function AuthCard() {
 
   // 3. Unauthenticated State (Login / Register Form)
   return (
-    <div className="rounded-2xl border border-white/10 bg-surface-primary p-6 shadow-sm space-y-6">
-      <div className="flex items-center justify-between border-b border-white/10 pb-4">
+    <div className="rounded-card border border-border-default bg-surface-primary p-6 space-y-6">
+      <div className="flex items-center justify-between border-b border-border-default pb-4">
         <div>
           <h2 className="text-base font-semibold text-text-primary">
             {mode === 'login' ? 'Sign In to Yatrai' : 'Create an Account'}
           </h2>
-          <p className="text-xs text-text-tertiary mt-0.5">
+          <p className="text-xs text-text-muted mt-0.5">
             Phase 2 Email + Password Authentication
           </p>
         </div>
 
         {/* Tab switcher */}
-        <div className="flex rounded-lg bg-surface-secondary p-1 border border-white/5">
+        <div className="flex rounded-control bg-surface-secondary p-1 border border-border-default">
           <button
             id="auth-tab-login"
             type="button"
@@ -164,9 +164,9 @@ export function AuthCard() {
               setMode('login');
               clearError();
             }}
-            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
               mode === 'login'
-                ? 'bg-brand-primary text-white shadow-sm'
+                ? 'bg-amber-accent text-amber-on font-semibold shadow-sm'
                 : 'text-text-secondary hover:text-text-primary'
             }`}
           >
@@ -179,9 +179,9 @@ export function AuthCard() {
               setMode('register');
               clearError();
             }}
-            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
               mode === 'register'
-                ? 'bg-brand-primary text-white shadow-sm'
+                ? 'bg-amber-accent text-amber-on font-semibold shadow-sm'
                 : 'text-text-secondary hover:text-text-primary'
             }`}
           >
@@ -194,10 +194,10 @@ export function AuthCard() {
       {error && (
         <div
           id="auth-error-banner"
-          className="flex items-start justify-between rounded-lg border border-semantic-error/30 bg-semantic-error/10 p-3 text-xs text-semantic-error"
+          className="flex items-start justify-between rounded-control border border-semantic-error/30 bg-semantic-error/10 p-3 text-xs text-semantic-error"
         >
           <span>{error}</span>
-          <button type="button" onClick={clearError} className="ml-2 font-bold hover:opacity-75">
+          <button type="button" onClick={clearError} className="ml-2 font-bold hover:opacity-75 cursor-pointer">
             &times;
           </button>
         </div>
@@ -209,7 +209,7 @@ export function AuthCard() {
           <div>
             <label
               htmlFor="auth-name"
-              className="block text-xs font-medium text-text-secondary mb-1"
+              className="block text-xs font-medium text-text-secondary mb-1.5"
             >
               Full Name
             </label>
@@ -221,7 +221,7 @@ export function AuthCard() {
               value={formData.name}
               onChange={handleInputChange}
               placeholder="e.g. Aarav Sharma"
-              className="w-full rounded-lg border border-white/10 bg-surface-secondary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
+              className="w-full rounded-control border border-border-default bg-surface-secondary px-3.5 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-amber-accent focus:outline-none focus:ring-2 focus:ring-amber-accent focus:ring-offset-1 focus:ring-offset-surface-primary transition-all"
             />
           </div>
         )}
@@ -229,7 +229,7 @@ export function AuthCard() {
         <div>
           <label
             htmlFor="auth-email"
-            className="block text-xs font-medium text-text-secondary mb-1"
+            className="block text-xs font-medium text-text-secondary mb-1.5"
           >
             Email Address
           </label>
@@ -241,14 +241,14 @@ export function AuthCard() {
             value={formData.email}
             onChange={handleInputChange}
             placeholder="e.g. traveler@example.com"
-            className="w-full rounded-lg border border-white/10 bg-surface-secondary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
+            className="w-full rounded-control border border-border-default bg-surface-secondary px-3.5 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-amber-accent focus:outline-none focus:ring-2 focus:ring-amber-accent focus:ring-offset-1 focus:ring-offset-surface-primary transition-all"
           />
         </div>
 
         <div>
           <label
             htmlFor="auth-password"
-            className="block text-xs font-medium text-text-secondary mb-1"
+            className="block text-xs font-medium text-text-secondary mb-1.5"
           >
             Password
           </label>
@@ -261,7 +261,7 @@ export function AuthCard() {
             value={formData.password}
             onChange={handleInputChange}
             placeholder={mode === 'register' ? 'Minimum 8 characters' : 'Enter your password'}
-            className="w-full rounded-lg border border-white/10 bg-surface-secondary px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary"
+            className="w-full rounded-control border border-border-default bg-surface-secondary px-3.5 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-amber-accent focus:outline-none focus:ring-2 focus:ring-amber-accent focus:ring-offset-1 focus:ring-offset-surface-primary transition-all"
           />
         </div>
 
@@ -269,7 +269,7 @@ export function AuthCard() {
           id="auth-submit-btn"
           type="submit"
           disabled={submitting}
-          className="w-full rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-brand-primary/20 hover:bg-brand-hover active:bg-brand-active transition-all disabled:opacity-50"
+          className="w-full rounded-control bg-amber-accent px-4 py-2.5 text-sm font-semibold text-amber-on hover:bg-amber-hover active:bg-amber-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-accent focus:ring-offset-2 focus:ring-offset-graphite-bg"
         >
           {submitting
             ? mode === 'login'

@@ -11,7 +11,6 @@ import {
   GitCompare,
   Ticket,
   AlertCircle,
-  ExternalLink,
   X,
   Loader2,
 } from 'lucide-react';
@@ -204,19 +203,19 @@ export function JourneyResultCard({
 
   return (
     <article
-      className={`rounded-2xl border bg-surface-primary p-5 sm:p-6 transition-all shadow-sm ${
+      className={`rounded-2xl border bg-[#12151A] p-5 sm:p-6 transition-all shadow-xl ${
         isBestOverall
-          ? 'border-brand-primary/40 bg-surface-primary/95 ring-1 ring-brand-primary/20 shadow-brand-primary/5'
-          : 'border-white/10 hover:border-white/20'
+          ? 'border-[#E8B04A]/40 shadow-lg shadow-[#E8B04A]/5 ring-1 ring-[#E8B04A]/20'
+          : 'border-[#303640] hover:border-[#3A414C] hover:bg-[#15191F]/30'
       }`}
       aria-label={`Journey from ${originName} to ${destinationName}, ${durationText}, ${priceLabel} ${priceText}`}
     >
       {/* 1. Header: Reorganized hierarchy with clear alignment */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 pb-3 sm:pb-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#303640]/80 pb-3 sm:pb-3.5">
         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 min-w-0">
           {/* Best Overall Badge */}
           {isBestOverall && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-brand-primary px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm shrink-0">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#E8B04A] px-2.5 py-0.5 text-[10px] font-bold text-[#0B0D10] shadow-sm shrink-0">
               <Sparkles className="h-3 w-3" aria-hidden="true" />
               <span>BEST OVERALL</span>
             </span>
@@ -224,28 +223,28 @@ export function JourneyResultCard({
 
           {/* Other Ranking Badge */}
           {!isBestOverall && rankingLabel && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-surface-secondary px-2.5 py-0.5 text-[11px] font-semibold text-text-primary border border-white/10 shrink-0">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#15191F] px-2.5 py-0.5 text-[11px] font-semibold text-[#A7AFBA] border border-[#303640] shrink-0">
               <span>{rankingLabel}</span>
             </span>
           )}
 
           {/* Transport Mode & Service / Operator */}
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-text-primary min-w-0">
-            <PrimaryModeIcon className="h-3.5 w-3.5 text-brand-primary shrink-0" aria-hidden="true" />
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-[#F0F1F3] min-w-0">
+            <PrimaryModeIcon className="h-3.5 w-3.5 text-[#E8B04A] shrink-0" aria-hidden="true" />
             <span className="capitalize">{transportModes.join(' + ')}</span>
             {providerName && (
-              <span className="text-text-secondary truncate max-w-[220px] sm:max-w-[340px]" title={providerName}>
+              <span className="text-[#A7AFBA] truncate max-w-[220px] sm:max-w-[340px]" title={providerName}>
                 · {providerName}
               </span>
             )}
           </div>
 
-          {/* Direct (Green) or Transfer (Amber) Status Badge */}
+          {/* Direct (Green) or Transfer status Badge */}
           <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold shrink-0 ${
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold shrink-0 ${
               isDirect
                 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                : 'bg-[#15191F] text-[#A7AFBA] border border-[#303640]'
             }`}
           >
             {isDirect ? 'Direct' : formatTransfers(transfers)}
@@ -253,29 +252,29 @@ export function JourneyResultCard({
 
           {/* Recovery Route Badge */}
           {journey.isRecoveredAlternative && (
-            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 shrink-0">
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
               Recovered Route
             </span>
           )}
 
           {/* Seat Availability Status Badge */}
           {(journey.availabilityStatus === 'AVAILABILITY_VERIFIED' || journey.isBookable) && (
-            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shrink-0">
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
               Seats Verified
             </span>
           )}
           {journey.availabilityStatus === 'RAC_ONLY' && (
-            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 shrink-0">
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
               RAC
             </span>
           )}
           {journey.availabilityStatus === 'WAITLIST_ONLY' && (
-            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
               Waitlist
             </span>
           )}
           {journey.availabilityStatus === 'NOT_BOOKABLE' && (
-            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 shrink-0">
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20 shrink-0">
               Not Bookable
             </span>
           )}
@@ -289,8 +288,8 @@ export function JourneyResultCard({
               onClick={() => onToggleCompare(journey)}
               className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition-colors cursor-pointer ${
                 isCompared
-                  ? 'bg-brand-primary text-white font-semibold'
-                  : 'bg-surface-secondary text-text-secondary hover:text-text-primary border border-white/10 hover:border-white/20'
+                  ? 'bg-[#E8B04A] text-[#0B0D10] font-semibold'
+                  : 'bg-[#15191F] text-[#A7AFBA] hover:text-[#F0F1F3] border border-[#303640] hover:border-[#3A414C]'
               }`}
               title="Add to comparison"
               aria-label={isCompared ? 'Remove from comparison' : 'Compare journey'}
@@ -307,28 +306,28 @@ export function JourneyResultCard({
               disabled={saving}
               className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors cursor-pointer ${
                 saved
-                  ? 'text-brand-primary bg-brand-primary/10'
-                  : 'text-text-tertiary hover:text-text-primary'
+                  ? 'text-[#E8B04A] bg-[#E8B04A]/10'
+                  : 'text-[#7E8794] hover:text-[#F0F1F3]'
               }`}
               title={saved ? 'Remove saved journey' : 'Save for later'}
               aria-label={saved ? 'Remove saved journey' : 'Save journey'}
             >
-              <Bookmark className={`h-3.5 w-3.5 ${saved ? 'fill-brand-primary' : ''}`} />
+              <Bookmark className={`h-3.5 w-3.5 ${saved ? 'fill-[#E8B04A] text-[#E8B04A]' : ''}`} />
             </button>
           )}
         </div>
       </div>
 
-      {/* 2. Recommendation Explanation: Compact, readable, slightly differentiated surface */}
+      {/* 2. Recommendation Explanation */}
       {isBestOverall && recommendationReasons.length > 0 && (
-        <div className="mt-3.5 rounded-xl border border-brand-primary/20 bg-brand-primary/5 p-3 sm:p-3.5 text-xs space-y-2">
-          <div className="font-bold text-brand-primary flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+        <div className="mt-3.5 rounded-xl border border-[#E8B04A]/20 bg-[#181C22] p-3 text-xs space-y-2">
+          <div className="font-semibold text-[#E8B04A] flex items-center gap-1.5">
+            <Sparkles className="h-3 w-3 shrink-0" />
             <span>Why Yatrai recommends this</span>
           </div>
-          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-x-5 sm:gap-y-1.5 text-text-secondary">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-1.5 sm:gap-x-4 text-[#A7AFBA]">
             {recommendationReasons.map((reason, idx) => (
-              <div key={idx} className="flex items-center gap-1.5 font-medium">
+              <div key={idx} className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
                 <span>{reason}</span>
               </div>
@@ -343,40 +342,40 @@ export function JourneyResultCard({
         <div className="sm:col-span-8 flex items-start justify-between gap-3 sm:gap-4">
           {/* Departure */}
           <div className="flex-1 min-w-0">
-            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-text-primary font-mono">
+            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#F0F1F3] font-mono tabular-nums">
               {depTime}
             </div>
             <div
-              className="mt-1 text-sm font-semibold text-text-primary leading-snug break-words"
+              className="mt-1 text-sm font-semibold text-[#F0F1F3] leading-snug break-words"
               title={originName}
             >
               {originName}
             </div>
             {originCity && (
-              <div className="text-xs text-text-tertiary mt-0.5">{originCity}</div>
+              <div className="text-xs text-[#7E8794] mt-0.5">{originCity}</div>
             )}
             {depDate && (
-              <div className="text-xs text-text-tertiary mt-0.5">{depDate}</div>
+              <div className="text-xs text-[#7E8794] mt-0.5">{depDate}</div>
             )}
           </div>
 
           {/* Route path line & Duration */}
           <div className="flex flex-col items-center px-1 sm:px-2 flex-1 max-w-[140px] sm:max-w-[190px] shrink-0 pt-1">
-            <div className="flex items-center gap-1 text-xs font-bold text-text-primary">
-              <Clock className="h-3.5 w-3.5 text-brand-primary shrink-0" aria-hidden="true" />
+            <div className="flex items-center gap-1 text-xs font-bold text-[#F0F1F3]">
+              <Clock className="h-3 w-3 text-[#E8B04A] shrink-0" aria-hidden="true" />
               <span>{durationText}</span>
             </div>
 
             <div className="relative mt-2 w-full flex items-center justify-center">
-              <div className="h-0.5 w-full bg-white/20" />
-              <div className="absolute flex h-2 w-2 rounded-full bg-brand-primary ring-2 ring-brand-primary/30" />
+              <div className="h-px w-full bg-[#303640]" />
+              <div className="absolute flex h-2 w-2 rounded-full bg-[#E8B04A] ring-4 ring-[#12151A]" />
               <ArrowRight
-                className="absolute right-0 h-3.5 w-3.5 text-text-tertiary translate-x-1"
+                className="absolute right-0 h-3 w-3 text-[#7E8794] translate-x-0.5"
                 aria-hidden="true"
               />
             </div>
 
-            <div className="mt-1 text-[11px] text-text-tertiary font-medium text-center">
+            <div className="mt-1 text-[11px] text-[#7E8794] text-center">
               {isDirect ? 'Direct' : formatTransfers(transfers)}
               {journey.totalDistance ? ` · ${journey.totalDistance} km` : ''}
             </div>
@@ -384,36 +383,36 @@ export function JourneyResultCard({
 
           {/* Arrival with Mandatory Day Offset */}
           <div className="flex-1 min-w-0 text-right">
-            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-text-primary font-mono flex items-baseline justify-end gap-1.5">
+            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#F0F1F3] font-mono tabular-nums flex items-baseline justify-end gap-1.5">
               <span>{arrTime}</span>
               {dayOffsetBadge && (
-                <span className="rounded-md bg-brand-primary/10 px-1.5 py-0.5 text-xs font-bold text-brand-primary border border-brand-primary/20">
+                <span className="rounded-md bg-[#E8B04A]/10 px-1.5 py-0.5 text-[11px] font-bold text-[#E8B04A] border border-[#E8B04A]/30">
                   {dayOffsetBadge}
                 </span>
               )}
             </div>
             <div
-              className="mt-1 text-sm font-semibold text-text-primary leading-snug break-words"
+              className="mt-1 text-sm font-semibold text-[#F0F1F3] leading-snug break-words"
               title={destinationName}
             >
               {destinationName}
             </div>
             {destinationCity && (
-              <div className="text-xs text-text-tertiary mt-0.5">{destinationCity}</div>
+              <div className="text-xs text-[#7E8794] mt-0.5">{destinationCity}</div>
             )}
             {arrDate && (
-              <div className="text-xs text-text-tertiary mt-0.5">{arrDate}</div>
+              <div className="text-xs text-[#7E8794] mt-0.5">{arrDate}</div>
             )}
           </div>
         </div>
 
-        {/* Fare & CTAs Column (Distinct right column on desktop, cleanly organized on mobile) */}
-        <div className="sm:col-span-4 flex flex-col sm:items-end justify-between pt-3 sm:pt-0 sm:border-l sm:border-white/10 sm:pl-6 border-t border-white/5 sm:border-t-0 gap-3">
+        {/* Fare & CTAs Column */}
+        <div className="sm:col-span-4 flex flex-col sm:items-end justify-between pt-3 sm:pt-0 sm:border-l sm:border-[#303640] sm:pl-6 border-t border-[#303640] sm:border-t-0 gap-3">
           <div className="flex sm:flex-col justify-between sm:justify-start items-baseline sm:items-end w-full">
-            <div className="text-[11px] uppercase tracking-wider text-text-tertiary sm:text-right font-medium">
+            <div className="text-[10px] uppercase tracking-wider text-[#7E8794] sm:text-right font-medium">
               {priceLabel}
             </div>
-            <div className="text-2xl sm:text-3xl font-black tracking-tight text-text-primary sm:text-right font-mono">
+            <div className="text-2xl sm:text-3xl font-black tracking-tight text-[#F0F1F3] sm:text-right font-mono tabular-nums">
               {priceText}
             </div>
           </div>
@@ -424,7 +423,7 @@ export function JourneyResultCard({
               <button
                 type="button"
                 onClick={() => onViewJourney(journey)}
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-xs font-semibold text-white shadow-md shadow-brand-primary/20 hover:bg-brand-hover active:bg-brand-active transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#E8B04A] hover:bg-[#F2BE62] active:bg-[#D9A139] px-4 py-2.5 text-xs font-semibold text-[#0B0D10] shadow-md transition-all cursor-pointer focus:outline-none"
                 aria-label={`View itinerary for ${originName} to ${destinationName}`}
               >
                 <Eye className="h-3.5 w-3.5" aria-hidden="true" />
@@ -436,26 +435,27 @@ export function JourneyResultCard({
               <button
                 type="button"
                 onClick={() => setIsExpanded((prev) => !prev)}
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-surface-secondary px-3 py-2 text-xs font-medium text-text-secondary hover:text-text-primary hover:border-white/20 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary/50"
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 rounded-xl border border-[#303640] bg-[#15191F] hover:bg-[#181C22] hover:border-[#3A414C] px-3 py-1.5 text-xs font-medium text-[#A7AFBA] hover:text-[#F0F1F3] transition-all cursor-pointer"
                 aria-expanded={isExpanded}
                 aria-label={isExpanded ? 'Collapse itinerary' : 'Expand itinerary'}
               >
-                <span>{isExpanded ? 'Collapse itinerary' : (legs.length > 1 ? `Expand (${legs.length} segments)` : 'Expand itinerary')}</span>
+                <span>{isExpanded ? 'Collapse' : (legs.length > 1 ? `${legs.length} segments` : 'Expand')}</span>
                 {isExpanded ? (
-                  <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+                  <ChevronUp className="h-3 w-3" aria-hidden="true" />
                 ) : (
-                  <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                  <ChevronDown className="h-3 w-3" aria-hidden="true" />
                 )}
               </button>
             )}
+
             {/* Railway Journey Details Action */}
             <button
               type="button"
               onClick={() => setBookingModalOpen(true)}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-all cursor-pointer"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#303640] bg-[#15191F] hover:bg-[#181C22] hover:border-[#3A414C] px-3.5 py-2 text-xs font-medium text-[#A7AFBA] hover:text-[#F0F1F3] transition-all cursor-pointer"
               aria-label="View railway booking guidelines and leg details"
             >
-              <Ticket className="h-3.5 w-3.5" aria-hidden="true" />
+              <Ticket className="h-3.5 w-3.5 text-[#E8B04A]" aria-hidden="true" />
               <span>Journey details</span>
             </button>
           </div>
@@ -464,7 +464,7 @@ export function JourneyResultCard({
 
       {/* 4. Multi-Modal Collapsed Route Preview (when collapsed and >1 segment) */}
       {isMultiModal && !isExpanded && legs.length > 1 && (
-        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-white/5 bg-surface-secondary/50 px-3.5 py-2 text-xs text-text-secondary">
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-graphite-800 bg-graphite-850/60 px-3 py-2 text-xs text-text-secondary">
           <span className="font-semibold text-text-tertiary">Route:</span>
           {legs.map((leg, idx) => {
             const LegIcon = getModeIcon(leg.mode);
@@ -485,7 +485,7 @@ export function JourneyResultCard({
 
       {/* 5. Expanded Vertical Timeline Itinerary */}
       {isExpanded && legs.length > 0 && (
-        <div className="mt-5 border-t border-white/10 pt-4 space-y-4">
+        <div className="mt-4 border-t border-graphite-800 pt-4 space-y-3">
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-text-primary">
@@ -506,7 +506,7 @@ export function JourneyResultCard({
             )}
           </div>
 
-          <div className="space-y-4 rounded-xl border border-white/5 bg-surface-secondary/40 p-3.5 sm:p-5">
+          <div className="space-y-3 rounded-xl border border-graphite-800 bg-graphite-850/50 p-3 sm:p-4">
             {legs.map((leg, index) => (
               <JourneyLeg
                 key={leg.id || index}

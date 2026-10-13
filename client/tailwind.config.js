@@ -5,42 +5,71 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Direct Graphite & Amber Tokens
+        graphite: {
+          bg: '#0B0D10',
+          surface: '#12151A',
+          raised: '#181C22',
+          input: '#15191F',
+          line: '#303640',
+          strong: '#3A414C',
+        },
+        amber: {
+          accent: '#E8B04A',
+          hover: '#F2BE62',
+          on: '#0B0D10',
+        },
+        ink: {
+          primary: '#F0F1F3',
+          secondary: '#A7AFBA',
+          muted: '#7E8794',
+        },
+
+        // Backward-compatible semantic tokens mapped to Graphite & Amber palette
         background: {
-          primary: '#070A0F',
-          secondary: '#0B0F16',
-          tertiary: '#111722',
+          primary: '#0B0D10',
+          secondary: '#12151A',
+          tertiary: '#181C22',
         },
         surface: {
-          primary: '#10151D',
-          secondary: '#151B24',
-          elevated: '#1A212C',
+          primary: '#12151A',
+          secondary: '#181C22',
+          elevated: '#181C22',
         },
         brand: {
-          primary: '#7C5CFF',
-          hover: '#8B70FF',
-          active: '#6847E8',
-          soft: 'rgba(124, 92, 255, 0.12)',
+          primary: '#E8B04A',
+          hover: '#F2BE62',
+          active: '#E8B04A',
+          soft: 'rgba(232, 176, 74, 0.12)',
         },
         semantic: {
-          success: '#32D583',
-          warning: '#F5B942',
-          error: '#FF5C67',
+          success: '#4CC38A',
+          warning: '#E07B39',
+          error: '#E5484D',
           info: '#4EA1FF',
         },
         border: {
-          subtle: 'rgba(255, 255, 255, 0.06)',
-          default: 'rgba(255, 255, 255, 0.10)',
-          strong: 'rgba(255, 255, 255, 0.16)',
+          subtle: '#303640',
+          default: '#303640',
+          strong: '#3A414C',
         },
         text: {
-          primary: '#F7F8FA',
-          secondary: '#A7AFBD',
-          tertiary: '#737C8C',
-          disabled: '#4F5663',
+          primary: '#F0F1F3',
+          secondary: '#A7AFBA',
+          tertiary: '#7E8794',
+          muted: '#7E8794',
+          disabled: '#7E8794',
         },
       },
       fontFamily: {
+        serif: [
+          '"Playfair Display"',
+          'Newsreader',
+          'Georgia',
+          'serif',
+        ],
         sans: [
+          'Geist',
           'Inter',
           'system-ui',
           '-apple-system',
@@ -49,10 +78,24 @@ export default {
           'Roboto',
           'sans-serif',
         ],
+        mono: [
+          'Geist Mono',
+          'ui-monospace',
+          'SFMono-Regular',
+          'Menlo',
+          'Monaco',
+          'Consolas',
+          'monospace',
+        ],
+      },
+      letterSpacing: {
+        tightest: '-0.02em',
       },
       borderRadius: {
-        xl: '20px',
-        '2xl': '24px',
+        card: '12px',
+        control: '10px',
+        xl: '10px',
+        '2xl': '12px',
       },
     },
   },

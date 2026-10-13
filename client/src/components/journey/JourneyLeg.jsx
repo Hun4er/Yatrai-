@@ -5,7 +5,6 @@ import {
   formatDuration,
   getDayOffset,
   formatDayOffsetBadge,
-  formatDateDisplay,
 } from '../../utils/formatters.js';
 
 /**
@@ -90,7 +89,7 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = f
           onSelect ? 'cursor-pointer' : ''
         } ${
           isSelected
-            ? 'border border-brand-primary/60 bg-surface-elevated/80 p-3 sm:p-4 ring-1 ring-brand-primary/40'
+            ? 'border border-[#E8B04A] bg-[#181C22] p-3 sm:p-4 shadow-sm'
             : ''
         }`}
       >
@@ -101,27 +100,27 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = f
             {/* Timeline Spine Col - Origin Marker */}
             <div className="flex w-5 flex-col items-center pt-1 shrink-0">
               <div
-                className="h-2.5 w-2.5 rounded-full bg-brand-primary ring-4 ring-brand-primary/20 shrink-0"
+                className="h-2.5 w-2.5 rounded-full bg-[#E8B04A] ring-4 ring-[#E8B04A]/20 shrink-0"
                 aria-hidden="true"
               />
-              <div className="w-0.5 flex-1 bg-brand-primary/30 min-h-[10px]" aria-hidden="true" />
+              <div className="w-0.5 flex-1 bg-[#303640] min-h-[10px]" aria-hidden="true" />
             </div>
 
             {/* Departure Text */}
             <div className="flex-1 min-w-0 pb-1">
               <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-                <span className="font-mono text-sm sm:text-base font-bold text-text-primary">
+                <span className="font-mono text-sm sm:text-base font-bold text-[#F0F1F3]">
                   {depTime}
                 </span>
                 <span
-                  className="text-sm sm:text-base font-semibold text-text-primary break-words leading-snug"
+                  className="text-sm sm:text-base font-semibold text-[#F0F1F3] break-words leading-snug"
                   title={originName}
                 >
                   {originName}
                 </span>
               </div>
               {originCity && (
-                <div className="text-xs text-text-tertiary mt-0.5">{originCity}</div>
+                <div className="text-xs text-[#7E8794] mt-0.5">{originCity}</div>
               )}
             </div>
           </div>
@@ -130,42 +129,42 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = f
           <div className="flex items-stretch gap-3">
             {/* Timeline Spine Col - Continuous Vertical Line */}
             <div className="flex w-5 flex-col items-center shrink-0">
-              <div className="w-0.5 h-full bg-brand-primary/30" aria-hidden="true" />
+              <div className="w-0.5 h-full bg-[#303640]" aria-hidden="true" />
             </div>
 
             {/* Transit Service Metadata Card */}
             <div className="flex-1 min-w-0 py-2">
-              <div className="rounded-xl border border-white/10 bg-surface-elevated/70 p-3 sm:p-3.5 transition-colors hover:border-white/20">
+              <div className="rounded-xl border border-[#303640] bg-[#181C22] p-3 sm:p-3.5 transition-colors hover:border-[#424A56]">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <Icon className="h-4 w-4 text-brand-primary shrink-0" aria-hidden="true" />
+                    <Icon className="h-4 w-4 text-[#E8B04A] shrink-0" aria-hidden="true" />
                     <span
-                      className="text-sm font-semibold text-text-primary break-words leading-snug"
+                      className="text-sm font-semibold text-[#F0F1F3] break-words leading-snug"
                       title={serviceName}
                     >
                       {serviceName}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs font-mono text-text-secondary shrink-0">
-                    <Clock className="h-3.5 w-3.5 text-brand-primary" aria-hidden="true" />
+                  <div className="flex items-center gap-1.5 text-xs font-mono text-[#A7AFBA] shrink-0">
+                    <Clock className="h-3.5 w-3.5 text-[#7E8794]" aria-hidden="true" />
                     <span>{durationText}</span>
                     {leg.distance ? <span>· {leg.distance} km</span> : null}
                   </div>
                 </div>
 
-                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-text-tertiary">
-                  <span className="capitalize text-text-secondary font-medium">
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-[#7E8794]">
+                  <span className="capitalize text-[#A7AFBA] font-medium">
                     {leg.mode || 'Transit'}
                   </span>
                   {serviceClass && <span>{serviceClass}</span>}
                   {serviceNumber && (
-                    <span className="font-mono text-text-secondary">#{serviceNumber}</span>
+                    <span className="font-mono text-[#A7AFBA]">#{serviceNumber}</span>
                   )}
                   {leg.quota && (
-                    <span className="text-text-tertiary">· Quota: {leg.quota}</span>
+                    <span className="text-[#7E8794]">· Quota: {leg.quota}</span>
                   )}
                   {leg.fare?.amount !== undefined && (
-                    <span className="font-semibold text-emerald-400">
+                    <span className="font-semibold text-[#E8B04A]">
                       · ₹{leg.fare.amount}{leg.fare.isEstimated ? ' (est)' : ''}
                     </span>
                   )}
@@ -173,35 +172,35 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = f
 
                 {/* Real-Time Leg Availability & Live Status */}
                 {leg.availability && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2 pt-2 border-t border-white/5 text-[11px]">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 pt-2 border-t border-[#303640] text-[11px]">
                     {leg.availability.status === 'AVAILABLE' && (
-                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                         AVAILABLE {leg.availability.seatsAvailable ? `(${leg.availability.seatsAvailable})` : ''}
                       </span>
                     )}
                     {leg.availability.status === 'RAC' && (
-                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
                         RAC {leg.availability.seatsAvailable ? `(${leg.availability.seatsAvailable})` : ''}
                       </span>
                     )}
                     {leg.availability.status === 'WAITLISTED' && (
-                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
                         WAITLISTED
                       </span>
                     )}
                     {leg.availability.status === 'NOT_AVAILABLE' && (
-                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
                         NOT AVAILABLE
                       </span>
                     )}
                     {leg.availability.status === 'UNKNOWN' && (
-                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-medium bg-white/5 text-text-tertiary border border-white/10">
+                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-medium bg-[#15191F] text-[#7E8794] border border-[#303640]">
                         AVAILABILITY UNKNOWN
                       </span>
                     )}
 
                     {leg.availability.queryTimestamp && (
-                      <span className="text-text-tertiary text-[10px]">
+                      <span className="text-[#7E8794] text-[10px]">
                         Checked {new Date(leg.availability.queryTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     )}
@@ -222,9 +221,9 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = f
           <div className="flex items-start gap-3">
             {/* Timeline Spine Col - Destination Marker */}
             <div className="flex w-5 flex-col items-center shrink-0">
-              <div className="w-0.5 h-1.5 bg-brand-primary/30" aria-hidden="true" />
+              <div className="w-0.5 h-1.5 bg-[#303640]" aria-hidden="true" />
               <div
-                className="h-2.5 w-2.5 rounded-full border-2 border-brand-primary bg-background-primary ring-2 ring-brand-primary/10 shrink-0"
+                className="h-2.5 w-2.5 rounded-full border-2 border-[#E8B04A] bg-[#0B0D10] ring-2 ring-[#E8B04A]/20 shrink-0"
                 aria-hidden="true"
               />
             </div>
@@ -232,23 +231,23 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = f
             {/* Arrival Text */}
             <div className="flex-1 min-w-0 pt-0.5">
               <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
-                <span className="font-mono text-sm sm:text-base font-bold text-text-primary">
+                <span className="font-mono text-sm sm:text-base font-bold text-[#F0F1F3]">
                   {arrTime}
                 </span>
                 {dayBadge && (
-                  <span className="rounded-md bg-brand-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-brand-primary border border-brand-primary/20">
+                  <span className="rounded-md bg-[#15191F] px-1.5 py-0.5 text-[10px] font-bold text-[#E8B04A] border border-[#303640]">
                     {dayBadge}
                   </span>
                 )}
                 <span
-                  className="text-sm sm:text-base font-semibold text-text-primary break-words leading-snug"
+                  className="text-sm sm:text-base font-semibold text-[#F0F1F3] break-words leading-snug"
                   title={destinationName}
                 >
                   {destinationName}
                 </span>
               </div>
               {destinationCity && (
-                <div className="text-xs text-text-tertiary mt-0.5">{destinationCity}</div>
+                <div className="text-xs text-[#7E8794] mt-0.5">{destinationCity}</div>
               )}
             </div>
           </div>
@@ -258,10 +257,10 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = f
       {/* Transfer Connection Callout between segments */}
       {!isLast && transferDuration > 0 && (
         <div className="my-3 pl-8">
-          <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-            <Clock className="h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden="true" />
+          <div className="flex items-center gap-2 rounded-lg border border-[#303640] bg-[#15191F] px-3 py-2 text-xs text-[#A7AFBA]">
+            <Clock className="h-3.5 w-3.5 shrink-0 text-[#7E8794]" aria-hidden="true" />
             <span>
-              <strong>{formatDuration(transferDuration)}</strong> transfer connection at {destinationName}
+              <strong className="text-[#F0F1F3]">{formatDuration(transferDuration)}</strong> transfer connection at {destinationName}
             </span>
           </div>
         </div>

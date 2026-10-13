@@ -285,40 +285,40 @@ export function ResultsPage({
   const otherJourneys = filteredJourneys.length > 1 ? filteredJourneys.slice(1) : [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Search Header Banner (Section 5) */}
-      <div className="rounded-2xl border border-white/10 bg-surface-primary p-6 sm:p-7 shadow-lg">
+      <div className="rounded-2xl border border-[#303640] bg-[#12151A] p-5 sm:p-6 shadow-xl">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <button
               type="button"
               onClick={onNavigateHome}
-              className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-primary hover:text-brand-hover transition-colors cursor-pointer focus:outline-none"
+              className="mb-3 inline-flex items-center gap-1.5 text-xs font-semibold text-[#E8B04A] hover:text-[#F2BE62] transition-colors cursor-pointer focus:outline-none"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               <span>Modify search</span>
             </button>
 
             {/* Route Title: Intended Locations */}
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-text-primary flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F0F1F3] flex flex-wrap items-center gap-2.5">
               <span className="capitalize">{userOrigin}</span>
-              <span className="text-brand-primary">→</span>
+              <span className="text-[#E8B04A]">→</span>
               <span className="capitalize">{userDest}</span>
             </h1>
 
             {/* Secondary: Exact Station/Airport/POI if resolved */}
             {showRoutingPoiSecondary && (
-              <p className="mt-1 text-xs text-text-secondary">
-                Routing via <strong className="text-text-primary">{exactOriginName}</strong> →{' '}
-                <strong className="text-text-primary">{exactDestName}</strong>
+              <p className="mt-1 text-xs text-[#A7AFBA]">
+                Routing via <strong className="text-[#F0F1F3]">{exactOriginName}</strong> →{' '}
+                <strong className="text-[#F0F1F3]">{exactDestName}</strong>
               </p>
             )}
 
             {/* Travel Date & Passengers Summary */}
-            <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-secondary">
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#A7AFBA]">
               {formattedDate && (
                 <div className="flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 text-brand-primary" aria-hidden="true" />
+                  <Calendar className="h-3.5 w-3.5 text-[#E8B04A]" aria-hidden="true" />
                   <span>{formattedDate}</span>
                 </div>
               )}
@@ -328,12 +328,12 @@ export function ResultsPage({
               {status === 'success' && backendJourneys.length > 0 && (
                 <>
                   <span>·</span>
-                  <div className="flex items-center gap-1.5 font-bold text-text-primary">
-                    <MapPin className="h-3.5 w-3.5 text-brand-primary" aria-hidden="true" />
+                  <div className="flex items-center gap-1.5 font-semibold text-[#F0F1F3]">
+                    <MapPin className="h-3.5 w-3.5 text-[#E8B04A]" aria-hidden="true" />
                     <span>
                       {activeFilterCount > 0 ? (
                         <>
-                          Showing <strong className="text-brand-primary">{filteredJourneys.length}</strong> of{' '}
+                          Showing <strong className="text-[#E8B04A]">{filteredJourneys.length}</strong> of{' '}
                           {journeyStats.total} journey options
                         </>
                       ) : (
@@ -349,10 +349,12 @@ export function ResultsPage({
 
             {/* Railway breakdown badge strip */}
             {status === 'success' && backendJourneys.length > 0 && (
-              <div className="mt-2 text-xs text-text-tertiary">
-                <span className="font-semibold text-text-secondary">Indian Railways</span>
-                <span> · {journeyStats.direct} direct</span>
-                <span> · {journeyStats.connecting} connecting</span>
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-[#7E8794]">
+                <span className="font-medium text-[#A7AFBA]">Indian Railways</span>
+                <span className="text-[#303640]">·</span>
+                <span>{journeyStats.direct} direct</span>
+                <span className="text-[#303640]">·</span>
+                <span>{journeyStats.connecting} connecting</span>
               </div>
             )}
           </div>
@@ -364,32 +366,32 @@ export function ResultsPage({
               <button
                 type="button"
                 onClick={() => setIsMobileFilterOpen(true)}
-                className="lg:hidden inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface-secondary px-3.5 py-2 text-xs font-semibold text-text-primary hover:bg-surface-elevated transition-colors cursor-pointer"
+                className="lg:hidden inline-flex items-center gap-2 rounded-xl border border-[#303640] bg-[#15191F] px-3.5 py-2 text-xs font-semibold text-[#F0F1F3] hover:bg-[#181C22] hover:border-[#3A414C] transition-colors cursor-pointer"
                 aria-label="Open filter options"
               >
-                <SlidersHorizontal className="h-3.5 w-3.5 text-brand-primary" aria-hidden="true" />
+                <SlidersHorizontal className="h-3.5 w-3.5 text-[#E8B04A]" aria-hidden="true" />
                 <span>Filters</span>
                 {activeFilterCount > 0 && (
-                  <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-brand-primary px-1 text-[10px] font-bold text-white">
+                  <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#E8B04A] px-1 text-[10px] font-bold text-[#0B0D10]">
                     {activeFilterCount}
                   </span>
                 )}
               </button>
             )}
 
-            {/* Explore Alternatives Button (only when recovery wasn't already triggered) */}
+            {/* Explore Alternatives Button */}
             {backendJourneys.length > 0 && !recoveryMeta?.recoveryTriggered && (
               <button
                 type="button"
                 onClick={handleExploreAlternatives}
                 disabled={isRecoveringAlternatives}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3.5 py-2 text-xs font-semibold text-indigo-300 hover:bg-indigo-500/20 transition-all cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#303640] bg-[#15191F] px-3.5 py-2 text-xs font-semibold text-[#F0F1F3] hover:bg-[#181C22] hover:border-[#3A414C] transition-all cursor-pointer disabled:opacity-50"
                 title="Search connecting routes via railway network expansion"
               >
                 {isRecoveringAlternatives ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#E8B04A]" />
                 ) : (
-                  <Network className="h-3.5 w-3.5 text-indigo-400" />
+                  <Network className="h-3.5 w-3.5 text-[#E8B04A]" />
                 )}
                 <span>
                   {isRecoveringAlternatives
@@ -404,7 +406,7 @@ export function ResultsPage({
             <button
               type="button"
               onClick={onNavigateHome}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface-secondary px-4 py-2 text-xs font-medium text-text-primary hover:bg-surface-elevated hover:border-white/20 transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 rounded-xl border border-[#303640] bg-[#15191F] px-4 py-2 text-xs font-medium text-[#A7AFBA] hover:text-[#F0F1F3] hover:bg-[#181C22] hover:border-[#3A414C] transition-all cursor-pointer"
             >
               <span>Change criteria</span>
             </button>
@@ -415,22 +417,22 @@ export function ResultsPage({
         {recoveryMeta?.recoveryTriggered && (
           <div
             role="status"
-            className="mt-4 rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-4 text-xs text-indigo-300"
+            className="mt-4 rounded-xl border border-[#E8B04A]/25 bg-[#181C22] p-4 text-xs text-[#A7AFBA]"
           >
             <div className="flex items-start gap-3">
-              <Sparkles className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" aria-hidden="true" />
+              <Sparkles className="h-4 w-4 text-[#E8B04A] shrink-0 mt-0.5" aria-hidden="true" />
               <div className="space-y-1">
-                <div className="font-bold text-sm text-indigo-200">
+                <div className="font-bold text-sm text-[#F0F1F3]">
                   No confirmed direct train seats found. Yatrai is finding alternative routes.
                 </div>
-                <p className="text-xs text-indigo-300/90 leading-relaxed">
+                <p className="text-xs text-[#A7AFBA] leading-relaxed">
                   {recoveryMeta.reason ||
                     'Direct trains were unavailable or waitlisted. Yatrai explored railway-network stations backward and forward along physical corridors to uncover verified connecting alternatives.'}
                 </p>
-                <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-indigo-300/75">
-                  <span>• Network expansion: up to {recoveryMeta.originHops || 5} origin hops &amp; {recoveryMeta.destinationHops || 5} destination hops</span>
-                  <span>• Independent leg availability verified</span>
-                  <span>• Connections checked for safety</span>
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-[#7E8794]">
+                  <span>· Network expansion: up to {recoveryMeta.originHops || 5} origin hops &amp; {recoveryMeta.destinationHops || 5} destination hops</span>
+                  <span>· Independent leg availability verified</span>
+                  <span>· Connections checked for safety</span>
                 </div>
               </div>
             </div>
@@ -441,35 +443,35 @@ export function ResultsPage({
         {hasPartialFailures && (
           <div
             role="note"
-            className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-300"
+            className="mt-4 rounded-xl border border-amber-500/20 bg-[#181C22] p-3 text-xs text-amber-300"
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden="true" />
                 <span>
-                  <strong>Results may be incomplete:</strong> Some transport providers are currently unavailable.
+                  <strong className="text-amber-200">Results may be incomplete:</strong>{' '}
+                  Some transport providers are currently unavailable.
                 </span>
               </div>
 
               <button
                 type="button"
                 onClick={() => setShowProviderWarningDetails((prev) => !prev)}
-                className="inline-flex items-center gap-1 font-semibold text-amber-400 hover:underline cursor-pointer shrink-0"
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 hover:text-amber-300 cursor-pointer shrink-0"
               >
-                <span>{showProviderWarningDetails ? 'Hide details' : 'Details'}</span>
+                <span>{showProviderWarningDetails ? 'Hide' : 'Details'}</span>
                 {showProviderWarningDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
               </button>
             </div>
 
-            {/* Expandable Failed Providers List */}
             {showProviderWarningDetails && (
-              <div className="mt-2.5 pt-2 border-t border-amber-500/20 space-y-1">
-                <div className="text-[11px] font-semibold text-amber-200">
-                  Unavailable Providers:
+              <div className="mt-2.5 pt-2 border-t border-amber-500/15 space-y-1">
+                <div className="text-[11px] font-semibold text-amber-200/80 uppercase tracking-wide">
+                  Unavailable Providers
                 </div>
                 {failedProviders.map((fp, idx) => (
-                  <div key={idx} className="text-[11px] text-amber-300/80 flex items-center gap-1.5">
-                    <span>•</span>
+                  <div key={idx} className="text-[11px] text-amber-300/70 flex items-center gap-1.5">
+                    <span className="text-amber-500/60">·</span>
                     <span className="font-semibold capitalize">{fp.provider}:</span>
                     <span>{fp.error?.message || 'Temporary connection timeout'}</span>
                   </div>
@@ -481,7 +483,7 @@ export function ResultsPage({
 
         {/* Ranking Strategy Selector (Section 7) */}
         {(status === 'success' || (isLoading && backendJourneys.length > 0)) && (
-          <div className="mt-6 border-t border-white/10 pt-4">
+          <div className="mt-5 border-t border-[#303640]/80 pt-4">
             <RankingSelector
               activeRanking={activeRanking}
               onSelect={handleRankingSelect}
@@ -496,7 +498,7 @@ export function ResultsPage({
 
       {/* Railway Rate Limit / Monthly Quota State */}
       {!isLoading && isRateLimited && (
-        <div className="rounded-2xl border border-amber-500/30 bg-surface-primary p-6 sm:p-8 text-center space-y-4 shadow-xl">
+        <div className="rounded-2xl border border-amber-500/30 bg-graphite-900 p-6 sm:p-8 text-center space-y-4 shadow-xl">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
             <AlertTriangle className="h-6 w-6" aria-hidden="true" />
           </div>
@@ -535,7 +537,7 @@ export function ResultsPage({
                 type="button"
                 onClick={handleRetrySearch}
                 disabled={isRetrying || retryCountdown > 0}
-                className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer shadow-md shadow-brand-primary/25"
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2 text-xs font-semibold text-graphite-950 hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer shadow-md shadow-brand-primary/25"
               >
                 {isRetrying ? (
                   <>
@@ -552,7 +554,7 @@ export function ResultsPage({
             <button
               type="button"
               onClick={onNavigateHome}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-surface-elevated transition-colors cursor-pointer"
+              className="inline-flex items-center gap-2 rounded-xl border border-graphite-800 bg-graphite-850 px-4 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-graphite-800 hover:border-graphite-700 transition-colors cursor-pointer"
             >
               <span>Modify criteria</span>
             </button>
@@ -576,8 +578,8 @@ export function ResultsPage({
 
       {/* Success State with Journeys */}
       {!isLoading && status === 'success' && backendJourneys.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Desktop Left Sidebar: Filters (Section 17 & 19) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Desktop Left Sidebar: Filters */}
           <div className="hidden lg:block lg:col-span-4">
             <JourneyFilters
               filters={filters}
@@ -587,19 +589,19 @@ export function ResultsPage({
             />
           </div>
 
-          {/* Right Main Column: Results / Filter Empty (Section 19) */}
-          <div className="lg:col-span-8 space-y-6">
-            {/* Active Filter Chips / Reset Shortcut on Top */}
+          {/* Right Main Column: Results */}
+          <div className="lg:col-span-8 space-y-4">
+            {/* Active Filter Strip */}
             {activeFilterCount > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/5 bg-surface-primary px-4 py-2.5 text-xs">
-                <span className="text-text-secondary">
-                  Showing <strong className="text-text-primary">{filteredJourneys.length}</strong> of{' '}
-                  {backendJourneys.length} journeys matching your criteria
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#303640] bg-[#12151A] px-4 py-2.5 text-xs">
+                <span className="text-[#A7AFBA]">
+                  Showing{' '}<strong className="text-[#F0F1F3]">{filteredJourneys.length}</strong>{' '}of{' '}
+                  {backendJourneys.length} journeys
                 </span>
                 <button
                   type="button"
                   onClick={handleClearFilters}
-                  className="inline-flex items-center gap-1 font-semibold text-brand-primary hover:text-brand-hover cursor-pointer"
+                  className="inline-flex items-center gap-1 font-semibold text-[#E8B04A] hover:text-[#F2BE62] cursor-pointer"
                 >
                   <RotateCcw className="h-3 w-3" aria-hidden="true" />
                   <span>Reset filters</span>
@@ -614,13 +616,13 @@ export function ResultsPage({
               <>
                 {/* 1. RECOMMENDED / BEST JOURNEY SECTION */}
                 {topJourney && (
-                  <section className="space-y-2.5" aria-label="Recommended Journey">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-brand-primary" aria-hidden="true" />
-                      <h2 className="text-xs font-bold uppercase tracking-wider text-brand-primary">
+                  <section className="space-y-2" aria-label="Recommended Journey">
+                    <div className="flex items-center gap-1.5 pb-1">
+                      <Sparkles className="h-3.5 w-3.5 text-[#E8B04A]" aria-hidden="true" />
+                      <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#E8B04A]">
                         {recoveryMeta?.recoveryTriggered
-                          ? 'Recommended Alternative Journey'
-                          : 'Recommended Direct Train'}
+                          ? 'Recommended Alternative'
+                          : 'Recommended by Yatrai'}
                       </h2>
                     </div>
 
@@ -638,34 +640,34 @@ export function ResultsPage({
 
                 {/* 2. OTHER JOURNEYS PROGRESSIVE DISCLOSURE SECTION */}
                 {otherJourneys.length > 0 && (
-                  <section className="space-y-3 pt-2" aria-label="Other Journey Options">
+                  <section className="space-y-3 pt-1" aria-label="Other Journey Options">
                     {!showMoreJourneys ? (
-                      <div className="pt-2">
+                      <div className="pt-1">
                         <button
                           type="button"
                           onClick={() => setShowMoreJourneys(true)}
-                          className="w-full flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-secondary py-3.5 px-4 text-sm font-semibold text-text-primary hover:bg-surface-elevated hover:border-brand-primary/40 hover:text-brand-primary transition-all cursor-pointer shadow-sm"
+                          className="w-full flex items-center justify-center gap-2 rounded-xl border border-[#303640] bg-[#12151A] py-3 px-4 text-xs font-semibold text-[#A7AFBA] hover:bg-[#15191F] hover:border-[#3A414C] hover:text-[#E8B04A] transition-all cursor-pointer"
                         >
                           <span>
                             {recoveryMeta?.recoveryTriggered
-                              ? `Show more alternative journeys (${otherJourneys.length})`
-                              : `Show more available trains (${otherJourneys.length})`}
+                              ? `Show more alternatives (${otherJourneys.length})`
+                              : `Show more trains (${otherJourneys.length})`}
                           </span>
-                          <ChevronDown className="h-4 w-4 text-brand-primary" />
+                          <ChevronDown className="h-3.5 w-3.5 text-[#E8B04A]" />
                         </button>
                       </div>
                     ) : (
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <h2 className="text-xs font-bold uppercase tracking-wider text-text-tertiary">
+                          <h2 className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7E8794]">
                             {recoveryMeta?.recoveryTriggered
-                              ? `Other Alternative Journeys (${otherJourneys.length})`
-                              : `Other Available Trains (${otherJourneys.length})`}
+                              ? `Other Alternatives (${otherJourneys.length})`
+                              : `Other Trains (${otherJourneys.length})`}
                           </h2>
                           <button
                             type="button"
                             onClick={() => setShowMoreJourneys(false)}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-brand-primary hover:text-brand-hover cursor-pointer"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#E8B04A] hover:text-[#F2BE62] cursor-pointer"
                           >
                             <span>Show fewer</span>
                             <ChevronUp className="h-3.5 w-3.5" />
@@ -711,26 +713,28 @@ export function ResultsPage({
         </div>
       )}
 
-      {/* Floating Bottom Comparison Bar (Section 21) */}
+      {/* Floating Bottom Comparison Bar */}
       {comparedJourneys.length > 0 && (
         <div
           role="region"
           aria-label="Journey Comparison Bar"
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border border-brand-primary/40 bg-surface-elevated px-5 py-3 shadow-2xl backdrop-blur-md animate-in slide-in-from-bottom"
+          className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 rounded-2xl border border-brand-primary/30 bg-graphite-850 px-5 py-3 shadow-2xl shadow-black/40 backdrop-blur-md animate-in slide-in-from-bottom"
         >
           <div className="flex items-center gap-2 text-xs font-semibold text-text-primary">
-            <GitCompare className="h-4 w-4 text-brand-primary" />
+            <GitCompare className="h-3.5 w-3.5 text-brand-primary" />
             <span>
               {comparedJourneys.length} {comparedJourneys.length === 1 ? 'journey' : 'journeys'} selected
             </span>
           </div>
+
+          <div className="w-px h-4 bg-graphite-700" aria-hidden="true" />
 
           <div className="flex items-center gap-2">
             <button
               type="button"
               disabled={comparedJourneys.length < 2}
               onClick={() => setIsCompareModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-1.5 text-xs font-bold text-white shadow-md hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-1.5 text-xs font-bold text-graphite-950 shadow-md shadow-brand-primary/20 hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
             >
               <span>Compare journeys</span>
             </button>
@@ -738,7 +742,7 @@ export function ResultsPage({
             <button
               type="button"
               onClick={() => setComparedJourneyIds([])}
-              className="text-xs text-text-tertiary hover:text-text-primary cursor-pointer px-1"
+              className="text-xs text-text-tertiary hover:text-text-primary cursor-pointer px-1 transition-colors"
             >
               Clear
             </button>

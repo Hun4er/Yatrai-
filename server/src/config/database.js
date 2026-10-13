@@ -3,6 +3,7 @@ import config from './index.js';
 import logger from '../utils/logger.js';
 
 let isConnecting = false;
+let memoryServerInstance = null;
 
 /**
  * Connect to MongoDB database.
@@ -11,15 +12,7 @@ let isConnecting = false;
  * @returns {Promise<typeof mongoose>}
  */
 export async function connectDatabase(customUri) {
-  const uri = customUri || config.database.mongodbUri;
-
-  if (!uri) {
-    const error = new Error(
-      '[Database Error] MONGODB_URI is not defined. Please set MONGODB_URI in your environment file.'
-    );
-    logger.error(error.message);
-    throw error;
-  }
+  let uri = customUri || config.database.mongodbUri;
 
   // If already connected, return existing connection
   if (mongoose.connection.readyState === 1) {
@@ -39,19 +32,57 @@ export async function connectDatabase(customUri) {
   try {
     isConnecting = true;
 
+    // Check for unconfigured atlas placeholder
+    const isPlaceholderUri = typeof uri === 'string' && uri.includes('<db_password>');
+    if (isPlaceholderUri) {
+      logger.warn('Detected unconfigured placeholder <db_password> in MongoDB connection string.');
+      throw new Error('Placeholder password in connection URI');
+    }
+
+    if (!uri) {
+      throw new Error('MONGODB_URI is not defined.');
+    }
+
     // Mask credentials in connection log
     const maskedUri = uri.replace(/\/\/[^:]+:[^@]+@/, '//***:***@');
     logger.info(`Connecting to MongoDB at ${maskedUri}...`);
 
     await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 3000,
       autoIndex: config.isDevelopment || config.isTest,
     });
 
     logger.info('MongoDB connected successfully.');
     return mongoose;
   } catch (error) {
-    logger.error(`MongoDB connection failed: ${error.message}`);
+    logger.warn(`Primary MongoDB connection failed: ${error.message}`);
+
+    // In development or test environments, automatically spin up in-memory MongoDB
+    if (config.isDevelopment || config.isTest) {
+      try {
+        logger.info('Spinning up development in-memory MongoDB instance via mongodb-memory-server...');
+        const { MongoMemoryServer } = await import('mongodb-memory-server');
+        if (!memoryServerInstance) {
+          memoryServerInstance = await MongoMemoryServer.create();
+        }
+        const memUri = memoryServerInstance.getUri();
+        logger.info(`Connecting to in-memory MongoDB at ${memUri}...`);
+
+        await mongoose.connect(memUri, {
+          serverSelectionTimeoutMS: 3000,
+        });
+
+        logger.info('In-memory MongoDB connected successfully. Auto-seeding initial development dataset...');
+        const { seedDatabase } = await import('../database/seed/seed.js');
+        await seedDatabase({ shouldReset: false, disconnectOnFinish: false, uri: memUri });
+        logger.info('Development dataset seeded successfully. Backend ready!');
+        return mongoose;
+      } catch (memError) {
+        logger.error(`Failed to initialize in-memory development database: ${memError.message}`);
+        throw memError;
+      }
+    }
+
     throw error;
   } finally {
     isConnecting = false;
@@ -66,6 +97,12 @@ export async function disconnectDatabase() {
     logger.info('Closing MongoDB connection...');
     await mongoose.disconnect();
     logger.info('MongoDB disconnected cleanly.');
+  }
+  if (memoryServerInstance) {
+    logger.info('Stopping in-memory MongoDB instance...');
+    await memoryServerInstance.stop();
+    memoryServerInstance = null;
+    logger.info('In-memory MongoDB instance stopped.');
   }
 }
 

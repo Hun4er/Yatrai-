@@ -16,10 +16,10 @@ export function ErrorState({
   return (
     <div
       role="alert"
-      className="mx-auto max-w-2xl rounded-2xl border border-semantic-error/30 bg-surface-primary p-8 text-center shadow-lg"
+      className="mx-auto max-w-2xl rounded-card border border-border-default bg-surface-primary p-7 sm:p-9 text-center"
     >
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-semantic-error/10 text-semantic-error border border-semantic-error/20">
-        <AlertTriangle className="h-7 w-7" aria-hidden="true" />
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-control bg-surface-secondary text-semantic-error border border-border-default">
+        <AlertTriangle className="h-7 w-7 text-semantic-error" aria-hidden="true" />
       </div>
 
       <h3 className="mt-5 text-xl font-bold tracking-tight text-text-primary">{title}</h3>
@@ -32,7 +32,7 @@ export function ErrorState({
           <button
             type="button"
             onClick={onRetry}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-hover active:bg-brand-active transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-primary"
+            className="inline-flex items-center gap-2 rounded-control bg-amber-accent px-5 py-2.5 text-sm font-semibold text-amber-on hover:bg-amber-hover transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-accent focus:ring-offset-2 focus:ring-offset-graphite-bg"
           >
             <RefreshCw className="h-4 w-4" aria-hidden="true" />
             <span>Try Again</span>
@@ -43,9 +43,9 @@ export function ErrorState({
           <button
             type="button"
             onClick={onModifySearch}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface-secondary px-5 py-2.5 text-sm font-semibold text-text-primary hover:bg-surface-elevated hover:border-white/20 transition-all cursor-pointer focus:outline-none"
+            className="inline-flex items-center gap-2 rounded-control border border-border-strong bg-surface-primary px-5 py-2.5 text-sm font-medium text-text-primary hover:bg-surface-secondary hover:border-border-strong transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-border-strong focus:ring-offset-2 focus:ring-offset-graphite-bg"
           >
-            <ArrowLeft className="h-4 w-4 text-text-tertiary" aria-hidden="true" />
+            <ArrowLeft className="h-4 w-4 text-text-secondary" aria-hidden="true" />
             <span>Modify Search</span>
           </button>
         )}

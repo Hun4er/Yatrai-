@@ -150,6 +150,26 @@ export const bookingController = {
       next(err);
     }
   },
+
+  /**
+   * GET /api/booking/pnr/:pnr
+   * Retrieves status for Yatrai-generated PNR inquiry.
+   */
+  async checkPnr(req, res, next) {
+    try {
+      const pnrQuery = req.params.pnr || req.query.pnr;
+      const requestingUserId = req.user?.id || null;
+      const pnrStatus = await bookingService.getPnrStatus(pnrQuery, requestingUserId);
+
+      return res.status(200).json(
+        successResponse('PNR status retrieved successfully', {
+          pnrStatus,
+        })
+      );
+    } catch (err) {
+      next(err);
+    }
+  },
 };
 
 export default bookingController;

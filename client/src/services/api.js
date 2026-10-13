@@ -228,6 +228,7 @@ export const api = {
       return request(`/booking/my-bookings${q}`);
     },
     getById: (id) => request(`/booking/${id}`),
+    checkPnr: (pnrNumber) => request(`/booking/pnr/${encodeURIComponent(pnrNumber)}`),
     downloadPdf: async (id, bookingReference) => {
       const token = getAccessToken();
       const response = await fetch(`${API_BASE_URL}/booking/${id}/pdf`, {
@@ -356,6 +357,11 @@ export const api = {
   },
 
   // Phase 15: Admin Dashboard
+  // PNR Status Verification
+  pnr: {
+    check: (pnrNumber) => request(`/pnr/${encodeURIComponent(pnrNumber)}`),
+  },
+
   admin: {
     getOverview: () => request('/admin/overview'),
     getUsers: ({ page = 1, limit = 20, search = '', role = '', status = '' } = {}) => {

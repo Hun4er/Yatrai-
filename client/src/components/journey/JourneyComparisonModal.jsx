@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { X, Clock, GitCompare, Eye, CheckCircle2 } from 'lucide-react';
+import { X, GitCompare, Eye } from 'lucide-react';
 import {
   formatDuration,
   formatPrice,
@@ -50,20 +50,20 @@ export function JourneyComparisonModal({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl rounded-2xl border border-white/10 bg-surface-primary p-6 sm:p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto"
+        className="relative w-full max-w-5xl rounded-2xl border border-[#303640] bg-[#12151A] p-6 sm:p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-4">
+        <div className="flex items-center justify-between border-b border-[#303640] pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-primary/10 border border-brand-primary/20 text-brand-primary">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#15191F] border border-[#303640] text-[#E8B04A]">
               <GitCompare className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
-              <h2 id="compare-modal-title" className="text-xl sm:text-2xl font-extrabold tracking-tight text-text-primary">
+              <h2 id="compare-modal-title" className="text-xl sm:text-2xl font-serif font-bold tracking-tight text-[#F0F1F3]">
                 Compare Journeys ({journeys.length})
               </h2>
-              <p className="text-xs text-text-secondary">
+              <p className="text-xs text-[#A7AFBA]">
                 Side-by-side trade-off comparison between your selected route options.
               </p>
             </div>
@@ -72,7 +72,7 @@ export function JourneyComparisonModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-white/10 bg-surface-secondary p-2 text-text-secondary hover:text-text-primary hover:border-white/20 transition-all cursor-pointer"
+            className="rounded-xl border border-[#303640] bg-[#15191F] p-2 text-[#A7AFBA] hover:text-[#F0F1F3] hover:border-[#424A56] transition-all cursor-pointer"
             aria-label="Close comparison"
           >
             <X className="h-5 w-5" aria-hidden="true" />
@@ -83,8 +83,8 @@ export function JourneyComparisonModal({
         <div className="overflow-x-auto pb-2">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-white/10">
-                <th className="py-3 px-4 font-bold text-text-tertiary uppercase tracking-wider w-36">
+              <tr className="border-b border-[#303640]">
+                <th className="py-3 px-4 font-bold text-[#7E8794] uppercase tracking-wider w-36">
                   Metric
                 </th>
                 {journeys.map((j, idx) => {
@@ -98,7 +98,7 @@ export function JourneyComparisonModal({
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <div className="flex items-center gap-1.5 font-bold text-text-primary capitalize text-sm">
-                            <PrimaryIcon className="h-4 w-4 text-brand-primary shrink-0" />
+                            <PrimaryIcon className="h-4 w-4 text-text-secondary shrink-0" />
                             <span>{modeText}</span>
                           </div>
                           <div className="text-[11px] text-text-secondary truncate mt-0.5">
@@ -123,14 +123,14 @@ export function JourneyComparisonModal({
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-[#303640]">
               {/* Duration Row */}
               <tr>
-                <td className="py-3 px-4 font-semibold text-text-secondary">
+                <td className="py-3 px-4 font-semibold text-[#A7AFBA]">
                   Duration
                 </td>
                 {journeys.map((j, idx) => (
-                  <td key={idx} className="py-3 px-4 font-bold text-text-primary font-mono text-sm">
+                  <td key={idx} className="py-3 px-4 font-bold text-[#F0F1F3] font-mono text-sm">
                     {formatDuration(j.duration)}
                   </td>
                 ))}
@@ -138,15 +138,15 @@ export function JourneyComparisonModal({
 
               {/* Cost Row */}
               <tr>
-                <td className="py-3 px-4 font-semibold text-text-secondary">
+                <td className="py-3 px-4 font-semibold text-[#A7AFBA]">
                   Cost
                 </td>
                 {journeys.map((j, idx) => (
                   <td key={idx} className="py-3 px-4">
-                    <div className="font-bold text-text-primary font-mono text-sm">
+                    <div className="font-bold text-[#E8B04A] font-mono text-sm">
                       {formatPrice(j.totalPrice, j.currency)}
                     </div>
-                    <div className="text-[11px] text-text-tertiary">
+                    <div className="text-[11px] text-[#7E8794]">
                       {getPriceLabel(j)}
                     </div>
                   </td>
@@ -155,7 +155,7 @@ export function JourneyComparisonModal({
 
               {/* Transfers Row */}
               <tr>
-                <td className="py-3 px-4 font-semibold text-text-secondary">
+                <td className="py-3 px-4 font-semibold text-[#A7AFBA]">
                   Transfers
                 </td>
                 {journeys.map((j, idx) => {
@@ -163,10 +163,10 @@ export function JourneyComparisonModal({
                   return (
                     <td key={idx} className="py-3 px-4">
                       <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold border ${
                           transfers === 0
-                            ? 'bg-emerald-500/10 text-emerald-400'
-                            : 'bg-amber-500/10 text-amber-400'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : 'bg-[#15191F] text-[#A7AFBA] border-[#303640]'
                         }`}
                       >
                         {formatTransfers(transfers)}
@@ -178,11 +178,11 @@ export function JourneyComparisonModal({
 
               {/* Distance Row */}
               <tr>
-                <td className="py-3 px-4 font-semibold text-text-secondary">
+                <td className="py-3 px-4 font-semibold text-[#A7AFBA]">
                   Distance
                 </td>
                 {journeys.map((j, idx) => (
-                  <td key={idx} className="py-3 px-4 text-text-primary font-mono">
+                  <td key={idx} className="py-3 px-4 text-[#F0F1F3] font-mono">
                     {j.totalDistance ? `${j.totalDistance} km` : 'Calculated'}
                   </td>
                 ))}
@@ -190,7 +190,7 @@ export function JourneyComparisonModal({
 
               {/* Schedule Row */}
               <tr>
-                <td className="py-3 px-4 font-semibold text-text-secondary">
+                <td className="py-3 px-4 font-semibold text-[#A7AFBA]">
                   Schedule
                 </td>
                 {journeys.map((j, idx) => {
@@ -200,16 +200,16 @@ export function JourneyComparisonModal({
                   return (
                     <td key={idx} className="py-3 px-4 space-y-1">
                       <div className="flex items-center gap-1.5 font-mono">
-                        <span className="font-semibold text-text-primary">{formatTime(j.departureTime)}</span>
-                        <span className="text-text-tertiary">→</span>
-                        <span className="font-semibold text-text-primary">{formatTime(j.arrivalTime)}</span>
+                        <span className="font-semibold text-[#F0F1F3]">{formatTime(j.departureTime)}</span>
+                        <span className="text-[#7E8794]">→</span>
+                        <span className="font-semibold text-[#F0F1F3]">{formatTime(j.arrivalTime)}</span>
                         {dayBadge && (
-                          <span className="rounded bg-brand-soft px-1 text-[10px] font-bold text-brand-primary">
+                          <span className="rounded bg-[#15191F] px-1 text-[10px] font-bold text-[#E8B04A] border border-[#303640]">
                             {dayBadge}
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-text-tertiary truncate">
+                      <div className="text-[11px] text-[#7E8794] truncate">
                         {j.origin?.name || 'Origin'} → {j.destination?.name || 'Destination'}
                       </div>
                     </td>
@@ -219,12 +219,12 @@ export function JourneyComparisonModal({
 
               {/* Recommendation Label */}
               <tr>
-                <td className="py-3 px-4 font-semibold text-text-secondary">
+                <td className="py-3 px-4 font-semibold text-[#A7AFBA]">
                   Ranking
                 </td>
                 {journeys.map((j, idx) => (
                   <td key={idx} className="py-3 px-4">
-                    <span className="text-xs text-text-secondary font-medium">
+                    <span className="text-xs text-[#A7AFBA] font-medium">
                       {j.ranking?.label || 'Available option'}
                     </span>
                   </td>
@@ -233,7 +233,7 @@ export function JourneyComparisonModal({
 
               {/* Action CTA Row */}
               <tr>
-                <td className="py-3 px-4 font-semibold text-text-secondary">
+                <td className="py-3 px-4 font-semibold text-[#A7AFBA]">
                   Action
                 </td>
                 {journeys.map((j, idx) => (
@@ -244,7 +244,7 @@ export function JourneyComparisonModal({
                         onClose();
                         if (onSelectJourney) onSelectJourney(j);
                       }}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-brand-hover cursor-pointer"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#E8B04A] hover:bg-[#F2BE62] text-[#0B0D10] px-3.5 py-1.5 text-xs font-bold shadow-sm cursor-pointer transition-colors"
                     >
                       <Eye className="h-3.5 w-3.5" />
                       <span>View itinerary</span>

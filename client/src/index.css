@@ -4,15 +4,41 @@
 
 :root {
   color-scheme: dark;
+
+  /* Graphite & Amber Design Tokens */
+  --color-bg: #0B0D10;
+  --color-surface: #12151A;
+  --color-surface-raised: #181C22;
+  --color-search-panel: #181C22;
+  --color-input-bg: #15191F;
+  --color-line: #303640;
+  --color-line-strong: #3A414C;
+
+  --color-ink: #F0F1F3;
+  --color-ink-soft: #A7AFBA;
+  --color-ink-mute: #7E8794;
+
+  --color-accent: #E8B04A;
+  --color-accent-hover: #F2BE62;
+  --color-on-accent: #0B0D10;
+
+  --color-ok: #4CC38A;
+  --color-warn: #E07B39;
+  --color-danger: #E5484D;
+
+  --radius-card: 12px;
+  --radius-control: 10px;
 }
 
 body {
   margin: 0;
   padding: 0;
-  background-color: #070a0f;
-  color: #f7f8fa;
+  background-color: #0B0D10;
+  color: #EDEFF2;
   font-family:
+    'Geist',
     'Inter',
+    system-ui,
     -apple-system,
     BlinkMacSystemFont,
     'Segoe UI',
@@ -20,4 +46,11 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tabular numerals for aligned numeric information in mono fonts */
+.font-mono,
+.tabular-nums {
+  font-feature-settings: 'tnum' on, 'zero' on;
+  font-variant-numeric: tabular-nums;
 }

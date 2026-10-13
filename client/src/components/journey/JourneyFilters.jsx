@@ -38,12 +38,10 @@ export function getModeIcon(mode) {
 /**
  * JourneyFilters Component
  *
- * Implements Section 17 (Simplified Filter Experience):
- * 1. Transport: Train, Bus, Flight, Road
- * 2. Transfers: Any, Direct only, 1 max, 2 max
- * 3. Price: Range slider / limits
- * 4. Departure: Morning, Afternoon, Evening, Night
- * 5. Advanced filters: [ More filters ] for Duration and granular limits
+ * Implements simplified filter experience matching the Graphite & Amber homepage theme:
+ * - Surface container: #12151A with #303640 borders
+ * - Filter controls: #15191F with #E8B04A amber primary highlights
+ * - Clear contrast typography: #F0F1F3, #A7AFBA, #7E8794
  */
 export function JourneyFilters({
   filters,
@@ -107,18 +105,18 @@ export function JourneyFilters({
 
   return (
     <aside
-      className={`rounded-2xl border border-white/10 bg-surface-primary p-5 sm:p-6 shadow-sm ${
+      className={`rounded-2xl border border-[#303640] bg-[#12151A] p-5 sm:p-6 shadow-xl ${
         isMobile ? 'w-full' : 'sticky top-20'
       }`}
       aria-label="Journey Filters"
     >
       {/* Filters Header */}
-      <div className="flex items-center justify-between border-b border-white/5 pb-4">
+      <div className="flex items-center justify-between border-b border-[#303640]/80 pb-4">
         <div className="flex items-center gap-2">
-          <SlidersHorizontal className="h-4 w-4 text-brand-primary" aria-hidden="true" />
-          <h2 className="text-sm font-bold tracking-tight text-text-primary">FILTERS</h2>
+          <SlidersHorizontal className="h-4 w-4 text-[#E8B04A]" aria-hidden="true" />
+          <h2 className="text-xs font-bold tracking-wider uppercase text-[#F0F1F3]">FILTERS</h2>
           {activeCount > 0 && (
-            <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-primary px-1.5 text-[11px] font-bold text-white">
+            <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#E8B04A] px-1.5 text-[11px] font-bold text-[#0B0D10]">
               {activeCount}
             </span>
           )}
@@ -129,7 +127,7 @@ export function JourneyFilters({
             <button
               type="button"
               onClick={onReset}
-              className="inline-flex items-center gap-1 text-xs font-medium text-brand-primary hover:text-brand-hover transition-colors cursor-pointer focus:outline-none"
+              className="inline-flex items-center gap-1 text-xs font-medium text-[#E8B04A] hover:text-[#F2BE62] transition-colors cursor-pointer focus:outline-none"
               aria-label="Clear all filters"
             >
               <RotateCcw className="h-3 w-3" aria-hidden="true" />
@@ -141,7 +139,7 @@ export function JourneyFilters({
             <button
               type="button"
               onClick={onCloseMobile}
-              className="rounded-lg bg-brand-primary px-3 py-1 text-xs font-semibold text-white shadow-sm cursor-pointer"
+              className="rounded-lg bg-[#E8B04A] hover:bg-[#F2BE62] px-3 py-1 text-xs font-semibold text-[#0B0D10] shadow-sm cursor-pointer transition-colors"
             >
               Apply filters
             </button>
@@ -150,10 +148,10 @@ export function JourneyFilters({
       </div>
 
       <div className="mt-5 space-y-6">
-        {/* 1. Transport Modes (only shown if multi-modal choices exist) */}
+        {/* 1. Transport Modes */}
         {allAvailableModes.length > 1 && (
           <fieldset className="space-y-2">
-            <legend className="text-xs font-bold uppercase tracking-wider text-text-secondary">
+            <legend className="text-[11px] font-semibold uppercase tracking-wider text-[#7E8794]">
               Transport
             </legend>
             <div className="grid grid-cols-2 gap-2">
@@ -171,17 +169,17 @@ export function JourneyFilters({
                     key={mode}
                     className={`flex items-center gap-2 rounded-xl px-3 py-2 border transition-all cursor-pointer text-xs ${
                       isChecked
-                        ? 'border-brand-primary/40 bg-surface-secondary text-text-primary font-medium'
-                        : 'border-white/5 bg-surface-secondary/40 text-text-tertiary'
+                        ? 'border-[#E8B04A]/40 bg-[#15191F] text-[#F0F1F3] font-medium'
+                        : 'border-[#303640] bg-[#15191F]/40 text-[#7E8794] hover:border-[#3A414C]'
                     }`}
                   >
                     <input
                       type="checkbox"
                       checked={isChecked}
                       onChange={() => handleModeToggle(mode)}
-                      className="h-3.5 w-3.5 rounded border-white/20 bg-surface-secondary text-brand-primary focus:ring-brand-primary accent-brand-primary"
+                      className="h-3.5 w-3.5 rounded border-[#303640] bg-[#15191F] text-[#E8B04A] focus:ring-[#E8B04A] accent-[#E8B04A]"
                     />
-                    <Icon className="h-3.5 w-3.5 text-brand-primary shrink-0" aria-hidden="true" />
+                    <Icon className="h-3.5 w-3.5 text-[#E8B04A] shrink-0" aria-hidden="true" />
                     <span className="truncate">{modeLabel}</span>
                   </label>
                 );
@@ -191,11 +189,11 @@ export function JourneyFilters({
         )}
 
         {/* 2. Transfers */}
-        <fieldset className={`space-y-2 ${allAvailableModes.length > 1 ? 'border-t border-white/5 pt-4' : ''}`}>
-          <legend className="text-xs font-bold uppercase tracking-wider text-text-secondary">
+        <fieldset className={`space-y-2.5 ${allAvailableModes.length > 1 ? 'border-t border-[#303640]/80 pt-4' : ''}`}>
+          <legend className="text-[11px] font-semibold uppercase tracking-wider text-[#7E8794]">
             Transfers
           </legend>
-          <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Transfer count filter">
+          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Transfer count filter">
             {TRANSFER_FILTER_OPTIONS.map((opt) => {
               const isSelected = (filters.transfers || 'any') === opt.id;
               return (
@@ -205,10 +203,10 @@ export function JourneyFilters({
                   role="radio"
                   aria-checked={isSelected}
                   onClick={() => handleTransferChange(opt.id)}
-                  className={`rounded-xl px-2.5 py-2 text-xs font-medium transition-all text-center cursor-pointer ${
+                  className={`rounded-xl px-3 py-2 text-xs font-medium transition-all text-center cursor-pointer ${
                     isSelected
-                      ? 'bg-brand-primary text-white shadow-sm shadow-brand-primary/20 ring-1 ring-brand-primary'
-                      : 'bg-surface-secondary text-text-secondary border border-white/5 hover:border-white/10 hover:text-text-primary'
+                      ? 'bg-[#E8B04A] text-[#0B0D10] font-semibold shadow-sm shadow-[#E8B04A]/10'
+                      : 'bg-[#15191F] text-[#A7AFBA] border border-[#303640] hover:border-[#3A414C] hover:text-[#F0F1F3]'
                   }`}
                 >
                   {opt.label}
@@ -219,12 +217,12 @@ export function JourneyFilters({
         </fieldset>
 
         {/* 3. Price Filter */}
-        <fieldset className="space-y-3 border-t border-white/5 pt-4">
+        <fieldset className="space-y-3 border-t border-[#303640]/80 pt-4">
           <div className="flex items-center justify-between">
-            <legend className="text-xs font-bold uppercase tracking-wider text-text-secondary">
+            <legend className="text-[11px] font-semibold uppercase tracking-wider text-[#7E8794]">
               Price
             </legend>
-            <span className="text-xs font-bold text-text-primary font-mono">
+            <span className="text-xs font-bold text-[#F0F1F3] font-mono tabular-nums">
               {filters.maxPrice !== null
                 ? formatPrice(filters.maxPrice, currency)
                 : formatPrice(bounds.maxPrice, currency)}
@@ -239,21 +237,21 @@ export function JourneyFilters({
             step={100}
             value={filters.maxPrice !== null ? filters.maxPrice : bounds.maxPrice}
             onChange={(e) => handlePriceChange(Number(e.target.value))}
-            className="w-full accent-brand-primary cursor-pointer"
+            className="w-full accent-[#E8B04A] cursor-pointer"
             aria-valuemin={bounds.minPrice}
             aria-valuemax={bounds.maxPrice}
             aria-valuenow={filters.maxPrice !== null ? filters.maxPrice : bounds.maxPrice}
           />
 
-          <div className="flex justify-between text-[11px] text-text-tertiary font-mono">
+          <div className="flex justify-between text-[11px] text-[#7E8794] font-mono tabular-nums">
             <span>{formatPrice(bounds.minPrice, currency)}</span>
             <span>{formatPrice(bounds.maxPrice, currency)}</span>
           </div>
         </fieldset>
 
         {/* 4. Departure Time */}
-        <fieldset className="space-y-2 border-t border-white/5 pt-4">
-          <legend className="text-xs font-bold uppercase tracking-wider text-text-secondary">
+        <fieldset className="space-y-2 border-t border-[#303640]/80 pt-4">
+          <legend className="text-[11px] font-semibold uppercase tracking-wider text-[#7E8794]">
             Departure
           </legend>
           <div className="space-y-1.5">
@@ -264,8 +262,8 @@ export function JourneyFilters({
                   key={bucket.id}
                   className={`flex items-center justify-between rounded-xl px-3 py-2 border transition-all cursor-pointer text-xs ${
                     isSelected
-                      ? 'border-brand-primary/50 bg-brand-soft/50 text-text-primary font-semibold'
-                      : 'border-white/5 bg-surface-secondary/40 text-text-secondary hover:border-white/10 hover:text-text-primary'
+                      ? 'border-[#E8B04A]/50 bg-[#15191F] text-[#F0F1F3] font-semibold'
+                      : 'border-[#303640] bg-[#15191F]/40 text-[#A7AFBA] hover:border-[#3A414C] hover:text-[#F0F1F3]'
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -275,11 +273,11 @@ export function JourneyFilters({
                       value={bucket.id}
                       checked={isSelected}
                       onChange={() => handleDepartureBucketChange(bucket.id)}
-                      className="accent-brand-primary"
+                      className="accent-[#E8B04A]"
                     />
                     <span>{bucket.label}</span>
                   </div>
-                  <span className="text-[11px] text-text-tertiary">{bucket.description}</span>
+                  <span className="text-[11px] text-[#7E8794]">{bucket.description}</span>
                 </label>
               );
             })}
@@ -287,17 +285,17 @@ export function JourneyFilters({
         </fieldset>
 
         {/* 5. Advanced filters toggle */}
-        <div className="border-t border-white/5 pt-4 space-y-3">
+        <div className="border-t border-[#303640]/80 pt-4 space-y-3">
           <button
             type="button"
             onClick={() => setShowAdvanced((prev) => !prev)}
-            className="w-full flex items-center justify-between text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+            className="w-full flex items-center justify-between text-xs font-semibold text-[#A7AFBA] hover:text-[#F0F1F3] transition-colors cursor-pointer"
           >
             <span>Advanced filters</span>
             {showAdvanced ? (
-              <ChevronUp className="h-3.5 w-3.5 text-brand-primary" />
+              <ChevronUp className="h-3.5 w-3.5 text-[#E8B04A]" />
             ) : (
-              <ChevronDown className="h-3.5 w-3.5 text-brand-primary" />
+              <ChevronDown className="h-3.5 w-3.5 text-[#E8B04A]" />
             )}
           </button>
 
@@ -307,8 +305,8 @@ export function JourneyFilters({
               {bounds.maxDuration > bounds.minDuration && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-text-secondary">Max Duration</span>
-                    <span className="font-bold text-brand-primary font-mono">
+                    <span className="text-[#A7AFBA]">Max Duration</span>
+                    <span className="font-bold text-[#F0F1F3] font-mono tabular-nums">
                       {filters.maxDuration !== null
                         ? formatDuration(filters.maxDuration)
                         : formatDuration(bounds.maxDuration)}
@@ -322,9 +320,9 @@ export function JourneyFilters({
                     step={15}
                     value={filters.maxDuration !== null ? filters.maxDuration : bounds.maxDuration}
                     onChange={(e) => handleDurationChange(Number(e.target.value))}
-                    className="w-full accent-brand-primary cursor-pointer"
+                    className="w-full accent-[#E8B04A] cursor-pointer"
                   />
-                  <div className="flex justify-between text-[11px] text-text-tertiary">
+                  <div className="flex justify-between text-[11px] text-[#7E8794] font-mono tabular-nums">
                     <span>{formatDuration(bounds.minDuration)}</span>
                     <span>{formatDuration(bounds.maxDuration)}</span>
                   </div>

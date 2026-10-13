@@ -12,6 +12,8 @@ import notificationRoutes from './notification.routes.js';
 import adminRoutes from './admin.routes.js';
 import providerRoutes from './provider.routes.js';
 import bookingRoutes from './booking.routes.js';
+import bookingController from '../controllers/booking.controller.js';
+import { optionalAuthenticate } from '../middleware/auth.middleware.js';
 
 const apiRouter = Router();
 
@@ -108,6 +110,10 @@ apiRouter.use('/providers', providerRoutes);
 
 // Mount /api/booking
 apiRouter.use('/booking', bookingRoutes);
+
+// Mount convenient direct /api/pnr
+apiRouter.get('/pnr/:pnr', optionalAuthenticate, bookingController.checkPnr);
+apiRouter.get('/pnr', optionalAuthenticate, bookingController.checkPnr);
 
 export default apiRouter;
 

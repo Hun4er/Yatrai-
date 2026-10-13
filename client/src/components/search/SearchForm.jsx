@@ -1,27 +1,45 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   MapPin,
-  Navigation,
   Calendar,
-  Search,
+  ArrowRight,
   Loader2,
   ArrowLeftRight,
-  Train,
+  User,
+  Plus,
+  Minus,
   CheckCircle2,
 } from 'lucide-react';
 import api from '../../services/api.js';
 
 /**
+ * Format ISO date string (YYYY-MM-DD) into editorial reference format (e.g., "Mon, 15 Jan 2024")
+ */
+function formatDisplayDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    if (Number.isNaN(dateObj.getTime())) return dateStr;
+    return dateObj.toLocaleDateString('en-GB', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+/**
  * SearchForm Component
  *
- * Implements IRCTC-Style Station Autocomplete (Phase 6):
- * - Prominent "STATION NAME - CODE" in uppercase bold, city/state beneath.
- * - Selected station object is kept separate from text typed.
- * - Invalidation on text edit until a new valid item is selected.
- * - Keyboard navigation (ArrowUp, ArrowDown, Enter, Escape).
- * - Swap button swaps complete station objects (codes and IDs).
- * - Single-flight submission lock to prevent double clicks.
- * - Shared visual card width (max-w-4xl) for seamless alignment with Natural Search.
+ * Fully responsive production-grade railway search panel:
+ * - Desktop (>= 1024px): Sleek horizontal 1-row layout matching reference
+ * - Tablet (640px - 1023px): Balanced 2-row layout [From/Swap/To] + [Date/Travellers/Submit]
+ * - Mobile (< 640px): Touch-friendly stacked cards with paired [Date + Travellers] row
+ * - Preserves canonical station autocomplete, keyboard navigation, debounce & validation
  */
 export function SearchForm({
   initialOrigin = '',
@@ -35,6 +53,8 @@ export function SearchForm({
   const [originText, setOriginText] = useState(initialOrigin);
   const [destText, setDestText] = useState(initialDestination);
   const [departureDate, setDepartureDate] = useState(initialDate);
+  const [passengers, setPassengers] = useState(1);
+  const [showPassengerDropdown, setShowPassengerDropdown] = useState(false);
 
   // Selected station objects (IRCTC canonical station identity)
   const [selectedOriginStation, setSelectedOriginStation] = useState(null);
@@ -56,6 +76,8 @@ export function SearchForm({
 
   const originContainerRef = useRef(null);
   const destContainerRef = useRef(null);
+  const passengerContainerRef = useRef(null);
+  const dateInputRef = useRef(null);
   const originRequestTokenRef = useRef(0);
   const destRequestTokenRef = useRef(0);
 
@@ -66,7 +88,7 @@ export function SearchForm({
     if (initialDate) setDepartureDate(initialDate);
   }, [initialOrigin, initialDestination, initialDate]);
 
-  // Default date
+  // Default date to today if none provided
   useEffect(() => {
     if (!departureDate) {
       const today = new Date();
@@ -77,7 +99,7 @@ export function SearchForm({
     }
   }, [departureDate]);
 
-  // Click outside listener to close suggestion dropdowns
+  // Click outside listener to close suggestion dropdowns & passenger popover
   useEffect(() => {
     function handleClickOutside(event) {
       if (originContainerRef.current && !originContainerRef.current.contains(event.target)) {
@@ -85,6 +107,9 @@ export function SearchForm({
       }
       if (destContainerRef.current && !destContainerRef.current.contains(event.target)) {
         setShowDestDropdown(false);
+      }
+      if (passengerContainerRef.current && !passengerContainerRef.current.contains(event.target)) {
+        setShowPassengerDropdown(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -161,7 +186,7 @@ export function SearchForm({
 
   // Selection handlers
   const handleSelectOrigin = (station) => {
-    const displayName = station.displayName || `${station.name} - ${station.stationCode || ''}`;
+    const displayName = station.displayName || `${station.name} (${station.stationCode || ''})`;
     setOriginText(displayName);
     setSelectedOriginStation(station);
     setShowOriginDropdown(false);
@@ -170,7 +195,7 @@ export function SearchForm({
   };
 
   const handleSelectDest = (station) => {
-    const displayName = station.displayName || `${station.name} - ${station.stationCode || ''}`;
+    const displayName = station.displayName || `${station.name} (${station.stationCode || ''})`;
     setDestText(displayName);
     setSelectedDestStation(station);
     setShowDestDropdown(false);
@@ -269,10 +294,10 @@ export function SearchForm({
   const validate = () => {
     const errs = {};
     if (!originText || !originText.trim()) {
-      errs.origin = 'Please enter an origin railway station or city.';
+      errs.origin = 'Please enter an origin station.';
     }
     if (!destText || !destText.trim()) {
-      errs.destination = 'Please enter a destination railway station or city.';
+      errs.destination = 'Please enter a destination station.';
     }
 
     const cleanOrigin = (selectedOriginStation?.stationCode || originText).trim().toLowerCase();
@@ -297,9 +322,9 @@ export function SearchForm({
     setIsSubmitting(true);
     setShowOriginDropdown(false);
     setShowDestDropdown(false);
+    setShowPassengerDropdown(false);
 
     try {
-      // Pass canonical station code or canonical name if available
       const finalOrigin =
         selectedOriginStation?.name ||
         selectedOriginStation?.stationCode ||
@@ -317,7 +342,7 @@ export function SearchForm({
         originStation: selectedOriginStation || null,
         destinationStation: selectedDestStation || null,
         departureDate,
-        passengers: 1,
+        passengers: passengers || 1,
       });
     } finally {
       setIsSubmitting(false);
@@ -330,308 +355,383 @@ export function SearchForm({
     <form
       onSubmit={handleSubmit}
       noValidate
-      className={`w-full rounded-2xl border border-white/10 bg-surface-primary p-5 sm:p-7 shadow-xl transition-all ${
-        compact ? 'max-w-4xl' : 'max-w-4xl'
+      className={`w-full rounded-2xl border border-[#303640] bg-[#181C22] p-2 sm:p-2.5 md:p-3 shadow-2xl transition-all font-sans ${
+        compact ? 'max-w-4xl' : 'max-w-5xl'
       }`}
       aria-label="Structured Railway Journey Search Form"
     >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:gap-3 items-end">
-        {/* ===================== FROM (Origin) ===================== */}
-        <div className="lg:col-span-4 relative" ref={originContainerRef}>
-          <div className="flex items-center justify-between mb-1.5">
-            <label
-              htmlFor="origin-input"
-              className="text-xs font-semibold uppercase tracking-wider text-text-secondary flex items-center gap-1.5"
+      {/* 
+        Production Responsive Layout:
+        - Mobile (< 640px): Stacked vertical with side-by-side Date & Travellers row
+        - Tablet (640px - 1023px): 2 balanced rows [Stations] + [Date/Travellers/Search]
+        - Desktop (>= 1024px): Seamless single horizontal row matching reference
+      */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2">
+        {/* ===================== STATIONS WRAPPER (Origin, Swap, Destination) ===================== */}
+        <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 relative">
+          {/* FROM (Origin) */}
+          <div className="flex-1 relative" ref={originContainerRef}>
+            <div
+              onClick={() => {
+                const input = originContainerRef.current?.querySelector('input');
+                if (input) input.focus();
+              }}
+              className={`group rounded-xl border bg-[#15191F] px-3.5 sm:px-4 py-2 sm:py-2.5 min-h-[58px] sm:min-h-[64px] flex flex-col justify-center transition-all cursor-text ${
+                errors.origin
+                  ? 'border-red-500/80 ring-1 ring-red-500/30'
+                  : 'border-[#303640] hover:border-[#3A414C] focus-within:border-[#E8B04A] focus-within:ring-1 focus-within:ring-[#E8B04A]/30'
+              }`}
             >
-              <span>From</span>
-              {selectedOriginStation && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-brand-primary bg-brand-primary/10 px-1.5 py-0.5 rounded">
-                  <CheckCircle2 className="h-3 w-3" />
-                  {selectedOriginStation.stationCode || 'SELECTED'}
-                </span>
-              )}
-            </label>
-          </div>
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="origin-input"
+                  className="text-[10px] sm:text-[11px] font-medium uppercase tracking-wider text-[#A7AFBA]"
+                >
+                  From
+                </label>
+                {selectedOriginStation?.stationCode && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded font-mono">
+                    <CheckCircle2 className="h-2.5 w-2.5" />
+                    {selectedOriginStation.stationCode}
+                  </span>
+                )}
+              </div>
 
-          <div className="relative">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-text-tertiary">
-              <Train className="h-4 w-4 text-brand-primary" aria-hidden="true" />
+              <div className="flex items-center gap-2 mt-0.5">
+                <MapPin className="h-4 w-4 text-[#7E8794] shrink-0" aria-hidden="true" />
+                <input
+                  id="origin-input"
+                  name="origin"
+                  type="text"
+                  required
+                  autoComplete="off"
+                  disabled={busy}
+                  placeholder="New Delhi (NDLS)"
+                  value={originText}
+                  onFocus={() => setShowOriginDropdown(true)}
+                  onChange={(e) => handleOriginChange(e.target.value)}
+                  onKeyDown={handleOriginKeyDown}
+                  role="combobox"
+                  aria-expanded={showOriginDropdown && originSuggestions.length > 0}
+                  aria-autocomplete="list"
+                  className="w-full bg-transparent text-sm font-medium text-[#F0F1F3] placeholder:text-[#7E8794] focus:outline-none"
+                  aria-invalid={Boolean(errors.origin)}
+                />
+                {isOriginLoading && (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#E8B04A] shrink-0" />
+                )}
+              </div>
             </div>
 
-            <input
-              id="origin-input"
-              name="origin"
-              type="text"
-              required
-              autoComplete="off"
-              disabled={busy}
-              placeholder="e.g. New Delhi or NDLS"
-              value={originText}
-              onFocus={() => setShowOriginDropdown(true)}
-              onChange={(e) => handleOriginChange(e.target.value)}
-              onKeyDown={handleOriginKeyDown}
-              role="combobox"
-              aria-expanded={showOriginDropdown && originSuggestions.length > 0}
-              aria-autocomplete="list"
-              className={`w-full rounded-xl border bg-surface-secondary pl-10 pr-9 py-3 text-sm text-text-primary placeholder:text-text-disabled transition-all focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary ${
-                errors.origin ? 'border-semantic-error' : 'border-white/10'
-              }`}
-              aria-invalid={Boolean(errors.origin)}
-              aria-describedby={errors.origin ? 'origin-error' : undefined}
-            />
-
-            {isOriginLoading && (
-              <div className="absolute inset-y-0 right-3 flex items-center">
-                <Loader2 className="h-4 w-4 animate-spin text-brand-primary" />
+            {/* Autocomplete Dropdown */}
+            {showOriginDropdown && originSuggestions.length > 0 && (
+              <div
+                role="listbox"
+                id="origin-suggestions-list"
+                className="absolute z-50 left-0 right-0 mt-1 max-h-60 sm:max-h-72 overflow-y-auto rounded-xl border border-[#303640] bg-[#181C22] p-1 shadow-2xl space-y-1"
+              >
+                <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#7E8794] border-b border-[#303640]/60 font-mono">
+                  Railway Stations
+                </div>
+                {originSuggestions.map((st, idx) => {
+                  const isSelected = idx === originActiveIndex;
+                  const code = st.stationCode || '';
+                  const name = st.name || '';
+                  const state = st.state || '';
+                  const city = st.city || '';
+                  return (
+                    <button
+                      key={st.id || st.stationCode || idx}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => handleSelectOrigin(st)}
+                      className={`w-full flex flex-col text-left rounded-lg px-3 py-2 text-xs transition-colors cursor-pointer min-h-[40px] justify-center ${
+                        isSelected
+                          ? 'bg-[#E8B04A]/10 text-[#F0F1F3] border border-[#E8B04A]/30'
+                          : 'hover:bg-[#15191F] text-[#A7AFBA]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold uppercase text-[#F0F1F3] tracking-wide text-xs">
+                          {name} {code ? `(${code})` : ''}
+                        </span>
+                        {st.isMajorHub && (
+                          <span className="text-[10px] font-medium text-[#A7AFBA] bg-[#12151A] border border-[#303640] px-1.5 py-0.2 rounded font-mono">
+                            HUB
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-[#7E8794] mt-0.5">
+                        {city}{city && state ? ', ' : ''}{state}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             )}
+          </div>
 
-            {/* Desktop Station Swap Button */}
+          {/* SWAP BUTTON */}
+          <div className="flex justify-center shrink-0 -my-1 sm:my-0">
             <button
               type="button"
               onClick={handleSwapStations}
               title="Swap origin and destination"
               aria-label="Swap origin and destination"
-              className="hidden lg:flex absolute -right-3.5 bottom-2.5 z-30 h-7 w-7 items-center justify-center rounded-full border border-white/20 bg-surface-elevated text-text-secondary hover:text-brand-primary hover:border-brand-primary active:scale-95 transition-all cursor-pointer shadow-md"
+              className="h-8 w-8 sm:h-9 sm:w-9 rounded-full border border-[#303640] bg-[#181C22] text-[#A7AFBA] hover:text-[#F0F1F3] hover:border-[#E8B04A] hover:bg-[#15191F] active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-sm"
             >
-              <ArrowLeftRight className="h-3.5 w-3.5" />
+              <ArrowLeftRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </button>
           </div>
 
-          {/* IRCTC-Style Autocomplete Dropdown */}
-          {showOriginDropdown && originSuggestions.length > 0 && (
+          {/* TO (Destination) */}
+          <div className="flex-1 relative" ref={destContainerRef}>
             <div
-              role="listbox"
-              id="origin-suggestions-list"
-              className="absolute z-50 left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-xl border border-white/15 bg-surface-elevated p-1 shadow-2xl space-y-1"
-            >
-              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-text-tertiary border-b border-white/5">
-                Indian Railways Stations
-              </div>
-              {originSuggestions.map((st, idx) => {
-                const isSelected = idx === originActiveIndex;
-                const code = st.stationCode || '';
-                const name = st.name || '';
-                const state = st.state || '';
-                const city = st.city || '';
-                return (
-                  <button
-                    key={st.id || st.stationCode || idx}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    onClick={() => handleSelectOrigin(st)}
-                    className={`w-full flex flex-col text-left rounded-lg px-3 py-2 text-xs transition-colors cursor-pointer ${
-                      isSelected
-                        ? 'bg-brand-primary/20 text-text-primary border border-brand-primary/30'
-                        : 'hover:bg-white/5 text-text-secondary'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold uppercase text-text-primary tracking-wide text-xs">
-                        {name} {code ? `- ${code}` : ''}
-                      </span>
-                      {st.isMajorHub && (
-                        <span className="text-[10px] font-semibold text-brand-primary bg-brand-primary/10 px-1.5 py-0.2 rounded">
-                          MAIN HUB
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-text-tertiary mt-0.5">
-                      {city}{city && state ? ', ' : ''}{state}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {errors.origin && (
-            <p id="origin-error" className="mt-1 text-xs text-semantic-error" role="alert">
-              {errors.origin}
-            </p>
-          )}
-        </div>
-
-        {/* Mobile Station Swap Button */}
-        <div className="flex lg:hidden justify-center -my-2 relative z-10">
-          <button
-            type="button"
-            onClick={handleSwapStations}
-            title="Swap origin and destination"
-            aria-label="Swap origin and destination"
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-surface-elevated text-text-secondary hover:text-brand-primary hover:border-brand-primary active:scale-95 transition-all cursor-pointer shadow-md"
-          >
-            <ArrowLeftRight className="h-3.5 w-3.5 rotate-90" />
-          </button>
-        </div>
-
-        {/* ===================== TO (Destination) ===================== */}
-        <div className="lg:col-span-4 relative" ref={destContainerRef}>
-          <div className="flex items-center justify-between mb-1.5">
-            <label
-              htmlFor="dest-input"
-              className="text-xs font-semibold uppercase tracking-wider text-text-secondary flex items-center gap-1.5"
-            >
-              <span>To</span>
-              {selectedDestStation && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-brand-primary bg-brand-primary/10 px-1.5 py-0.5 rounded">
-                  <CheckCircle2 className="h-3 w-3" />
-                  {selectedDestStation.stationCode || 'SELECTED'}
-                </span>
-              )}
-            </label>
-          </div>
-
-          <div className="relative">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-text-tertiary">
-              <Navigation className="h-4 w-4 text-brand-primary" aria-hidden="true" />
-            </div>
-
-            <input
-              id="dest-input"
-              name="destination"
-              type="text"
-              required
-              autoComplete="off"
-              disabled={busy}
-              placeholder="e.g. Prayagraj or PRYJ"
-              value={destText}
-              onFocus={() => setShowDestDropdown(true)}
-              onChange={(e) => handleDestChange(e.target.value)}
-              onKeyDown={handleDestKeyDown}
-              role="combobox"
-              aria-expanded={showDestDropdown && destSuggestions.length > 0}
-              aria-autocomplete="list"
-              className={`w-full rounded-xl border bg-surface-secondary pl-10 pr-9 py-3 text-sm text-text-primary placeholder:text-text-disabled transition-all focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary ${
-                errors.destination ? 'border-semantic-error' : 'border-white/10'
-              }`}
-              aria-invalid={Boolean(errors.destination)}
-              aria-describedby={errors.destination ? 'dest-error' : undefined}
-            />
-
-            {isDestLoading && (
-              <div className="absolute inset-y-0 right-3 flex items-center">
-                <Loader2 className="h-4 w-4 animate-spin text-brand-primary" />
-              </div>
-            )}
-          </div>
-
-          {/* IRCTC-Style Autocomplete Dropdown */}
-          {showDestDropdown && destSuggestions.length > 0 && (
-            <div
-              role="listbox"
-              id="dest-suggestions-list"
-              className="absolute z-50 left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-xl border border-white/15 bg-surface-elevated p-1 shadow-2xl space-y-1"
-            >
-              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-text-tertiary border-b border-white/5">
-                Indian Railways Stations
-              </div>
-              {destSuggestions.map((st, idx) => {
-                const isSelected = idx === destActiveIndex;
-                const code = st.stationCode || '';
-                const name = st.name || '';
-                const state = st.state || '';
-                const city = st.city || '';
-                return (
-                  <button
-                    key={st.id || st.stationCode || idx}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    onClick={() => handleSelectDest(st)}
-                    className={`w-full flex flex-col text-left rounded-lg px-3 py-2 text-xs transition-colors cursor-pointer ${
-                      isSelected
-                        ? 'bg-brand-primary/20 text-text-primary border border-brand-primary/30'
-                        : 'hover:bg-white/5 text-text-secondary'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold uppercase text-text-primary tracking-wide text-xs">
-                        {name} {code ? `- ${code}` : ''}
-                      </span>
-                      {st.isMajorHub && (
-                        <span className="text-[10px] font-semibold text-brand-primary bg-brand-primary/10 px-1.5 py-0.2 rounded">
-                          MAIN HUB
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-text-tertiary mt-0.5">
-                      {city}{city && state ? ', ' : ''}{state}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {errors.destination && (
-            <p id="dest-error" className="mt-1 text-xs text-semantic-error" role="alert">
-              {errors.destination}
-            </p>
-          )}
-        </div>
-
-        {/* ===================== DATE ===================== */}
-        <div className="sm:col-span-1 lg:col-span-2">
-          <label
-            htmlFor="date-input"
-            className="block text-xs font-semibold uppercase tracking-wider text-text-secondary mb-1.5"
-          >
-            Date
-          </label>
-          <div className="relative">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-text-tertiary">
-              <Calendar className="h-4 w-4 text-brand-primary" aria-hidden="true" />
-            </div>
-            <input
-              id="date-input"
-              name="departureDate"
-              type="date"
-              required
-              disabled={busy}
-              value={departureDate}
-              onChange={(e) => {
-                setDepartureDate(e.target.value);
-                if (errors.departureDate) setErrors((prev) => ({ ...prev, departureDate: null }));
+              onClick={() => {
+                const input = destContainerRef.current?.querySelector('input');
+                if (input) input.focus();
               }}
-              className={`w-full rounded-xl border bg-surface-secondary pl-10 pr-3 py-3 text-sm text-text-primary placeholder:text-text-disabled transition-all focus:border-brand-primary focus:outline-none focus:ring-1 focus:ring-brand-primary ${
-                errors.departureDate ? 'border-semantic-error' : 'border-white/10'
+              className={`group rounded-xl border bg-[#15191F] px-3.5 sm:px-4 py-2 sm:py-2.5 min-h-[58px] sm:min-h-[64px] flex flex-col justify-center transition-all cursor-text ${
+                errors.destination
+                  ? 'border-red-500/80 ring-1 ring-red-500/30'
+                  : 'border-[#303640] hover:border-[#3A414C] focus-within:border-[#E8B04A] focus-within:ring-1 focus-within:ring-[#E8B04A]/30'
               }`}
-              aria-invalid={Boolean(errors.departureDate)}
-              aria-describedby={errors.departureDate ? 'date-error' : undefined}
-            />
+            >
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="dest-input"
+                  className="text-[10px] sm:text-[11px] font-medium uppercase tracking-wider text-[#A7AFBA]"
+                >
+                  To
+                </label>
+                {selectedDestStation?.stationCode && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded font-mono">
+                    <CheckCircle2 className="h-2.5 w-2.5" />
+                    {selectedDestStation.stationCode}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 mt-0.5">
+                <MapPin className="h-4 w-4 text-[#7E8794] shrink-0" aria-hidden="true" />
+                <input
+                  id="dest-input"
+                  name="destination"
+                  type="text"
+                  required
+                  autoComplete="off"
+                  disabled={busy}
+                  placeholder="Mumbai Central (MMCT)"
+                  value={destText}
+                  onFocus={() => setShowDestDropdown(true)}
+                  onChange={(e) => handleDestChange(e.target.value)}
+                  onKeyDown={handleDestKeyDown}
+                  role="combobox"
+                  aria-expanded={showDestDropdown && destSuggestions.length > 0}
+                  aria-autocomplete="list"
+                  className="w-full bg-transparent text-sm font-medium text-[#F0F1F3] placeholder:text-[#7E8794] focus:outline-none"
+                  aria-invalid={Boolean(errors.destination)}
+                />
+                {isDestLoading && (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#E8B04A] shrink-0" />
+                )}
+              </div>
+            </div>
+
+            {/* Autocomplete Dropdown */}
+            {showDestDropdown && destSuggestions.length > 0 && (
+              <div
+                role="listbox"
+                id="dest-suggestions-list"
+                className="absolute z-50 left-0 right-0 mt-1 max-h-60 sm:max-h-72 overflow-y-auto rounded-xl border border-[#303640] bg-[#181C22] p-1 shadow-2xl space-y-1"
+              >
+                <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#7E8794] border-b border-[#303640]/60 font-mono">
+                  Railway Stations
+                </div>
+                {destSuggestions.map((st, idx) => {
+                  const isSelected = idx === destActiveIndex;
+                  const code = st.stationCode || '';
+                  const name = st.name || '';
+                  const state = st.state || '';
+                  const city = st.city || '';
+                  return (
+                    <button
+                      key={st.id || st.stationCode || idx}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => handleSelectDest(st)}
+                      className={`w-full flex flex-col text-left rounded-lg px-3 py-2 text-xs transition-colors cursor-pointer min-h-[40px] justify-center ${
+                        isSelected
+                          ? 'bg-[#E8B04A]/10 text-[#F0F1F3] border border-[#E8B04A]/30'
+                          : 'hover:bg-[#15191F] text-[#A7AFBA]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold uppercase text-[#F0F1F3] tracking-wide text-xs">
+                          {name} {code ? `(${code})` : ''}
+                        </span>
+                        {st.isMajorHub && (
+                          <span className="text-[10px] font-medium text-[#A7AFBA] bg-[#12151A] border border-[#303640] px-1.5 py-0.2 rounded font-mono">
+                            HUB
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-[#7E8794] mt-0.5">
+                        {city}{city && state ? ', ' : ''}{state}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
-          {errors.departureDate && (
-            <p id="date-error" className="mt-1 text-xs text-semantic-error" role="alert">
-              {errors.departureDate}
-            </p>
-          )}
         </div>
 
-        {/* ===================== SUBMIT BUTTON ===================== */}
-        <div className="sm:col-span-1 lg:col-span-2">
-          <button
-            type="submit"
-            id="search-submit-btn"
-            disabled={busy}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-primary px-5 py-3 text-sm font-semibold text-white shadow-md shadow-brand-primary/25 transition-all hover:bg-brand-hover active:bg-brand-active disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 focus:ring-offset-background-primary cursor-pointer"
-            aria-busy={busy}
-          >
-            {busy ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                <span>Searching...</span>
-              </>
-            ) : (
-              <>
-                <Search className="h-4 w-4" aria-hidden="true" />
-                <span>Find Journeys</span>
-              </>
-            )}
-          </button>
+        {/* ===================== CONTROLS WRAPPER (Date, Travellers, Button) ===================== */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          {/* Paired Row for Mobile (Date + Travellers) */}
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 flex-1 sm:flex-initial">
+            {/* DATE */}
+            <div className="w-full sm:w-40 md:w-44 lg:w-44 relative">
+              <label
+                htmlFor="date-input"
+                className="group rounded-xl border border-[#303640] hover:border-[#3A414C] focus-within:border-[#E8B04A] bg-[#15191F] px-3.5 sm:px-4 py-2 sm:py-2.5 min-h-[58px] sm:min-h-[64px] flex flex-col justify-center transition-all cursor-pointer relative block"
+              >
+                <div className="text-[10px] sm:text-[11px] font-medium uppercase tracking-wider text-[#A7AFBA]">
+                  Date
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <Calendar className="h-4 w-4 text-[#7E8794] shrink-0" aria-hidden="true" />
+                  <div className="text-xs sm:text-sm font-medium text-[#F0F1F3] truncate">
+                    {formatDisplayDate(departureDate) || 'Select date'}
+                  </div>
+                </div>
+
+                {/* Native picker overlay for seamless interaction */}
+                <input
+                  ref={dateInputRef}
+                  id="date-input"
+                  name="departureDate"
+                  type="date"
+                  required
+                  disabled={busy}
+                  value={departureDate}
+                  onChange={(e) => {
+                    setDepartureDate(e.target.value);
+                    if (errors.departureDate) setErrors((prev) => ({ ...prev, departureDate: null }));
+                  }}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  aria-label="Departure Date"
+                />
+              </label>
+            </div>
+
+            {/* TRAVELLERS */}
+            <div className="w-full sm:w-36 md:w-36 lg:w-36 relative" ref={passengerContainerRef}>
+              <div
+                onClick={() => setShowPassengerDropdown(!showPassengerDropdown)}
+                className="group rounded-xl border border-[#303640] hover:border-[#3A414C] focus-within:border-[#E8B04A] bg-[#15191F] px-3.5 sm:px-4 py-2 sm:py-2.5 min-h-[58px] sm:min-h-[64px] flex flex-col justify-center transition-all cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setShowPassengerDropdown(!showPassengerDropdown);
+                  }
+                }}
+                aria-haspopup="dialog"
+                aria-expanded={showPassengerDropdown}
+              >
+                <div className="text-[10px] sm:text-[11px] font-medium uppercase tracking-wider text-[#A7AFBA]">
+                  Travellers
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <User className="h-4 w-4 text-[#7E8794] shrink-0" aria-hidden="true" />
+                  <div className="text-xs sm:text-sm font-medium text-[#F0F1F3] truncate">
+                    {passengers} {passengers === 1 ? 'Adult' : 'Adults'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Passenger Selector Popup */}
+              {showPassengerDropdown && (
+                <div className="absolute z-50 right-0 left-auto mt-1 w-56 rounded-xl border border-[#303640] bg-[#181C22] p-4 shadow-2xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-semibold text-[#F0F1F3]">Adults</div>
+                      <div className="text-[11px] text-[#7E8794]">Age 12+ years</div>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        disabled={passengers <= 1}
+                        onClick={() => setPassengers((prev) => Math.max(1, prev - 1))}
+                        className="h-7 w-7 rounded-lg border border-[#303640] bg-[#15191F] text-[#F0F1F3] disabled:opacity-30 disabled:cursor-not-allowed hover:border-[#E8B04A] flex items-center justify-center cursor-pointer transition-colors"
+                        aria-label="Decrease passengers"
+                      >
+                        <Minus className="h-3 w-3" />
+                      </button>
+                      <span className="text-sm font-semibold font-mono text-[#F0F1F3] w-4 text-center">
+                        {passengers}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={passengers >= 6}
+                        onClick={() => setPassengers((prev) => Math.min(6, prev + 1))}
+                        className="h-7 w-7 rounded-lg border border-[#303640] bg-[#15191F] text-[#F0F1F3] disabled:opacity-30 disabled:cursor-not-allowed hover:border-[#E8B04A] flex items-center justify-center cursor-pointer transition-colors"
+                        aria-label="Increase passengers"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassengerDropdown(false)}
+                    className="w-full text-center py-1.5 rounded-lg bg-[#15191F] hover:bg-[#303640]/50 text-xs font-medium text-[#E8B04A] transition-colors cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* SUBMIT BUTTON */}
+          <div className="shrink-0 w-full sm:w-auto">
+            <button
+              type="submit"
+              id="search-submit-btn"
+              disabled={busy}
+              className="w-full sm:w-auto h-[54px] sm:h-[58px] lg:h-[64px] px-6 sm:px-7 rounded-xl bg-[#E8B04A] hover:bg-[#F2BE62] active:bg-[#D9A139] text-[#0B0D10] font-semibold text-sm flex items-center justify-center gap-2.5 transition-all duration-150 ease-out disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer shadow-lg whitespace-nowrap"
+              aria-busy={busy}
+            >
+              {busy ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin text-[#0B0D10]" aria-hidden="true" />
+                  <span>Searching...</span>
+                </>
+              ) : (
+                <>
+                  <span>Find trains</span>
+                  <ArrowRight className="h-4 w-4 text-[#0B0D10]" aria-hidden="true" />
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Validation feedback */}
+      {(errors.origin || errors.destination || errors.departureDate) && (
+        <div className="mt-2.5 px-2 text-xs text-red-400 flex flex-wrap gap-x-4 gap-y-1">
+          {errors.origin && <span>• {errors.origin}</span>}
+          {errors.destination && <span>• {errors.destination}</span>}
+          {errors.departureDate && <span>• {errors.departureDate}</span>}
+        </div>
+      )}
     </form>
   );
 }
