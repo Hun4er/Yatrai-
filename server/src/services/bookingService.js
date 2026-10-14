@@ -224,8 +224,8 @@ export const bookingService = {
       }
     }
 
-    // Always generate a Yatrai internal PNR — every booking gets a unique, searchable 10-digit reference
-    const yatraiPnr = generatePnrNumber();
+    // Strict Booking Integrity Rule: Never fabricate PNR for unconfirmed bookings
+    const yatraiPnr = isConfirmed ? generatePnrNumber() : null;
 
     // 7. Persist Booking
     const booking = new Booking({

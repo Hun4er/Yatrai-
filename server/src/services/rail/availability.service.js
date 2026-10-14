@@ -1,4 +1,4 @@
-import railRadarAdapter from '../../providers/rail/railRadar.adapter.js';
+import railKitAdapter from '../../providers/rail/railKit.adapter.js';
 import aopayAdapter from '../../providers/rail/aopay.adapter.js';
 import { formatJourneyDate } from '../../utils/railwayTime.js';
 import logger from '../../utils/logger.js';
@@ -22,14 +22,14 @@ export { AVAILABILITY_STATUS, JOURNEY_AVAILABILITY, normalizeSeatAvailability };
  */
 export class AvailabilityService {
   constructor(dependencies = {}) {
-    this._railRadar = dependencies.railRadar;
+    this._railKit = dependencies.railKit || dependencies.railRadar;
     this._aopay = dependencies.aopay;
     this.cache = new Map();
     this.cacheTtlMs = 5 * 60 * 1000; // 5 minutes
   }
 
-  get railRadar() {
-    return this._railRadar || railRadarAdapter;
+  get railKit() {
+    return this._railKit || railKitAdapter;
   }
 
   get aopay() {
@@ -74,7 +74,7 @@ export class AvailabilityService {
     if (budgetTracker && isRecovery && !budgetTracker.canMakeRecoveryRequest()) {
       return {
         success: false,
-        provider: 'RailRadar',
+        provider: 'RailKit',
         trainNumber: num,
         travelClass,
         quota,
@@ -91,14 +91,11 @@ export class AvailabilityService {
 
     let result = null;
 
-    // 1. Primary provider: RailRadar
+    // 1. Primary provider: RailKit
     try {
-      result = await this.railRadar.getAvailability(num, from, to, dateStr, travelClass, quota, {
-        budgetTracker,
-        isRecovery,
-      });
+      result = await this.railKit.getAvailability(num, from, to, dateStr, travelClass, quota);
     } catch (err) {
-      logger.debug(`[AvailabilityService] RailRadar availability check failed: ${err.message}`);
+      logger.debug(`[AvailabilityService] RailKit availability check failed: ${err.message}`);
     }
 
     // 2. Secondary fallback: AOPAY (if authorized and primary was unknown)
@@ -117,7 +114,7 @@ export class AvailabilityService {
     if (!result) {
       result = {
         success: false,
-        provider: 'RailRadar',
+        provider: 'RailKit',
         trainNumber: num,
         travelClass,
         quota,

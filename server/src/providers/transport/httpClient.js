@@ -138,6 +138,23 @@ export async function httpFetch(url, options = {}) {
       // 5. Transient Server Errors (HTTP 502, 503, 504) - Retryable
       const isTransient = [502, 503, 504].includes(response.status);
       if (isTransient && attempt <= maxRetries) {
+        if (options.budgetTracker) {
+          const allowed = options.budgetTracker.recordOutboundRequest({
+            isRecovery: options.isRecovery !== false,
+            endpoint: url,
+            isRetry: true,
+          });
+          if (!allowed) {
+            logger.warn(`[${provider}] Request budget exhausted on retry. Ceasing retries.`);
+            throw new ProviderError(`Provider "${provider}" returned HTTP ${response.status} (budget exhausted on retry).`, {
+              provider,
+              code: 'PROVIDER_UNAVAILABLE',
+              statusCode: response.status,
+              retryable: false,
+              details: sanitizeCredentials(data),
+            });
+          }
+        }
         logger.warn(`[${provider}] Transient HTTP ${response.status} error, retrying in 250ms...`);
         await new Promise((resolve) => setTimeout(resolve, 250));
         continue;
@@ -157,6 +174,22 @@ export async function httpFetch(url, options = {}) {
       if (err.name === 'AbortError') {
         const isLastAttempt = attempt > maxRetries;
         if (!isLastAttempt) {
+          if (options.budgetTracker) {
+            const allowed = options.budgetTracker.recordOutboundRequest({
+              isRecovery: options.isRecovery !== false,
+              endpoint: url,
+              isRetry: true,
+            });
+            if (!allowed) {
+              logger.warn(`[${provider}] Request budget exhausted on timeout retry. Ceasing retries.`);
+              throw new ProviderError(`Provider "${provider}" timed out after ${timeoutMs}ms (budget exhausted on retry).`, {
+                provider,
+                code: 'PROVIDER_TIMEOUT',
+                statusCode: 504,
+                retryable: false,
+              });
+            }
+          }
           logger.warn(`[${provider}] Request timed out after ${timeoutMs}ms, retrying...`);
           continue;
         }
@@ -176,6 +209,22 @@ export async function httpFetch(url, options = {}) {
       // Network connection failure (e.g. ECONNREFUSED, ENOTFOUND)
       const isLastAttempt = attempt > maxRetries;
       if (!isLastAttempt) {
+        if (options.budgetTracker) {
+          const allowed = options.budgetTracker.recordOutboundRequest({
+            isRecovery: options.isRecovery !== false,
+            endpoint: url,
+            isRetry: true,
+          });
+          if (!allowed) {
+            logger.warn(`[${provider}] Request budget exhausted on network error retry. Ceasing retries.`);
+            throw new ProviderError(`Network connection to provider "${provider}" failed (budget exhausted on retry).`, {
+              provider,
+              code: 'NETWORK_ERROR',
+              statusCode: 503,
+              retryable: false,
+            });
+          }
+        }
         logger.warn(`[${provider}] Network error: ${err.message}, retrying...`);
         continue;
       }

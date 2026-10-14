@@ -1,4 +1,4 @@
-import railRadarAdapter from '../../providers/rail/railRadar.adapter.js';
+import railKitAdapter from '../../providers/rail/railKit.adapter.js';
 import aopayAdapter from '../../providers/rail/aopay.adapter.js';
 import { VERIFIED_TRAIN_SCHEDULES } from './verifiedTrainData.js';
 import logger from '../../utils/logger.js';
@@ -14,7 +14,7 @@ import logger from '../../utils/logger.js';
  */
 export class FareService {
   constructor(dependencies = {}) {
-    this.railRadar = dependencies.railRadar || railRadarAdapter;
+    this.railKit = dependencies.railKit || dependencies.railRadar || railKitAdapter;
     this.aopay = dependencies.aopay || aopayAdapter;
   }
 
@@ -38,7 +38,7 @@ export class FareService {
     travelClass = '3A',
     quota = 'GN'
   ) {
-    let num, from, to, tClass, distanceKm, passengers;
+    let num, from, to, tClass, distanceKm, passengers, legDate, legQuota;
     if (typeof trainNumberOrParams === 'object' && trainNumberOrParams !== null) {
       num = trainNumberOrParams.trainNumber;
       from = trainNumberOrParams.fromCode || trainNumberOrParams.fromStation;
@@ -46,6 +46,8 @@ export class FareService {
       tClass = trainNumberOrParams.travelClass || '3A';
       distanceKm = trainNumberOrParams.distanceKm || 500;
       passengers = trainNumberOrParams.passengers || 1;
+      legDate = trainNumberOrParams.date || date || '';
+      legQuota = trainNumberOrParams.quota || quota || 'GN';
     } else {
       num = trainNumberOrParams;
       from = fromCode;
@@ -53,6 +55,8 @@ export class FareService {
       tClass = travelClass;
       distanceKm = 500;
       passengers = 1;
+      legDate = date || '';
+      legQuota = quota || 'GN';
     }
 
     const numStr = String(num || '').trim();
@@ -63,15 +67,54 @@ export class FareService {
     const budgetTracker = typeof trainNumberOrParams === 'object' ? trainNumberOrParams?.budgetTracker : null;
     const isRecovery = typeof trainNumberOrParams === 'object' ? trainNumberOrParams?.isRecovery !== false : true;
 
-    // 1. Try RailRadar primary provider
+    // 0. Effective API usage: If availability check already returned the verified RailKit live fare, reuse it directly!
+    const directAvailFare = trainNumberOrParams?.availability?.fare || trainNumberOrParams?.availability?.fareBreakup;
+    if (directAvailFare && typeof directAvailFare.totalFare === 'number' && directAvailFare.totalFare > 0) {
+      const farePerPassenger = directAvailFare.totalFare;
+      const totalLegFare = farePerPassenger * pCount;
+      return {
+        success: true,
+        amount: totalLegFare,
+        trainNumber: numStr,
+        fromCode: fromStr,
+        toCode: toStr,
+        travelClass: tClass,
+        passengers: pCount,
+        baseFare: directAvailFare.baseFare ? directAvailFare.baseFare * pCount : totalLegFare,
+        totalFare: totalLegFare,
+        bookingFee: 0,
+        currency: 'INR',
+        isEstimated: false,
+        source: 'RailKit',
+        fareBreakup: directAvailFare,
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    // 1. Try RailKit primary provider
     let fareRes = null;
+    let rkResult = null;
     try {
-      fareRes = await this.railRadar.getFare(numStr, fromStr, toStr, tClass, distanceKm, {
-        budgetTracker,
-        isRecovery,
-      });
+      if (typeof this.railKit.fareLookup === 'function') {
+        rkResult = await this.railKit.fareLookup(numStr, fromStr, toStr, legDate, tClass, legQuota);
+      } else {
+        rkResult = await this.railKit.getFare(numStr, fromStr, toStr, legDate, tClass, legQuota);
+      }
+      if (rkResult && rkResult.status === 'ok' && rkResult.totalFare !== null) {
+        fareRes = {
+          success: true,
+          baseFare: rkResult.baseFare ?? rkResult.totalFare,
+          totalFare: rkResult.totalFare,
+          currency: 'INR',
+          isEstimated: false,
+          fareUnavailable: false,
+          source: 'RailKit',
+          trainName: rkResult.trainName || null,
+          fareBreakup: rkResult.fareBreakup || null,
+        };
+      }
     } catch (err) {
-      logger.debug(`[FareService] RailRadar fare retrieval failed: ${err.message}`);
+      logger.debug(`[FareService] RailKit fare retrieval failed: ${err.message}`);
     }
 
     // 2. Try AOPAY secondary fallback if authorized and needed
@@ -154,25 +197,25 @@ export class FareService {
       };
     }
 
-    const baseFarePerPassenger = fareRes.baseFare;
-    const totalLegFare = baseFarePerPassenger * pCount;
-    const bookingFee = 15 * pCount; // IRCTC standard convenience fee
+    const farePerPassenger = fareRes.totalFare ?? fareRes.baseFare;
+    const totalLegFare = farePerPassenger * pCount;
     const isEstimated = Boolean(fareRes.isEstimated);
 
     return {
       success: true,
-      amount: totalLegFare + bookingFee,
+      amount: totalLegFare,
       trainNumber: numStr,
       fromCode: fromStr,
       toCode: toStr,
       travelClass: tClass,
       passengers: pCount,
-      baseFare: totalLegFare,
-      totalFare: totalLegFare + bookingFee,
-      bookingFee,
+      baseFare: fareRes.baseFare ? (fareRes.baseFare * pCount) : totalLegFare,
+      totalFare: totalLegFare,
+      bookingFee: 0,
       currency: 'INR',
       isEstimated,
       source: fareRes.source || 'provider',
+      fareBreakup: fareRes.fareBreakup || null,
       timestamp: new Date().toISOString(),
     };
   }

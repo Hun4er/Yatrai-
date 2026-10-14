@@ -258,17 +258,21 @@ export function JourneyResultCard({
           )}
 
           {/* Seat Availability Status Badge */}
-          {(journey.availabilityStatus === 'AVAILABILITY_VERIFIED' || journey.isBookable) && (
+          {((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'AVAILABILITY_VERIFIED' ||
+            ((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'AVAILABLE' && journey.isBookable)) && (
             <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
               Seats Verified
             </span>
           )}
-          {journey.availabilityStatus === 'RAC_ONLY' && (
+          {((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'RAC_AVAILABLE' ||
+            (journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'RAC' ||
+            (journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'RAC_ONLY') && (
             <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
               RAC
             </span>
           )}
-          {journey.availabilityStatus === 'WAITLIST_ONLY' && (
+          {((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'WAITLIST_ONLY' ||
+            (journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'WAITLIST') && (
             <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
               Waitlist
             </span>
@@ -560,23 +564,28 @@ export function JourneyResultCard({
 
             {/* Leg breakdown list */}
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {legs.map((leg, i) => (
-                <div key={i} className="rounded-xl border border-white/10 bg-surface-secondary/70 p-3 text-xs space-y-1">
-                  <div className="flex items-center justify-between font-bold text-text-primary">
-                    <span>Leg {i + 1}: {leg.service?.name || 'Train'} (#{leg.service?.number || leg.trainNumber})</span>
-                    <span className="text-emerald-400 font-mono">
-                      {leg.price ? `₹${leg.price}` : 'Fare unavailable'}
-                    </span>
+              {legs.map((leg, i) => {
+                const legFare = leg.price != null && leg.price > 0 ? leg.price : null;
+                const legAvailStatus = leg.availability?.normalizedStatus || leg.availability?.status || 'UNKNOWN';
+                const legRawStatus = leg.availability?.rawStatus || '';
+                return (
+                  <div key={i} className="rounded-xl border border-white/10 bg-surface-secondary/70 p-3 text-xs space-y-1">
+                    <div className="flex items-center justify-between font-bold text-text-primary">
+                      <span>Leg {i + 1}: {leg.service?.name || 'Train'} (#{leg.service?.number || leg.trainNumber})</span>
+                      <span className={legFare ? 'text-emerald-400 font-mono' : 'text-[#7E8794] font-normal'}>
+                        {legFare ? `₹${legFare}` : 'Fare unavailable'}
+                      </span>
+                    </div>
+                    <div className="text-text-secondary">
+                      {leg.origin?.name || leg.origin?.city} → {leg.destination?.name || leg.destination?.city}
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-text-tertiary">
+                      <span>Class: {leg.service?.class || 'SL'}</span>
+                      <span>· Status: {legRawStatus || legAvailStatus}</span>
+                    </div>
                   </div>
-                  <div className="text-text-secondary">
-                    {leg.origin?.name || leg.origin?.city} → {leg.destination?.name || leg.destination?.city}
-                  </div>
-                  <div className="flex items-center gap-2 text-[11px] text-text-tertiary">
-                    <span>Class: {leg.service?.class || 'SL'}</span>
-                    <span>· Status: {leg.availability?.status || 'VERIFIED'}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Total Fare & Compliance Warning */}
@@ -589,6 +598,18 @@ export function JourneyResultCard({
               <AlertCircle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
               <span>
                 Yatrai does not store sensitive payment details or auto-book without your explicit IRCTC account authorization.
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-[#303640] bg-[#15191F] p-3 text-[11px] text-[#7E8794] flex items-start gap-2">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-[#7E8794] mt-0.5" />
+              <span>
+                Availability and fares shown are indicative and may have changed.
+                Book on{' '}
+                <a href="https://www.irctc.co.in" target="_blank" rel="noopener noreferrer" className="text-[#E8B04A] hover:underline">
+                  IRCTC
+                </a>{' '}
+                for confirmed status.
               </span>
             </div>
 

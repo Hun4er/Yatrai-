@@ -282,7 +282,7 @@ export const VERIFIED_TRAIN_SCHEDULES = [
     distanceKm: 1386,
     runDays: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
     classes: ['1A', '2A', '3A'],
-    fares: { '1A': 4200, '2A': 3100, '3A': 2250 },
+    fares: { '1A': 4850, '2A': 3950, '3A': 3165 },
     operator: 'Western Railway',
   },
   {
@@ -299,7 +299,7 @@ export const VERIFIED_TRAIN_SCHEDULES = [
     distanceKm: 1377,
     runDays: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
     classes: ['1A', '2A', '3A'],
-    fares: { '1A': 4200, '2A': 3100, '3A': 2250 },
+    fares: { '1A': 4850, '2A': 3950, '3A': 3165 },
     operator: 'Western Railway',
   },
 
@@ -320,7 +320,7 @@ export const VERIFIED_TRAIN_SCHEDULES = [
     distanceKm: 1386,
     runDays: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
     classes: ['1A', '2A', '3A'],
-    fares: { '1A': 4200, '2A': 3100, '3A': 2250 },
+    fares: { '1A': 4850, '2A': 3950, '3A': 3165 },
     operator: 'Western Railway',
   },
   {
@@ -337,7 +337,7 @@ export const VERIFIED_TRAIN_SCHEDULES = [
     distanceKm: 1377,
     runDays: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
     classes: ['1A', '2A', '3A', '3E'],
-    fares: { '1A': 4150, '2A': 3050, '3A': 2200, '3E': 1950 },
+    fares: { '1A': 4850, '2A': 3950, '3A': 3165, '3E': 2950 },
     operator: 'Western Railway',
   },
   {

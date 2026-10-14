@@ -72,7 +72,27 @@ export function normalizeSeatAvailability(rawStatus) {
     };
   }
 
-  // 2. Waitlist statuses (GNWL, RLWL, PQWL, TQWL, RSWL, WAITLIST, WL)
+  // 2. RAC statuses (Reservation Against Cancellation - confirmed travel with allocated seat)
+  if (raw.includes('RAC')) {
+    let seatsAvailable = null;
+    const slashMatch = /RAC\s*\d+\s*\/\s*RAC\s*(\d+)/i.exec(raw);
+    if (slashMatch) {
+      seatsAvailable = parseInt(slashMatch[1], 10);
+    } else {
+      const racMatch = /RAC\s*(\d+)/i.exec(raw);
+      if (racMatch) {
+        seatsAvailable = parseInt(racMatch[1], 10);
+      }
+    }
+    return {
+      normalizedStatus: AVAILABILITY_STATUS.RAC,
+      rawStatus: trimmed,
+      seatsAvailable,
+      isAvailable: false,
+    };
+  }
+
+  // 3. Waitlist statuses (GNWL, RLWL, PQWL, TQWL, RSWL, WAITLIST, WL)
   if (
     raw.includes('WAITLIST') ||
     raw.includes('WL') ||
@@ -82,16 +102,6 @@ export function normalizeSeatAvailability(rawStatus) {
       normalizedStatus: AVAILABILITY_STATUS.WAITLIST,
       rawStatus: trimmed,
       seatsAvailable: 0,
-      isAvailable: false,
-    };
-  }
-
-  // 3. RAC statuses
-  if (raw.includes('RAC')) {
-    return {
-      normalizedStatus: AVAILABILITY_STATUS.RAC,
-      rawStatus: trimmed,
-      seatsAvailable: null,
       isAvailable: false,
     };
   }

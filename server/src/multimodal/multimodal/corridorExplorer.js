@@ -201,7 +201,9 @@ export class CorridorExplorer {
         let stationDoc = null;
         try {
           stationDoc = await locationService.resolveSingle(primaryStationName);
-        } catch (_) {}
+        } catch {
+          stationDoc = null; // Resolution failure is non-fatal; feeder will use fallback name
+        }
 
         const stationDestination = stationDoc || { name: primaryStationName, type: 'railway_station' };
         const baseDate = departureDate instanceof Date ? departureDate : new Date(departureDate);
@@ -273,7 +275,9 @@ export class CorridorExplorer {
         let hubDoc = null;
         try {
           hubDoc = await locationService.resolveSingle(hub.city || hub.name);
-        } catch (_) {}
+        } catch {
+          hubDoc = null; // Hub resolution failure is non-fatal; fallback hub data will be used
+        }
 
         const hubLoc = {
           id: hubDoc?._id ? hubDoc._id.toString() : (hub.code ? hub.code.toLowerCase() : hub.name.toLowerCase()),

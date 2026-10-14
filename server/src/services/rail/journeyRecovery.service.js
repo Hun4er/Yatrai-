@@ -9,6 +9,7 @@ import RequestBudgetTracker from './requestBudget.js';
 import logger from '../../utils/logger.js';
 import { calculateJourneyTiming } from '../../utils/railwayTime.js';
 import { resolveStationCode } from '../../providers/transport/rail/rail.provider.js';
+import config from '../../config/index.js';
 
 /**
  * Directed Railway Graph for Bounded Recovery Pathfinding
@@ -227,12 +228,15 @@ export class JourneyRecoveryService {
       }
     }
 
-    // Query schedules for distinct stages bounded by recovery request budget
+    // Query schedules for distinct stages bounded by recovery request budget.
+    // Reserve at least 2 requests (or 20% of recovery budget) for seat availability verification.
+    const maxStageRequests = Math.max(1, budgetTracker.maxRecoveryRequests - 2);
+
     for (const stage of stagesToQuery) {
       // Check budget before making query
-      if (!budgetTracker.canMakeRecoveryRequest()) {
+      if (budgetTracker.recoveryRequestsUsed >= maxStageRequests || !budgetTracker.canMakeRecoveryRequest()) {
         logger.debug(
-          `[JourneyRecoveryService] Recovery budget exhausted (${budgetTracker.recoveryRequestsUsed}/${budgetTracker.maxRecoveryRequests}). Ceasing further stage queries.`
+          `[JourneyRecoveryService] Schedule stage quota reached (${budgetTracker.recoveryRequestsUsed}/${maxStageRequests}). Reserving remaining budget for availability verification.`
         );
         break;
       }
@@ -252,6 +256,18 @@ export class JourneyRecoveryService {
         for (const t of trains.slice(0, 5)) {
           const tNum = String(t.train?.number || t.trainNumber || t.number || '');
           const tName = t.train?.name || t.trainName || t.name || 'Express';
+          const tFromCode = t.from?.code || t.fromStation;
+          const tToCode = t.to?.code || t.toStation;
+
+          // If the train explicitly belongs to a different origin/destination station
+          // than this corridor stage, do not bind it to stage.from/to (prevent invalid provider calls)
+          if (tFromCode && tFromCode !== stage.from) {
+            continue;
+          }
+          if (tToCode && tToCode !== stage.to) {
+            continue;
+          }
+
           const departureTimeStr = t.from?.departure || t.departureTime || '06:00';
           const arrivalTimeStr = t.to?.arrival || t.arrivalTime || '18:00';
           const distKm = Math.round(Number(t.distance) || 450);
@@ -379,7 +395,9 @@ export class JourneyRecoveryService {
       if (candidateJourneys.length >= 35) break;
     }
 
+    logger.info(`[DIAGNOSTIC - RECOVERY STAGE 1] candidateJourneys found via DFS: ${candidateJourneys.length}`);
     if (candidateJourneys.length === 0) {
+      logger.info(`[DIAGNOSTIC - DROPPED TO ZERO AT RECOVERY STAGE 1] No connecting paths found in station expansion graph.`);
       return {
         recoveredJourneys: [],
         journeys: [],
@@ -393,6 +411,7 @@ export class JourneyRecoveryService {
 
     // Step 6: Deduplicate candidates with identical train sequences
     const dedupedCandidates = this.deduplicateCandidates(candidateJourneys);
+    logger.info(`[DIAGNOSTIC - RECOVERY STAGE 3 (TRANSFER MATCHING)] dedupedCandidates in=${dedupedCandidates.length}`);
 
     // Step 7: Connection timing and feasibility validation
     const feasibleJourneys = [];
@@ -402,38 +421,51 @@ export class JourneyRecoveryService {
         feasibleJourneys.push(cand);
       }
     }
+    logger.info(`[DIAGNOSTIC - RECOVERY STAGE 3 (TRANSFER MATCHING)] feasibleJourneys out=${feasibleJourneys.length}`);
 
     // Step 8: Enrich availability and fares independently (bounded to top candidates within budget)
-    const maxToEnrich = Number(options.maxCandidatesToValidate ?? 8);
+    // RAILKIT_MAX_ENRICH_CANDIDATES caps RailKit calls per search (default 5, ~10 calls per search)
+    const maxToEnrich = Number(
+      process.env.RAILKIT_MAX_ENRICH_CANDIDATES ||
+      (options.maxCandidatesToValidate ??
+       config.railRecovery?.maxCandidatesToValidate ??
+       5)
+    );
     const candidatesToEnrich = feasibleJourneys.slice(0, maxToEnrich);
+    logger.info(`[DIAGNOSTIC - RECOVERY STAGE 4 & 5 (ENRICHMENT START)] candidatesToEnrich count=${candidatesToEnrich.length}`);
     const enrichedJourneys = [];
 
     for (const journey of candidatesToEnrich) {
       try {
         const enrichedLegs = [];
         for (const leg of journey.legs) {
-          const [avail, fare] = await Promise.all([
-            this.availabilityService.checkLegAvailability({
-              trainNumber: leg.trainNumber,
-              fromCode: leg.metadata?.fromStation,
-              toCode: leg.metadata?.toStation,
-              date: leg.departureTime,
-              travelClass,
-              quota,
-              budgetTracker,
-              isRecovery: true,
-            }),
-            this.fareService.getLegFare({
-              trainNumber: leg.trainNumber,
-              fromCode: leg.metadata?.fromStation,
-              toCode: leg.metadata?.toStation,
-              travelClass,
-              distanceKm: leg.distance,
-              passengers,
-              budgetTracker,
-              isRecovery: true,
-            }),
-          ]);
+          const fromCode = typeof leg.origin === 'string' && leg.origin.length <= 5 ? leg.origin : (leg.origin?.code || leg.metadata?.fromStationCode || leg.metadata?.fromStation);
+          const toCode = typeof leg.destination === 'string' && leg.destination.length <= 5 ? leg.destination : (leg.destination?.code || leg.metadata?.toStationCode || leg.metadata?.toStation);
+
+          const avail = await this.availabilityService.checkLegAvailability({
+            trainNumber: leg.trainNumber,
+            fromCode,
+            toCode,
+            date: leg.departureTime,
+            travelClass,
+            quota,
+            budgetTracker,
+            isRecovery: true,
+          });
+
+          const fare = await this.fareService.getLegFare({
+            trainNumber: leg.trainNumber,
+            fromCode,
+            toCode,
+            date: leg.departureTime,       // correct per-leg date (midnight-aware)
+            travelClass,
+            quota,
+            distanceKm: leg.distance,
+            passengers,
+            budgetTracker,
+            isRecovery: true,
+            availability: avail,
+          });
 
           leg.availability = avail;
           leg.price = fare.totalFare;
@@ -475,8 +507,13 @@ export class JourneyRecoveryService {
 
         enrichedJourneys.push(journey);
       } catch (enrichErr) {
-        logger.debug(`[JourneyRecoveryService] Leg enrichment failed: ${enrichErr.message}`);
+        logger.error(`[DIAGNOSTIC - RECOVERY ENRICHMENT ERROR] Leg enrichment failed: ${enrichErr.message}`);
       }
+    }
+
+    logger.info(`[DIAGNOSTIC - RECOVERY STAGE 4 & 5 (ENRICHMENT END)] Enriched recovery journeys count=${enrichedJourneys.length}`);
+    for (const j of enrichedJourneys) {
+      logger.info(`  [RECOVERY ENRICHED] ${j.legs.length}-leg journey: ${j.legs.map(l => `${l.trainNumber}:${l.availability?.normalizedStatus}`).join(' -> ')}, price=₹${j.totalPrice}`);
     }
 
     // Step 8.5: Enforce Confirmed-Availability Rule (Section 6)
@@ -506,8 +543,24 @@ export class JourneyRecoveryService {
       }
     }
 
-    const requireConfirmed = options.confirmedOnly !== false;
-    const candidatesToRank = requireConfirmed ? confirmedJourneys : enrichedJourneys;
+    const requireConfirmed = options.confirmedOnly === true;
+    logger.info(`[DIAGNOSTIC - RECOVERY STAGE 6 (CONFIRMED FILTER)] requireConfirmed=${requireConfirmed}, confirmedJourneys=${confirmedJourneys.length}, unconfirmedCandidates=${unconfirmedCandidates.length}`);
+    if (requireConfirmed && confirmedJourneys.length === 0) {
+      logger.info(`[DIAGNOSTIC - DROPPED TO ZERO AT RECOVERY STAGE 6] All ${enrichedJourneys.length} recovered journeys dropped because not all legs have confirmed AVAILABLE seats.`);
+    }
+    const candidatesToRank = confirmedJourneys.length > 0
+      ? confirmedJourneys
+      : (requireConfirmed
+          ? []
+          : enrichedJourneys.filter((j) =>
+              Array.isArray(j.legs) &&
+              j.legs.length > 0 &&
+              j.legs.every((leg) =>
+                leg.availability?.normalizedStatus &&
+                leg.availability.normalizedStatus !== AVAILABILITY_STATUS.UNKNOWN &&
+                leg.availability.normalizedStatus !== AVAILABILITY_STATUS.UNAVAILABLE
+              )
+            ));
 
     // Step 9: Rank and categorize recovered journeys (Section 8)
     const rankedAlternatives = this.categorizeAndRank(candidatesToRank, preferences).slice(0, maxAlternatives);
@@ -618,8 +671,10 @@ export class JourneyRecoveryService {
         number: item.edge.trainNumber,
       },
       metadata: {
-        fromStation: item.edge.fromStationName || item.edge.from,
-        toStation: item.edge.toStationName || item.edge.to,
+        fromStation: item.edge.from,
+        toStation: item.edge.to,
+        fromStationName: item.edge.fromStationName || item.edge.from,
+        toStationName: item.edge.toStationName || item.edge.to,
       },
     }));
 

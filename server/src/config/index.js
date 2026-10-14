@@ -93,6 +93,15 @@ export const config = Object.freeze({
       enableAvailabilityEndpoint: process.env.RAILRADAR_ENABLE_AVAILABILITY !== 'false',
       availabilityTtlMs: parseInt(process.env.RAILRADAR_AVAILABILITY_TTL_MS || '300000', 10),
     },
+    railkit: {
+      apiKey: process.env.RAILKIT_API_KEY || null,
+      apiUrl: process.env.RAILKIT_API_URL || 'https://api.railkit.in',
+      timeoutMs: parseInt(process.env.RAILKIT_TIMEOUT_MS || '8000', 10),
+      enabled: process.env.RAILKIT_ENABLED !== 'false',
+      cacheTtlMs: parseInt(process.env.RAILKIT_CACHE_TTL_MS || '300000', 10),
+      maxConcurrent: parseInt(process.env.RAILKIT_MAX_CONCURRENT || '3', 10),
+      maxEnrichCandidates: parseInt(process.env.RAILKIT_MAX_ENRICH_CANDIDATES || '5', 10),
+    },
     aopay: {
       apiKey: process.env.AOPAY_API_KEY || null,
       baseUrl: process.env.AOPAY_BASE_URL || 'https://api.aopay.in/v1',

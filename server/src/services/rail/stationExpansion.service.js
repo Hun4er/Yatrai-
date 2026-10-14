@@ -311,11 +311,30 @@ export class StationExpansionService {
    * @param {string} destCode
    * @returns {Array<Object>} Prioritized intermediate junction stations
    */
-  findIntermediateHubs(originCode, destCode) {
+  findIntermediateHubs(originCode, destCode, options = {}) {
     const o = String(originCode).trim().toUpperCase();
     const d = String(destCode).trim().toUpperCase();
 
     const candidateHubs = [];
+
+    // Dynamically accept any verified candidate intermediate hubs passed via options/context
+    if (Array.isArray(options.viaStations) || Array.isArray(options.intermediateHubs)) {
+      const explicitHubs = [...(options.viaStations || []), ...(options.intermediateHubs || [])];
+      for (const hub of explicitHubs) {
+        const rawCode = typeof hub === 'string' ? hub : (hub?.code || resolveStationCode(hub));
+        const code = String(rawCode || '').trim().toUpperCase();
+        if (code && code !== o && code !== d && this.hasRailwayConnectivity(code)) {
+          const knownInfo = INTERCHANGE_JUNCTIONS.find((j) => j.code === code) ||
+            INDIAN_RAILWAY_STATIONS.find((s) => s.stationCode === code);
+          candidateHubs.push({
+            code,
+            name: knownInfo?.name || code,
+            city: knownInfo?.city || code,
+            relevance: 'dynamic_candidate_hub',
+          });
+        }
+      }
+    }
 
     // Find if origin and destination share a mainline corridor
     for (const line of RAILWAY_CORRIDORS) {
@@ -344,9 +363,43 @@ export class StationExpansionService {
 
     // Default regional hub heuristics for cross-corridor searches
     if (candidateHubs.length === 0) {
-      const topInterchanges = INTERCHANGE_JUNCTIONS.slice(0, 8);
-      for (const hub of topInterchanges) {
-        if (hub.code !== o && hub.code !== d) {
+      // Find coordinates for origin and destination if present in authoritative registry
+      const oStn = INDIAN_RAILWAY_STATIONS.find((s) => s.stationCode === o);
+      const dStn = INDIAN_RAILWAY_STATIONS.find((s) => s.stationCode === d);
+
+      let sortedInterchanges = [...INTERCHANGE_JUNCTIONS];
+
+      if (oStn?.coordinates && dStn?.coordinates) {
+        const [oLon, oLat] = oStn.coordinates;
+        const [dLon, dLat] = dStn.coordinates;
+        const minLat = Math.min(oLat, dLat) - 2.5;
+        const maxLat = Math.max(oLat, dLat) + 2.5;
+        const minLon = Math.min(oLon, dLon) - 2.5;
+        const maxLon = Math.max(oLon, dLon) + 2.5;
+
+        sortedInterchanges.sort((a, b) => {
+          const aStn = INDIAN_RAILWAY_STATIONS.find((s) => s.stationCode === a.code);
+          const bStn = INDIAN_RAILWAY_STATIONS.find((s) => s.stationCode === b.code);
+
+          const aInBox = aStn?.coordinates &&
+            aStn.coordinates[1] >= minLat && aStn.coordinates[1] <= maxLat &&
+            aStn.coordinates[0] >= minLon && aStn.coordinates[0] <= maxLon;
+          const bInBox = bStn?.coordinates &&
+            bStn.coordinates[1] >= minLat && bStn.coordinates[1] <= maxLat &&
+            bStn.coordinates[0] >= minLon && bStn.coordinates[0] <= maxLon;
+
+          if (aInBox && !bInBox) return -1;
+          if (!aInBox && bInBox) return 1;
+
+          // If both or neither in bounding box, prefer hubs with registered railway connectivity
+          const aConn = this.hasRailwayConnectivity(a.code) ? 1 : 0;
+          const bConn = this.hasRailwayConnectivity(b.code) ? 1 : 0;
+          return bConn - aConn;
+        });
+      }
+
+      for (const hub of sortedInterchanges) {
+        if (hub.code !== o && hub.code !== d && this.hasRailwayConnectivity(hub.code)) {
           candidateHubs.push({
             code: hub.code,
             name: hub.name,
@@ -470,7 +523,7 @@ export class StationExpansionService {
 
     const originExpansions = this.expandStation(originCode, maxHops);
     const destExpansions = this.expandStation(destCode, maxHops);
-    const intermediateHubs = this.findIntermediateHubs(originCode, destCode);
+    const intermediateHubs = this.findIntermediateHubs(originCode, destCode, options);
 
     const topologies = [];
     const seenSignatures = new Set();
@@ -584,17 +637,17 @@ export class StationExpansionService {
       });
     };
 
-    // 1. Direct Alternate Topologies (0 transfers: alternate origin or alternate destination)
+    // 1. Primary Pattern: Origin -> Interchange Hub -> Destination (1 train change)
+    for (const hub of intermediateHubs) {
+      addTwoLegTopology('DirectOrigin_Interchange_DirectDest', { code: originCode }, hub, { code: destCode }, 0, 0);
+    }
+
+    // 2. Direct Alternate Topologies (0 transfers: alternate origin or alternate destination)
     for (const oExp of originExpansions.slice(1, 3)) {
       addDirectAlternateTopology('AlternateOrigin_DirectDest', oExp, { code: destCode }, oExp.hops, 0);
     }
     for (const dExp of destExpansions.slice(1, 3)) {
       addDirectAlternateTopology('DirectOrigin_AlternateDest', { code: originCode }, dExp, 0, dExp.hops);
-    }
-
-    // 2. Pattern: Origin -> Interchange Hub -> Destination (1 train change)
-    for (const hub of intermediateHubs) {
-      addTwoLegTopology('DirectOrigin_Interchange_DirectDest', { code: originCode }, hub, { code: destCode }, 0, 0);
     }
 
     // 3. Pattern: Nearby Origin Station -> Interchange Hub -> Destination

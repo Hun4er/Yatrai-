@@ -34,7 +34,7 @@ export function HomePage({
   return (
     <div className="relative min-h-[calc(100vh-64px)] w-full bg-[#0B0D10] text-[#F0F1F3] overflow-x-hidden flex flex-col justify-between font-sans">
       {/* ===================== HERO SECTION ===================== */}
-      <section className="relative w-full pt-8 sm:pt-12 md:pt-16 pb-10 sm:pb-14 md:pb-20 px-3.5 sm:px-6 lg:px-8">
+      <section className="relative z-20 w-full pt-8 sm:pt-12 md:pt-16 pb-10 sm:pb-14 md:pb-20 px-3.5 sm:px-6 lg:px-8">
         {/* Cinematic Photograph Background */}
         <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
           {!imgError ? (
@@ -141,7 +141,7 @@ export function HomePage({
           </div>
 
           {/* Search Panel Component */}
-          <div className="w-full">
+          <div className="w-full relative z-30">
             {activeTab === 'structured' ? (
               <SearchForm
                 initialOrigin={initialOrigin}
@@ -164,7 +164,7 @@ export function HomePage({
       </section>
 
       {/* ===================== FEATURE HIGHLIGHTS ===================== */}
-      <section className="relative z-10 w-full px-3.5 sm:px-6 lg:px-8 py-6 sm:py-10 md:py-12 bg-[#0B0D10]">
+      <section className="relative z-0 w-full px-3.5 sm:px-6 lg:px-8 py-6 sm:py-10 md:py-12 bg-[#0B0D10]">
         <div className="mx-auto max-w-5xl">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-6 md:gap-8 pt-4 border-t border-[#303640]/40">
             {/* Feature 1: Compare options */}

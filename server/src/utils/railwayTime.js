@@ -311,11 +311,31 @@ export function formatJourneyDate(dateVal) {
   return '';
 }
 
+/**
+ * Converts any internal date representation to RailKit's required DD-MM-YYYY format.
+ *
+ * RailRadar uses YYYY-MM-DD; RailKit uses DD-MM-YYYY.
+ * NEVER call this for RailRadar calls, and NEVER pass its output to RailRadar.
+ * Use formatJourneyDate() for all internal / RailRadar dates.
+ *
+ * @param {string|Date|number} dateVal - Internal date (YYYY-MM-DD, ISO string, or Date)
+ * @returns {string} DD-MM-YYYY for RailKit, or '' on failure
+ */
+export function toRailKitDate(dateVal) {
+  const yyyyMmDd = formatJourneyDate(dateVal);
+  if (!yyyyMmDd) return '';
+  // yyyyMmDd is guaranteed YYYY-MM-DD at this point
+  const [y, m, d] = yyyyMmDd.split('-');
+  if (!y || !m || !d) return '';
+  return `${d}-${m}-${y}`;
+}
+
 export default {
   normalizeRailwayDateTime,
   formatInIST,
   calculateJourneyTiming,
   formatJourneyDate,
+  toRailKitDate,
   IST_OFFSET_STR,
   IST_OFFSET_MS,
 };

@@ -163,49 +163,61 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = f
                   {leg.quota && (
                     <span className="text-[#7E8794]">· Quota: {leg.quota}</span>
                   )}
-                  {leg.fare?.amount !== undefined && (
+                  {leg.fare?.amount !== undefined && leg.fare?.amount !== null && leg.fare?.amount > 0 ? (
                     <span className="font-semibold text-[#E8B04A]">
                       · ₹{leg.fare.amount}{leg.fare.isEstimated ? ' (est)' : ''}
                     </span>
-                  )}
+                  ) : leg.price != null && leg.price > 0 ? (
+                    <span className="font-semibold text-[#E8B04A]">
+                      · ₹{leg.price}{leg.isEstimated ? ' (est)' : ''}
+                    </span>
+                  ) : null}
                 </div>
 
                 {/* Real-Time Leg Availability & Live Status */}
-                {leg.availability && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2 pt-2 border-t border-[#303640] text-[11px]">
-                    {leg.availability.status === 'AVAILABLE' && (
-                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                        AVAILABLE {leg.availability.seatsAvailable ? `(${leg.availability.seatsAvailable})` : ''}
-                      </span>
-                    )}
-                    {leg.availability.status === 'RAC' && (
-                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                        RAC {leg.availability.seatsAvailable ? `(${leg.availability.seatsAvailable})` : ''}
-                      </span>
-                    )}
-                    {leg.availability.status === 'WAITLISTED' && (
-                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                        WAITLISTED
-                      </span>
-                    )}
-                    {leg.availability.status === 'NOT_AVAILABLE' && (
-                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                        NOT AVAILABLE
-                      </span>
-                    )}
-                    {leg.availability.status === 'UNKNOWN' && (
-                      <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-medium bg-[#15191F] text-[#7E8794] border border-[#303640]">
-                        AVAILABILITY UNKNOWN
-                      </span>
-                    )}
+                {leg.availability && (() => {
+                  // Use normalizedStatus from backend (backend normalizes via availabilityNorm.js)
+                  const availStatus = leg.availability.normalizedStatus || leg.availability.status || 'UNKNOWN';
+                  const rawStatus = leg.availability.rawStatus || leg.availability.originalStatus || '';
+                  const seats = leg.availability.seatsAvailable;
+                  const statusTooltip = rawStatus && rawStatus !== availStatus ? `Raw: ${rawStatus}` : '';
 
-                    {leg.availability.queryTimestamp && (
-                      <span className="text-[#7E8794] text-[10px]">
-                        Checked {new Date(leg.availability.queryTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    )}
-                  </div>
-                )}
+                  return (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 pt-2 border-t border-[#303640] text-[11px]">
+                      {availStatus === 'AVAILABLE' && (
+                        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={statusTooltip}>
+                          AVAILABLE {seats != null ? `(${seats})` : ''}
+                        </span>
+                      )}
+                      {availStatus === 'RAC' && (
+                        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20" title={statusTooltip}>
+                          RAC {seats != null && seats > 0 ? `(${seats})` : ''}
+                        </span>
+                      )}
+                      {availStatus === 'WAITLIST' && (
+                        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20" title={statusTooltip}>
+                          WAITLIST {rawStatus ? `· ${rawStatus}` : ''}
+                        </span>
+                      )}
+                      {availStatus === 'UNAVAILABLE' && (
+                        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20" title={statusTooltip}>
+                          NOT AVAILABLE
+                        </span>
+                      )}
+                      {availStatus === 'UNKNOWN' && (
+                        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-medium bg-[#15191F] text-[#7E8794] border border-[#303640]">
+                          {leg.availability.status === 'error' ? 'Could not fetch' : 'Availability unknown'}
+                        </span>
+                      )}
+
+                      {leg.availability.queryTimestamp && (
+                        <span className="text-[#7E8794] text-[10px]">
+                          Checked {new Date(leg.availability.queryTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Live Running Delay Warning */}
                 {leg.liveStatus?.delayMinutes > 5 && (

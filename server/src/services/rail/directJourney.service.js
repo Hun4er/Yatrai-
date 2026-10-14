@@ -63,6 +63,8 @@ export class DirectJourneyService {
     const searchOpts = { ...options, departureDate, date: departureDate, isRecovery: false };
     let searchResult = await this.railRadar.searchDirectTrains(originCode, destCode, searchOpts);
 
+    logger.info(`[DIAGNOSTIC - STAGE 1 (TIMETABLE FETCH)] Direct search for ${originCode} -> ${destCode} on ${departureDate}: success=${searchResult.success}, trainsCount=${searchResult.trains?.length || 0}, error=${searchResult.error || 'none'}`);
+
     // Handle provider complete failure (e.g. timeout, 429 quota exceeded, disabled, connection error)
     if (!searchResult.success) {
       const isDisabled = searchResult.reason === 'PROVIDER_DISABLED';
@@ -75,24 +77,29 @@ export class DirectJourneyService {
         /monthly quota/i.test(String(searchResult.error))
       );
 
-      // Immediately attempt verified schedule fallback before returning an error
-      const fromClusters = getClusterStationCodes(origin, originCode);
-      const toClusters = getClusterStationCodes(destination, destCode);
-      const verifiedFallback = [];
-      for (const f of fromClusters.slice(0, 3)) {
-        for (const t of toClusters.slice(0, 3)) {
-          const v = findVerifiedDirectTrains(f, t, departureDate);
-          if (v.length > 0) verifiedFallback.push(...v);
+      // When provider fails (timeout, 5xx, rate-limited, network failure), do NOT silently mask error with static schedules
+      // unless explicitly opted in via options.allowTimetableFallback === true
+      if (options.allowTimetableFallback === true) {
+        const fromClusters = getClusterStationCodes(origin, originCode);
+        const toClusters = getClusterStationCodes(destination, destCode);
+        const verifiedFallback = [];
+        for (const f of fromClusters.slice(0, 3)) {
+          for (const t of toClusters.slice(0, 3)) {
+            const v = findVerifiedDirectTrains(f, t, departureDate);
+            if (v.length > 0) verifiedFallback.push(...v);
+          }
+        }
+        if (verifiedFallback.length > 0) {
+          searchResult = { success: true, trains: verifiedFallback, source: 'verified_schedule', isTimetableFallback: true };
         }
       }
-      if (verifiedFallback.length > 0) {
-        // Continue with the verified data as if RailRadar returned it
-        searchResult = { success: true, trains: verifiedFallback, source: 'verified_schedule' };
-      } else {
+
+      if (!searchResult.success) {
         return {
           status: isRateLimited ? 'RATE_LIMITED' : DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED,
           isRateLimited,
           isMonthlyQuota,
+          statusCode: searchResult.statusCode || (isRateLimited ? 429 : 500),
           directJourneys: [],
           failureReason: isMonthlyQuota
             ? 'Railway API monthly quota exceeded (100 requests limit). Real-time search is currently paused.'
@@ -206,8 +213,14 @@ export class DirectJourneyService {
     }
 
     // Filter trains running on the travel date
+    logger.info(`[DIAGNOSTIC - STAGE 2 (DATE/RUNNING-DAY FILTER)] Formatted candidate trains in=${formattedCandidates.length}, target dayOfWeek=${dayOfWeek}`);
+    for (const c of formattedCandidates) {
+      logger.info(`  [CANDIDATE] Train ${c.trainNumber} (${c.trainName}): runDays=[${c.raw.train?.runDays || c.raw.runDays || ''}], isRunningOnDate=${c.isRunningOnDate}`);
+    }
     const runningCandidates = formattedCandidates.filter((c) => c.isRunningOnDate);
+    logger.info(`[DIAGNOSTIC - STAGE 2 (DATE/RUNNING-DAY FILTER)] Output running trains count=${runningCandidates.length}`);
     if (runningCandidates.length === 0) {
+      logger.info(`[DIAGNOSTIC - DROPPED TO ZERO AT STAGE 2] All ${formattedCandidates.length} trains dropped because none operate on ${dayOfWeek} (${departureDate})`);
       return {
         status: DIRECT_SEARCH_STATUS.DIRECT_NOT_RUNNING,
         directJourneys: [],
@@ -218,30 +231,33 @@ export class DirectJourneyService {
 
     // 3. Concurrently validate availability and fares for running candidates (bounded to top 6)
     const candidatesToValidate = runningCandidates.slice(0, 6);
+    logger.info(`[DIAGNOSTIC - STAGE 4 & 5 (ENRICHMENT START)] Validating availability & fare for top ${candidatesToValidate.length} running candidates`);
     const enrichedJourneys = await Promise.all(
       candidatesToValidate.map(async (cand) => {
-        const [avail, fare] = await Promise.all([
-          this.availabilityService.checkLegAvailability({
-            trainNumber: cand.trainNumber,
-            fromCode: cand.fromCode,
-            toCode: cand.toCode,
-            date: cand.departureTime,
-            travelClass,
-            quota,
-            budgetTracker: options.budgetTracker,
-            isRecovery: false,
-          }),
-          this.fareService.getLegFare({
-            trainNumber: cand.trainNumber,
-            fromCode: cand.fromCode,
-            toCode: cand.toCode,
-            travelClass,
-            distanceKm: cand.distance,
-            passengers,
-            budgetTracker: options.budgetTracker,
-            isRecovery: false,
-          }),
-        ]);
+        const avail = await this.availabilityService.checkLegAvailability({
+          trainNumber: cand.trainNumber,
+          fromCode: cand.fromCode,
+          toCode: cand.toCode,
+          date: cand.departureTime,
+          travelClass,
+          quota,
+          budgetTracker: options.budgetTracker,
+          isRecovery: false,
+        });
+
+        const fare = await this.fareService.getLegFare({
+          trainNumber: cand.trainNumber,
+          fromCode: cand.fromCode,
+          toCode: cand.toCode,
+          date: cand.departureTime,
+          travelClass,
+          quota,
+          distanceKm: cand.distance,
+          passengers,
+          budgetTracker: options.budgetTracker,
+          isRecovery: false,
+          availability: avail,
+        });
 
         return {
           origin: origin._id || origin.id || origin,
@@ -263,6 +279,11 @@ export class DirectJourneyService {
           source: 'rail',
           isDirectTrain: true,
           availability: avail,
+          availabilityStatus:
+            avail.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE
+              ? 'AVAILABILITY_VERIFIED'
+              : (avail.normalizedStatus === AVAILABILITY_STATUS.RAC ? 'RAC_AVAILABLE' : 'WAITLIST_ONLY'),
+          isBookable: avail.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE || avail.normalizedStatus === AVAILABILITY_STATUS.RAC,
           pricing: fare,
           metadata: {
             isDirect: true,
@@ -306,7 +327,10 @@ export class DirectJourneyService {
                 number: cand.trainNumber,
               },
               booking: {
-                status: avail.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE ? 'available' : 'waitlist',
+                status:
+                  avail.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE
+                    ? 'available'
+                    : (avail.normalizedStatus === AVAILABILITY_STATUS.RAC ? 'rac' : 'waitlist'),
                 availability: avail,
               },
               metadata: {
@@ -318,6 +342,11 @@ export class DirectJourneyService {
         };
       })
     );
+
+    logger.info(`[DIAGNOSTIC - STAGE 4 & 5 (ENRICHMENT END)] Enriched journeys count=${enrichedJourneys.length}`);
+    for (const j of enrichedJourneys) {
+      logger.info(`  [ENRICHED] Train ${j.metadata?.trainNumber} (${j.metadata?.trainName}): avail=${j.availability?.normalizedStatus} (raw: "${j.availability?.rawStatus}", seats: ${j.availability?.seatsAvailable}), fare=₹${j.pricing?.totalFare} (est: ${j.pricing?.isEstimated})`);
+    }
 
     // 4. Classify outcome based on user preferences and availability
     const allowWaitlist = preferences.allowWaitlist === true;
@@ -355,6 +384,8 @@ export class DirectJourneyService {
       (j) => j.availability?.normalizedStatus === AVAILABILITY_STATUS.UNKNOWN
     );
 
+    logger.info(`[DIAGNOSTIC - STAGE 6 (DIRECT CLASSIFICATION)] suitable=${suitableJourneys.length}, hasAvailable=${hasAvailable}, hasRac=${hasRac}, hasWaitlist=${hasWaitlist}, allUnavailable=${allUnavailable}, allUnknown=${allUnknown}`);
+
     if (hasAvailable) {
       // Confirmed-seat requirement (Section 5):
       // Rank confirmed trains and select ONE best direct train initially
@@ -390,18 +421,33 @@ export class DirectJourneyService {
     }
 
     if (hasRac && allowRac) {
+      if (suitableJourneys.length > 0 && !suitableJourneys[0].ranking) {
+        suitableJourneys[0].isTopPick = true;
+        suitableJourneys[0].ranking = {
+          strategy: 'overall',
+          label: 'Best Overall',
+          rank: 1,
+        };
+      }
       return {
         status: DIRECT_SEARCH_STATUS.DIRECT_RAC_ONLY,
-        directJourneys: options.confirmedOnly === false ? suitableJourneys : [],
-        failureReason: 'Direct trains have RAC seating only.',
-        shouldTriggerRecovery: !preferences.acceptRac,
+        directJourneys: options.confirmedOnly === true ? [] : suitableJourneys,
+        timetableJourneys: suitableJourneys,
+        bestDirectJourney: suitableJourneys[0] || null,
+        additionalDirectJourneys: suitableJourneys.slice(1),
+        hasMoreDirect: suitableJourneys.length > 1,
+        totalDirectConfirmedCount: suitableJourneys.length,
+        failureReason: null,
+        shouldTriggerRecovery: preferences.requireConfirmedBerth === true,
       };
     }
 
     if (hasWaitlist) {
       return {
         status: DIRECT_SEARCH_STATUS.DIRECT_WAITLIST_ONLY,
-        directJourneys: options.confirmedOnly === false ? suitableJourneys : [],
+        directJourneys: options.confirmedOnly === true ? [] : suitableJourneys,
+        timetableJourneys: suitableJourneys,
+        bestDirectJourney: suitableJourneys[0] || null,
         failureReason: 'Direct trains are waitlisted only. No confirmed seats available.',
         shouldTriggerRecovery: !allowWaitlist,
       };
@@ -411,17 +457,15 @@ export class DirectJourneyService {
       return {
         status: DIRECT_SEARCH_STATUS.DIRECT_UNAVAILABLE,
         directJourneys: [],
+        timetableJourneys: suitableJourneys,
         failureReason: 'Direct trains are sold out. No seats or waitlists remaining.',
         shouldTriggerRecovery: true,
       };
     }
 
-    // When all availability checks returned UNKNOWN (typically due to provider rate-limits),
-    // we still surface the journeys based on verified schedule data rather than returning
-    // an empty list. The availability field is marked UNKNOWN so the UI can display an
-    // appropriate "unconfirmed availability" badge instead of "No journey found".
+    // When all availability checks returned UNKNOWN (e.g. provider rate-limited or disabled),
+    // strictly enforce that UNKNOWN availability does NOT qualify as confirmed available seats.
     if (allUnknown) {
-      // Sort by duration (fastest first) as a sensible default
       suitableJourneys.sort((a, b) => a.duration - b.duration);
       if (suitableJourneys.length > 0) {
         suitableJourneys[0].isTopPick = true;
@@ -431,25 +475,38 @@ export class DirectJourneyService {
           rank: 1,
         };
       }
+      const isConfirmedOnly = options.confirmedOnly === true;
       return {
         status: DIRECT_SEARCH_STATUS.DIRECT_AVAILABILITY_UNKNOWN,
-        directJourneys: suitableJourneys,
+        directJourneys: isConfirmedOnly ? [] : suitableJourneys,
+        timetableJourneys: suitableJourneys,
+        unconfirmedDirectJourneys: suitableJourneys,
         bestDirectJourney: suitableJourneys[0] || null,
         additionalDirectJourneys: suitableJourneys.slice(1),
         hasMoreDirect: suitableJourneys.length > 1,
         totalDirectConfirmedCount: 0,
         failureReason: 'Real-time seat availability could not be verified (provider rate-limited). Showing scheduled trains.',
-        // Do NOT trigger recovery when we already have valid schedule data
-        shouldTriggerRecovery: false,
+        // Must trigger recovery when searching for confirmed seats so alternatives can be explored
+        shouldTriggerRecovery: true,
       };
     }
 
+    const confirmedDirectList = suitableJourneys.filter(
+      (j) => j.availability?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE
+    );
+
+    const isConfirmedOnly = options.confirmedOnly === true;
+
     return {
-      status: DIRECT_SEARCH_STATUS.DIRECT_AVAILABLE,
-      directJourneys: suitableJourneys,
-      bestDirectJourney: suitableJourneys[0] || null,
-      failureReason: null,
-      shouldTriggerRecovery: false,
+      status: confirmedDirectList.length > 0 ? DIRECT_SEARCH_STATUS.DIRECT_AVAILABLE : DIRECT_SEARCH_STATUS.DIRECT_UNAVAILABLE,
+      directJourneys: confirmedDirectList.length > 0 ? confirmedDirectList : (isConfirmedOnly ? [] : suitableJourneys),
+      timetableJourneys: suitableJourneys,
+      bestDirectJourney: confirmedDirectList[0] || suitableJourneys[0] || null,
+      additionalDirectJourneys: (confirmedDirectList.length > 0 ? confirmedDirectList : suitableJourneys).slice(1),
+      hasMoreDirect: (confirmedDirectList.length > 0 ? confirmedDirectList : suitableJourneys).length > 1,
+      totalDirectConfirmedCount: confirmedDirectList.length,
+      failureReason: confirmedDirectList.length > 0 ? null : 'No confirmed direct train seats found.',
+      shouldTriggerRecovery: confirmedDirectList.length === 0,
     };
   }
 
@@ -474,6 +531,7 @@ export class DirectJourneyService {
     let hasRac = false;
     let hasWaitlist = false;
     const suitableTrains = [];
+    const confirmedTrains = [];
 
     for (const train of directTrains) {
       const trainNum = String(train.trainNumber || train.number || '');
@@ -484,6 +542,7 @@ export class DirectJourneyService {
 
       if (status === AVAILABILITY_STATUS.AVAILABLE) {
         hasAvailable = true;
+        confirmedTrains.push(train);
         suitableTrains.push(train);
       } else if (status === AVAILABILITY_STATUS.RAC) {
         hasRac = true;
@@ -498,7 +557,7 @@ export class DirectJourneyService {
       return {
         status: DIRECT_SEARCH_STATUS.DIRECT_AVAILABLE,
         suitableTrains,
-        directJourneys: suitableTrains,
+        directJourneys: options.confirmedOnly === true ? confirmedTrains : suitableTrains,
         shouldTriggerRecovery: false,
       };
     }

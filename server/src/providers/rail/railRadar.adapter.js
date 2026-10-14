@@ -428,24 +428,28 @@ export class RailRadarAdapter {
     }
 
     const budgetTracker = options.budgetTracker;
-    if (budgetTracker && options.isRecovery !== false && !budgetTracker.canMakeRecoveryRequest()) {
-      return {
-        success: false,
-        provider: this.name,
-        trainNumber: num,
-        fromStation: from,
-        toStation: to,
-        journeyDate: targetDateStr,
-        travelClass: classCode,
-        quota: quotaCode,
-        normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
-        originalStatus: null,
-        seatsAvailable: null,
-        isAvailable: false,
-        lastUpdated: new Date().toISOString(),
-        isLive: false,
-        isBudgetExhausted: true,
-      };
+    const isRecovery = options.isRecovery !== false;
+    if (budgetTracker) {
+      const canQuery = isRecovery ? budgetTracker.canMakeRecoveryRequest() : budgetTracker.canMakeDirectRequest();
+      if (!canQuery) {
+        return {
+          success: false,
+          provider: this.name,
+          trainNumber: num,
+          fromStation: from,
+          toStation: to,
+          journeyDate: targetDateStr,
+          travelClass: classCode,
+          quota: quotaCode,
+          normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
+          originalStatus: null,
+          seatsAvailable: null,
+          isAvailable: false,
+          lastUpdated: new Date().toISOString(),
+          isLive: false,
+          isBudgetExhausted: true,
+        };
+      }
     }
 
     return this.cachedRequest(cacheKey, this.availabilityTtlMs, async () => {
@@ -459,11 +463,30 @@ export class RailRadarAdapter {
       const url = `${this.apiUrl}/trains/${encodeURIComponent(num)}/seats?${queryParams.toString()}`;
 
       if (budgetTracker) {
-        budgetTracker.recordOutboundRequest({
-          isRecovery: options.isRecovery !== false,
+        const allowed = budgetTracker.recordOutboundRequest({
+          isRecovery,
           endpoint: '/trains/seats',
           queryKey: cacheKey,
         });
+        if (!allowed) {
+          return {
+            success: false,
+            provider: this.name,
+            trainNumber: num,
+            fromStation: from,
+            toStation: to,
+            journeyDate: targetDateStr,
+            travelClass: classCode,
+            quota: quotaCode,
+            normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
+            originalStatus: null,
+            seatsAvailable: null,
+            isAvailable: false,
+            lastUpdated: new Date().toISOString(),
+            isLive: false,
+            isBudgetExhausted: true,
+          };
+        }
       }
 
       try {
@@ -472,6 +495,8 @@ export class RailRadarAdapter {
           headers: this.getHeaders(),
           timeoutMs: Math.min(this.timeoutMs, 4000),
           provider: 'railradar',
+          budgetTracker,
+          isRecovery,
         });
 
         const rawData = res.data;
@@ -607,21 +632,25 @@ export class RailRadarAdapter {
     }
 
     const budgetTracker = options.budgetTracker;
-    if (budgetTracker && options.isRecovery !== false && !budgetTracker.canMakeRecoveryRequest()) {
-      return {
-        success: false,
-        provider: this.name,
-        trainNumber: num,
-        travelClass,
-        baseFare: null,
-        totalFare: null,
-        currency: 'INR',
-        isEstimated: false,
-        source: null,
-        fareUnavailable: true,
-        lastUpdated: new Date().toISOString(),
-        isBudgetExhausted: true,
-      };
+    const isRecovery = options.isRecovery !== false;
+    if (budgetTracker) {
+      const canQuery = isRecovery ? budgetTracker.canMakeRecoveryRequest() : budgetTracker.canMakeDirectRequest();
+      if (!canQuery) {
+        return {
+          success: false,
+          provider: this.name,
+          trainNumber: num,
+          travelClass,
+          baseFare: null,
+          totalFare: null,
+          currency: 'INR',
+          isEstimated: false,
+          source: null,
+          fareUnavailable: true,
+          lastUpdated: new Date().toISOString(),
+          isBudgetExhausted: true,
+        };
+      }
     }
 
     return this.cachedRequest(cacheKey, this.fareTtlMs, async () => {
@@ -629,11 +658,27 @@ export class RailRadarAdapter {
       const url = `${this.apiUrl}/trains/${encodeURIComponent(num)}/fare?${queryParams.toString()}`;
 
       if (budgetTracker) {
-        budgetTracker.recordOutboundRequest({
-          isRecovery: options.isRecovery !== false,
+        const allowed = budgetTracker.recordOutboundRequest({
+          isRecovery,
           endpoint: '/trains/fare',
           queryKey: cacheKey,
         });
+        if (!allowed) {
+          return {
+            success: false,
+            provider: this.name,
+            trainNumber: num,
+            travelClass,
+            baseFare: null,
+            totalFare: null,
+            currency: 'INR',
+            isEstimated: false,
+            source: null,
+            fareUnavailable: true,
+            lastUpdated: new Date().toISOString(),
+            isBudgetExhausted: true,
+          };
+        }
       }
 
       try {
@@ -642,6 +687,8 @@ export class RailRadarAdapter {
           headers: this.getHeaders(),
           timeoutMs: Math.min(this.timeoutMs, 4000),
           provider: 'railradar',
+          budgetTracker,
+          isRecovery,
         });
 
         const data = res.data?.data || res.data;

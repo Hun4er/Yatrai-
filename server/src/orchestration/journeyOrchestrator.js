@@ -15,9 +15,10 @@ import journeyDeduplicator from '../deduplication/journeyDeduplicator.js';
 import rankingEngine from '../ranking/rankingEngine.js';
 import resultAssembler from './resultAssembler.js';
 import multiModalEngine from '../multimodal/index.js';
-import directJourneyService from '../services/rail/directJourney.service.js';
+import directJourneyService, { DIRECT_SEARCH_STATUS } from '../services/rail/directJourney.service.js';
 import journeyRecoveryService from '../services/rail/journeyRecovery.service.js';
 import RequestBudgetTracker from '../services/rail/requestBudget.js';
+import { AVAILABILITY_STATUS } from '../services/rail/availabilityNorm.js';
 import { matchesTimeWindow } from '../services/naturalLanguage/timeWindowResolver.js';
 import { isValidCalendarDate, isPastDate } from '../middleware/validate.middleware.js';
 
@@ -447,6 +448,18 @@ export class JourneyOrchestrator {
       }
     }
 
+    // If dedicated railway direct & recovery pipeline will run, filter out redundant generic rail provider queries
+    const shouldHandleRailViaPipeline =
+      !options.skipRailRecovery &&
+      (!config.isTest || options.enableRailwayRecovery === true);
+
+    if (shouldHandleRailViaPipeline) {
+      selected = selected.filter((p) => {
+        const mode = String(p?.mode || '').toLowerCase();
+        return mode !== 'rail' && p?.code !== 'IRCTC';
+      });
+    }
+
     return selected;
   }
 
@@ -758,6 +771,8 @@ export class JourneyOrchestrator {
           numberOfTransfers: candidate.numberOfTransfers || 0,
           transportModes: candidate.transportModes || [],
           status: candidate.status || 'scheduled',
+          availabilityStatus: candidate.availabilityStatus || candidate.metadata?.availabilityStatus || null,
+          isBookable: candidate.isBookable ?? false,
           metadata: candidate.metadata || {},
         });
 
@@ -875,6 +890,8 @@ export class JourneyOrchestrator {
       numberOfTransfers: raw.numberOfTransfers || 0,
       transportModes: raw.transportModes || [],
       status: raw.status || 'scheduled',
+      availabilityStatus: raw.availabilityStatus || raw.metadata?.availabilityStatus || null,
+      isBookable: raw.isBookable ?? (raw.availabilityStatus === 'AVAILABILITY_VERIFIED' || raw.availabilityStatus === 'RAC_AVAILABLE'),
       legs: legs.map((leg) => {
         const legRaw = typeof leg.toJSON === 'function' ? leg.toJSON() : leg;
         return {
@@ -1130,7 +1147,26 @@ export class JourneyOrchestrator {
               hasMoreDirect: false,
               budgetStats: budgetTracker.getSummary(),
             };
-          } else if (!directResult.shouldTriggerRecovery && directResult.directJourneys?.length > 0) {
+            railwayCandidates = [];
+          } else if (directResult.status === DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED) {
+            recoveryMeta = {
+              recoveryTriggered: false,
+              isProviderFailure: true,
+              directStatus: directResult.status,
+              failureReason: directResult.failureReason || 'Direct train search provider failed to respond.',
+              message: directResult.failureReason || 'Direct train search provider failed to respond.',
+              directCount: 0,
+              additionalDirectCount: 0,
+              hasMoreDirect: false,
+              budgetStats: budgetTracker.getSummary(),
+            };
+            railwayCandidates = [];
+          } else if (
+            !directResult.shouldTriggerRecovery &&
+            (directResult.status === DIRECT_SEARCH_STATUS.DIRECT_AVAILABLE ||
+             directResult.status === DIRECT_SEARCH_STATUS.DIRECT_RAC_ONLY) &&
+            directResult.directJourneys?.length > 0
+          ) {
             recoveryMeta = {
               recoveryTriggered: false,
               directStatus: directResult.status,
@@ -1139,11 +1175,32 @@ export class JourneyOrchestrator {
               bestDirectJourney: directResult.bestDirectJourney || directResult.directJourneys[0],
               additionalDirectCount: Math.max(0, directResult.directJourneys.length - 1),
               hasMoreDirect: directResult.directJourneys.length > 1,
-              message: 'Suitable direct train available with verified confirmed-seat availability.',
+              message: directResult.status === DIRECT_SEARCH_STATUS.DIRECT_RAC_ONLY
+                ? 'Suitable direct train available with RAC booking.'
+                : 'Suitable direct train available with verified confirmed-seat availability.',
               budgetStats: budgetTracker.getSummary(),
             };
             railwayCandidates = directResult.directJourneys;
-          } else {
+          } else if (
+            !directResult.shouldTriggerRecovery &&
+            directResult.status === DIRECT_SEARCH_STATUS.TIMETABLE_ONLY &&
+            (directResult.directJourneys?.length > 0 || directResult.timetableJourneys?.length > 0)
+          ) {
+            const trains = directResult.directJourneys?.length > 0 ? directResult.directJourneys : directResult.timetableJourneys;
+            recoveryMeta = {
+              recoveryTriggered: false,
+              directStatus: directResult.status,
+              failureReason: null,
+              directCount: trains.length,
+              bestDirectJourney: directResult.bestDirectJourney || trains[0],
+              additionalDirectCount: Math.max(0, trains.length - 1),
+              hasMoreDirect: trains.length > 1,
+              message: directResult.message || 'Direct trains found from static timetable (seat availability unverified).',
+              budgetStats: budgetTracker.getSummary(),
+              isTimetableOnly: true,
+            };
+            railwayCandidates = options.confirmedOnly === true ? [] : trains;
+          } else if (directResult.shouldTriggerRecovery) {
             const recoveryResult = await this.journeyRecoveryService.recoverJourneys(
               searchContext,
               searchOpts
@@ -1153,7 +1210,9 @@ export class JourneyOrchestrator {
               recoveryTriggered: true,
               directStatus: directResult.status,
               failureReason: directResult.failureReason,
-              message: 'No confirmed direct train seats found. Yatrai is finding alternative routes.',
+              message: recoveryResult.recoveredJourneys?.length > 0
+                ? 'No confirmed direct train seats found. Yatrai is finding alternative routes.'
+                : (directResult.failureReason || 'No confirmed direct train seats found. No alternative connecting routes could be found.'),
               reason: directResult.failureReason || 'Direct trains have no confirmed seats available.',
               originHops: recoveryResult.originExpansionHops || 5,
               destinationHops: recoveryResult.destinationExpansionHops || 5,
@@ -1164,10 +1223,49 @@ export class JourneyOrchestrator {
               budgetStats: recoveryResult.budgetStats || budgetTracker.getSummary(),
             };
 
+            const directFallback = directResult.directJourneys?.length > 0
+              ? directResult.directJourneys
+              : (directResult.timetableJourneys || []);
+
             if (recoveryResult.recoveredJourneys?.length > 0) {
               railwayCandidates = recoveryResult.recoveredJourneys;
-            } else if (directResult.directJourneys?.length > 0) {
-              railwayCandidates = directResult.directJourneys;
+            } else if (directFallback.length > 0 && options.confirmedOnly !== true) {
+              railwayCandidates = directFallback;
+            }
+          } else {
+            const directFallback = directResult.directJourneys?.length > 0
+              ? directResult.directJourneys
+              : (directResult.timetableJourneys || []);
+            recoveryMeta = {
+              recoveryTriggered: false,
+              directStatus: directResult.status,
+              failureReason: directResult.failureReason || 'Seat availability unverified.',
+              message: directResult.failureReason || 'Direct trains found but seat availability could not be verified.',
+              directCount: directFallback.length,
+              budgetStats: budgetTracker.getSummary(),
+            };
+            railwayCandidates = options.confirmedOnly === true ? [] : directFallback;
+          }
+
+          if (shouldRunRailPipeline) {
+            const hasRailEnvelope = executionSummary.envelopes.some(
+              (e) => e.provider === 'rail' || e.provider === 'railradar' || e.mode === 'rail'
+            );
+            if (!hasRailEnvelope) {
+              executionSummary.envelopes.push({
+                provider: 'rail',
+                mode: 'rail',
+                status: (directResult.status === DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED || recoveryMeta?.isRateLimited) && railwayCandidates.length === 0
+                  ? 'failed'
+                  : 'success',
+                resultCount: railwayCandidates.length,
+                candidates: railwayCandidates,
+                error: (directResult.status === DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED || recoveryMeta?.isRateLimited) && railwayCandidates.length === 0
+                  ? (recoveryMeta?.isRateLimited
+                    ? { code: 'PROVIDER_RATE_LIMITED', message: recoveryMeta.failureReason }
+                    : { code: 'PROVIDER_ERROR', message: directResult.failureReason })
+                  : null,
+              });
             }
           }
         } catch (railErr) {
@@ -1180,10 +1278,13 @@ export class JourneyOrchestrator {
         ? railwayCandidates
         : normalizedCandidates;
 
+      logger.info(`[DIAGNOSTIC - ORCHESTRATOR STAGE 6 (CANDIDATE COMBINATION)] railwayCandidates=${railwayCandidates.length}, normalizedCandidates=${normalizedCandidates.length}, combinedBaseCandidates=${combinedBaseCandidates.length}`);
+
       // In railway search MVP, strictly reject road, bus, flight, and OSRM candidates
       const isRailwaySearch = options.railwayOnly === true;
       if (isRailwaySearch) {
         combinedBaseCandidates = combinedBaseCandidates.filter((c) => this.validateRailwayCandidate(c));
+        logger.info(`[DIAGNOSTIC - ORCHESTRATOR STAGE 6 (RAILWAY ONLY FILTER)] After validateRailwayCandidate: ${combinedBaseCandidates.length}`);
       }
 
       // 9.5 Multi-Modal Journey Discovery Engine (Phase 23)
@@ -1207,6 +1308,27 @@ export class JourneyOrchestrator {
         }
       }
 
+      // Enforce strict confirmed-availability invariant:
+      // Every journey returned in confirmed-only search must have verified AVAILABLE status on all legs
+      if (options.confirmedOnly === true) {
+        const beforeConfirmedOnly = candidatesToDeduplicate.length;
+        candidatesToDeduplicate = candidatesToDeduplicate.filter((j) => {
+          if (j.isRecoveryJourney || j.isRecoveredAlternative) {
+            return j.isConfirmedAvailable === true;
+          }
+          if (Array.isArray(j.legs) && j.legs.length > 0) {
+            return j.legs.every(
+              (l) => l.availability?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE
+            );
+          }
+          return j.availability?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE;
+        });
+        logger.info(`[DIAGNOSTIC - ORCHESTRATOR STAGE 6 (CONFIRMED ONLY FILTER)] in=${beforeConfirmedOnly}, out=${candidatesToDeduplicate.length}`);
+        if (candidatesToDeduplicate.length === 0 && beforeConfirmedOnly > 0) {
+          logger.info(`[DIAGNOSTIC - DROPPED TO ZERO AT ORCHESTRATOR STAGE 6] Filtered out by options.confirmedOnly === true`);
+        }
+      }
+
       // Final validation boundary before deduplication and persistence
       if (isRailwaySearch) {
         candidatesToDeduplicate = candidatesToDeduplicate.filter((c) => this.validateRailwayCandidate(c));
@@ -1214,14 +1336,30 @@ export class JourneyOrchestrator {
 
       // 10. Deduplicate canonical journeys (Phase 8)
       const { uniqueJourneys, deduplicationReport } = this.deduplicate(candidatesToDeduplicate, searchContext);
+      logger.info(`[DIAGNOSTIC - ORCHESTRATOR STAGE 6 (DEDUPLICATION)] uniqueJourneys=${uniqueJourneys.length}`);
 
       // 11. Persist unique canonical journeys, legs, and search results
       const persistedJourneys = await this.persistJourneys(uniqueJourneys, searchContext);
+      logger.info(`[DIAGNOSTIC - ORCHESTRATOR STAGE 6 (PERSISTENCE)] persistedJourneys=${persistedJourneys.length}`);
 
       // 11.5 Apply deterministic search constraints (Budget & Time Window - Phase 11)
       let candidateJourneys = persistedJourneys;
       if (isRailwaySearch) {
         candidateJourneys = candidateJourneys.filter((j) => this.validateRailwayCandidate(j));
+      }
+
+      if (options.confirmedOnly === true) {
+        candidateJourneys = candidateJourneys.filter((j) => {
+          if (j.isRecoveryJourney || j.isRecoveredAlternative) {
+            return j.isConfirmedAvailable === true;
+          }
+          if (Array.isArray(j.legs) && j.legs.length > 0) {
+            return j.legs.every(
+              (l) => l.availability?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE
+            );
+          }
+          return j.availability?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE;
+        });
       }
 
       if (

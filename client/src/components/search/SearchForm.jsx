@@ -9,6 +9,8 @@ import {
   Plus,
   Minus,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import api from '../../services/api.js';
 
@@ -32,6 +34,11 @@ function formatDisplayDate(dateStr) {
   }
 }
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
 /**
  * SearchForm Component
  *
@@ -53,6 +60,7 @@ export function SearchForm({
   const [originText, setOriginText] = useState(initialOrigin);
   const [destText, setDestText] = useState(initialDestination);
   const [departureDate, setDepartureDate] = useState(initialDate);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [passengers, setPassengers] = useState(1);
   const [showPassengerDropdown, setShowPassengerDropdown] = useState(false);
 
@@ -77,15 +85,34 @@ export function SearchForm({
   const originContainerRef = useRef(null);
   const destContainerRef = useRef(null);
   const passengerContainerRef = useRef(null);
+  const dateContainerRef = useRef(null);
   const dateInputRef = useRef(null);
   const originRequestTokenRef = useRef(0);
   const destRequestTokenRef = useRef(0);
+
+  // Calendar Month View State
+  const [calendarView, setCalendarView] = useState(() => {
+    if (initialDate) {
+      const parts = initialDate.split('-').map(Number);
+      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        return { year: parts[0], month: parts[1] - 1 };
+      }
+    }
+    const today = new Date();
+    return { year: today.getFullYear(), month: today.getMonth() };
+  });
 
   // Initialize or sync from props
   useEffect(() => {
     if (initialOrigin) setOriginText(initialOrigin);
     if (initialDestination) setDestText(initialDestination);
-    if (initialDate) setDepartureDate(initialDate);
+    if (initialDate) {
+      setDepartureDate(initialDate);
+      const parts = initialDate.split('-').map(Number);
+      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        setCalendarView({ year: parts[0], month: parts[1] - 1 });
+      }
+    }
   }, [initialOrigin, initialDestination, initialDate]);
 
   // Default date to today if none provided
@@ -96,10 +123,11 @@ export function SearchForm({
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const dd = String(today.getDate()).padStart(2, '0');
       setDepartureDate(`${yyyy}-${mm}-${dd}`);
+      setCalendarView({ year: yyyy, month: today.getMonth() });
     }
   }, [departureDate]);
 
-  // Click outside listener to close suggestion dropdowns & passenger popover
+  // Click outside listener to close suggestion dropdowns, date picker & passenger popover
   useEffect(() => {
     function handleClickOutside(event) {
       if (originContainerRef.current && !originContainerRef.current.contains(event.target)) {
@@ -110,6 +138,9 @@ export function SearchForm({
       }
       if (passengerContainerRef.current && !passengerContainerRef.current.contains(event.target)) {
         setShowPassengerDropdown(false);
+      }
+      if (dateContainerRef.current && !dateContainerRef.current.contains(event.target)) {
+        setShowDatePicker(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -323,6 +354,7 @@ export function SearchForm({
     setShowOriginDropdown(false);
     setShowDestDropdown(false);
     setShowPassengerDropdown(false);
+    setShowDatePicker(false);
 
     try {
       const finalOrigin =
@@ -350,6 +382,66 @@ export function SearchForm({
   };
 
   const busy = isLoading || isSubmitting;
+
+  const today = new Date();
+  const todayYear = today.getFullYear();
+  const todayMonth = today.getMonth();
+  const todayDay = today.getDate();
+  const todayISO = `${todayYear}-${String(todayMonth + 1).padStart(2, '0')}-${String(todayDay).padStart(2, '0')}`;
+
+  const tomorrowDate = new Date(today);
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowISO = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth() + 1).padStart(2, '0')}-${String(tomorrowDate.getDate()).padStart(2, '0')}`;
+
+  const in2DaysDate = new Date(today);
+  in2DaysDate.setDate(in2DaysDate.getDate() + 2);
+  const in2DaysISO = `${in2DaysDate.getFullYear()}-${String(in2DaysDate.getMonth() + 1).padStart(2, '0')}-${String(in2DaysDate.getDate()).padStart(2, '0')}`;
+
+  const maxAllowedDate = new Date(today);
+  maxAllowedDate.setDate(maxAllowedDate.getDate() + 120);
+  const maxISO = `${maxAllowedDate.getFullYear()}-${String(maxAllowedDate.getMonth() + 1).padStart(2, '0')}-${String(maxAllowedDate.getDate()).padStart(2, '0')}`;
+
+  const isPrevMonthDisabled =
+    calendarView.year < todayYear ||
+    (calendarView.year === todayYear && calendarView.month <= todayMonth);
+
+  const isNextMonthDisabled = (() => {
+    const nextViewDate = new Date(calendarView.year, calendarView.month + 1, 1);
+    return nextViewDate > maxAllowedDate;
+  })();
+
+  const handlePrevMonth = (e) => {
+    e.stopPropagation();
+    if (isPrevMonthDisabled) return;
+    setCalendarView((prev) => {
+      let { year, month } = prev;
+      if (month === 0) {
+        year -= 1;
+        month = 11;
+      } else {
+        month -= 1;
+      }
+      return { year, month };
+    });
+  };
+
+  const handleNextMonth = (e) => {
+    e.stopPropagation();
+    if (isNextMonthDisabled) return;
+    setCalendarView((prev) => {
+      let { year, month } = prev;
+      if (month === 11) {
+        year += 1;
+        month = 0;
+      } else {
+        month += 1;
+      }
+      return { year, month };
+    });
+  };
+
+  const daysInMonth = new Date(calendarView.year, calendarView.month + 1, 0).getDate();
+  const firstDayOfWeek = new Date(calendarView.year, calendarView.month, 1).getDay();
 
   return (
     <form
@@ -594,38 +686,199 @@ export function SearchForm({
           {/* Paired Row for Mobile (Date + Travellers) */}
           <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 flex-1 sm:flex-initial">
             {/* DATE */}
-            <div className="w-full sm:w-40 md:w-44 lg:w-44 relative">
-              <label
-                htmlFor="date-input"
-                className="group rounded-xl border border-[#303640] hover:border-[#3A414C] focus-within:border-[#E8B04A] bg-[#15191F] px-3.5 sm:px-4 py-2 sm:py-2.5 min-h-[58px] sm:min-h-[64px] flex flex-col justify-center transition-all cursor-pointer relative block"
+            <div className={`w-full sm:w-44 md:w-48 lg:w-48 relative ${showDatePicker ? 'z-50' : 'z-20'}`} ref={dateContainerRef}>
+              <div
+                id="date-picker-trigger"
+                onClick={() => {
+                  setShowDatePicker(!showDatePicker);
+                  setShowPassengerDropdown(false);
+                  setShowOriginDropdown(false);
+                  setShowDestDropdown(false);
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setShowDatePicker(!showDatePicker);
+                  } else if (e.key === 'Escape') {
+                    setShowDatePicker(false);
+                  }
+                }}
+                aria-haspopup="dialog"
+                aria-expanded={showDatePicker}
+                className={`group rounded-xl border bg-[#15191F] px-3.5 sm:px-4 py-2 sm:py-2.5 min-h-[58px] sm:min-h-[64px] flex flex-col justify-center transition-all cursor-pointer ${
+                  errors.departureDate
+                    ? 'border-red-500/80 ring-1 ring-red-500/30'
+                    : 'border-[#303640] hover:border-[#3A414C] focus-within:border-[#E8B04A] focus-within:ring-1 focus-within:ring-[#E8B04A]/30'
+                }`}
               >
                 <div className="text-[10px] sm:text-[11px] font-medium uppercase tracking-wider text-[#A7AFBA]">
-                  Date
+                  Departure Date
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <Calendar className="h-4 w-4 text-[#7E8794] shrink-0" aria-hidden="true" />
+                  <Calendar className="h-4 w-4 text-[#E8B04A] shrink-0" aria-hidden="true" />
                   <div className="text-xs sm:text-sm font-medium text-[#F0F1F3] truncate">
                     {formatDisplayDate(departureDate) || 'Select date'}
                   </div>
                 </div>
+              </div>
 
-                {/* Native picker overlay for seamless interaction */}
-                <input
-                  ref={dateInputRef}
-                  id="date-input"
-                  name="departureDate"
-                  type="date"
-                  required
-                  disabled={busy}
-                  value={departureDate}
-                  onChange={(e) => {
-                    setDepartureDate(e.target.value);
-                    if (errors.departureDate) setErrors((prev) => ({ ...prev, departureDate: null }));
-                  }}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  aria-label="Departure Date"
-                />
-              </label>
+              {/* Native input kept for form submit & automated accessibility */}
+              <input
+                ref={dateInputRef}
+                id="date-input"
+                name="departureDate"
+                type="date"
+                required
+                disabled={busy}
+                min={todayISO}
+                max={maxISO}
+                value={departureDate}
+                onChange={(e) => {
+                  setDepartureDate(e.target.value);
+                  if (errors.departureDate) setErrors((prev) => ({ ...prev, departureDate: null }));
+                }}
+                className="sr-only"
+                aria-label="Departure Date"
+                tabIndex={-1}
+              />
+
+              {/* Interactive Calendar Popover */}
+              {showDatePicker && (
+                <div
+                  role="dialog"
+                  aria-label="Calendar Date Picker"
+                  className="absolute z-50 left-0 sm:left-auto sm:right-0 md:left-0 mt-1.5 w-[290px] sm:w-[310px] rounded-2xl border border-[#303640] bg-[#181C22] p-3.5 sm:p-4 shadow-2xl backdrop-blur-md"
+                >
+                  {/* Quick Select Buttons */}
+                  <div className="flex items-center gap-1.5 mb-3 pb-2.5 border-b border-[#303640]/70">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDepartureDate(todayISO);
+                        if (errors.departureDate) setErrors((prev) => ({ ...prev, departureDate: null }));
+                        setShowDatePicker(false);
+                      }}
+                      className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-medium transition-colors cursor-pointer text-center ${
+                        departureDate === todayISO
+                          ? 'bg-[#E8B04A] text-[#0B0D10] font-semibold'
+                          : 'bg-[#15191F] text-[#A7AFBA] hover:text-[#F0F1F3] hover:bg-[#303640]'
+                      }`}
+                    >
+                      Today
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDepartureDate(tomorrowISO);
+                        if (errors.departureDate) setErrors((prev) => ({ ...prev, departureDate: null }));
+                        setShowDatePicker(false);
+                      }}
+                      className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-medium transition-colors cursor-pointer text-center ${
+                        departureDate === tomorrowISO
+                          ? 'bg-[#E8B04A] text-[#0B0D10] font-semibold'
+                          : 'bg-[#15191F] text-[#A7AFBA] hover:text-[#F0F1F3] hover:bg-[#303640]'
+                      }`}
+                    >
+                      Tomorrow
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDepartureDate(in2DaysISO);
+                        if (errors.departureDate) setErrors((prev) => ({ ...prev, departureDate: null }));
+                        setShowDatePicker(false);
+                      }}
+                      className={`flex-1 py-1 px-2 rounded-lg text-[11px] font-medium transition-colors cursor-pointer text-center ${
+                        departureDate === in2DaysISO
+                          ? 'bg-[#E8B04A] text-[#0B0D10] font-semibold'
+                          : 'bg-[#15191F] text-[#A7AFBA] hover:text-[#F0F1F3] hover:bg-[#303640]'
+                      }`}
+                    >
+                      +2 Days
+                    </button>
+                  </div>
+
+                  {/* Calendar Month & Navigation */}
+                  <div className="flex items-center justify-between mb-2.5 px-0.5">
+                    <button
+                      type="button"
+                      disabled={isPrevMonthDisabled}
+                      onClick={handlePrevMonth}
+                      className="h-7 w-7 rounded-lg border border-[#303640] bg-[#15191F] text-[#F0F1F3] disabled:opacity-20 disabled:cursor-not-allowed hover:border-[#E8B04A] flex items-center justify-center cursor-pointer transition-colors"
+                      aria-label="Previous month"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <span className="text-xs sm:text-sm font-semibold text-[#F0F1F3] tracking-wide">
+                      {MONTH_NAMES[calendarView.month]} {calendarView.year}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={isNextMonthDisabled}
+                      onClick={handleNextMonth}
+                      className="h-7 w-7 rounded-lg border border-[#303640] bg-[#15191F] text-[#F0F1F3] disabled:opacity-20 disabled:cursor-not-allowed hover:border-[#E8B04A] flex items-center justify-center cursor-pointer transition-colors"
+                      aria-label="Next month"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Days of Week Header */}
+                  <div className="grid grid-cols-7 gap-1 text-center mb-1">
+                    {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                      <span key={d} className="text-[10px] font-semibold uppercase text-[#7E8794] py-0.5">
+                        {d}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Days Grid */}
+                  <div className="grid grid-cols-7 gap-1">
+                    {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+                      <div key={`empty-${i}`} className="h-8 w-8" />
+                    ))}
+                    {Array.from({ length: daysInMonth }).map((_, i) => {
+                      const dayNum = i + 1;
+                      const dateStr = `${calendarView.year}-${String(calendarView.month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                      const isSelected = departureDate === dateStr;
+                      const isToday = todayISO === dateStr;
+                      const isPast = dateStr < todayISO;
+                      const isBeyondMax = dateStr > maxISO;
+                      const isDisabled = isPast || isBeyondMax;
+
+                      return (
+                        <button
+                          key={dateStr}
+                          type="button"
+                          disabled={isDisabled}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDepartureDate(dateStr);
+                            if (errors.departureDate) setErrors((prev) => ({ ...prev, departureDate: null }));
+                            setShowDatePicker(false);
+                          }}
+                          className={`h-8 w-8 rounded-lg text-xs font-medium flex items-center justify-center transition-all ${
+                            isSelected
+                              ? 'bg-[#E8B04A] text-[#0B0D10] font-bold shadow-md'
+                              : isDisabled
+                              ? 'text-[#4A5260] cursor-not-allowed opacity-30'
+                              : isToday
+                              ? 'border border-[#E8B04A]/60 text-[#E8B04A] hover:bg-[#E8B04A]/20 cursor-pointer'
+                              : 'text-[#F0F1F3] hover:bg-[#303640] hover:text-[#E8B04A] cursor-pointer'
+                          }`}
+                        >
+                          {dayNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* TRAVELLERS */}

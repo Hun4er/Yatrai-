@@ -84,6 +84,14 @@ const JourneySchema = new Schema(
       type: Schema.Types.Mixed,
       default: {},
     },
+    availabilityStatus: {
+      type: String,
+      default: null,
+    },
+    isBookable: {
+      type: Boolean,
+      default: false,
+    },
     schemaVersion: {
       type: Number,
       default: 1,
