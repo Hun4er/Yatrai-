@@ -5,6 +5,66 @@ import { resolveStationCode } from '../transport/rail/rail.provider.js';
 import { findVerifiedDirectTrains } from '../../services/rail/verifiedTrainData.js';
 import { normalizeSeatAvailability, AVAILABILITY_STATUS } from '../../services/rail/availabilityNorm.js';
 import { formatJourneyDate } from '../../utils/railwayTime.js';
+import railKitAdapter from './railKit.adapter.js';
+
+/**
+ * Normalizes a train item returned by RailKit into canonical format
+ * expected by DirectJourneyService and JourneyRecoveryService.
+ */
+export function normalizeRailKitTrain(rkTrain, defaultFrom = '', defaultTo = '') {
+  const dayNames = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  let runDays = [];
+  if (typeof rkTrain.running_days === 'string' && rkTrain.running_days.length === 7) {
+    runDays = rkTrain.running_days
+      .split('')
+      .map((flag, idx) => (flag === '1' ? dayNames[idx] : null))
+      .filter(Boolean);
+  } else if (Array.isArray(rkTrain.runDays)) {
+    runDays = rkTrain.runDays;
+  }
+
+  let durationMinutes = null;
+  if (rkTrain.travel_time) {
+    const m = String(rkTrain.travel_time).match(/(\d+):(\d+)/);
+    if (m) durationMinutes = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  }
+
+  const fromCode = rkTrain.from_stn_code || defaultFrom;
+  const toCode = rkTrain.to_stn_code || defaultTo;
+  const fromName = rkTrain.from_stn_name || rkTrain.source_stn_name || fromCode;
+  const toName = rkTrain.to_stn_name || rkTrain.dstn_stn_name || toCode;
+  const trainNum = String(rkTrain.train_no || rkTrain.trainNumber || rkTrain.number || '');
+  const trainName = rkTrain.train_name || rkTrain.trainName || rkTrain.name || 'Express';
+
+  return {
+    train: {
+      number: trainNum,
+      name: trainName,
+      runDays,
+    },
+    trainNumber: trainNum,
+    trainName,
+    from: {
+      code: fromCode,
+      name: fromName,
+      departure: rkTrain.from_time || rkTrain.departureTime || '06:00',
+      day: 1,
+    },
+    to: {
+      code: toCode,
+      name: toName,
+      arrival: rkTrain.to_time || rkTrain.arrivalTime || '18:00',
+      day: 1,
+    },
+    durationMinutes,
+    duration: durationMinutes,
+    distance: Number(rkTrain.distance) || 500,
+    distanceKm: Number(rkTrain.distance) || 500,
+    runDays,
+    source: 'railkit',
+    raw: rkTrain,
+  };
+}
 
 /**
  * RailRadar Provider Adapter
@@ -137,6 +197,27 @@ export class RailRadarAdapter {
     const cacheKey = `direct:${from}:${to}`;
 
     return this.cachedRequest(cacheKey, this.schedulesTtlMs, async () => {
+      // 0. If configured API key is a RailKit key, prioritize RailKit live train search
+      if (this.apiKey?.startsWith('railkit_') || config.providers?.railkit?.apiKey) {
+        try {
+          const rkRes = await railKitAdapter.searchTrainBetweenStations(from, to, travelDate);
+          if (rkRes?.success && Array.isArray(rkRes.data) && rkRes.data.length > 0) {
+            const mappedTrains = rkRes.data.map((t) => normalizeRailKitTrain(t, from, to));
+            logger.info(`[RailRadarAdapter] Resolved ${mappedTrains.length} live trains from RailKit for ${from} -> ${to}`);
+            return {
+              success: true,
+              from,
+              to,
+              trains: mappedTrains,
+              source: 'railkit',
+              isRailKit: true,
+            };
+          }
+        } catch (rkErr) {
+          logger.debug(`[RailRadarAdapter] Primary RailKit search attempt: ${rkErr.message}`);
+        }
+      }
+
       // 1. If monthly quota is already known to be exhausted, avoid wasted 429 network roundtrips
       if (this.isMonthlyQuotaExhausted) {
         logger.info(`[RailRadarAdapter] RailRadar monthly quota exhausted. Resolving from verified schedules for ${from} -> ${to}`);
@@ -290,6 +371,25 @@ export class RailRadarAdapter {
         if (isMonthly) {
           this.isMonthlyQuotaExhausted = true;
           this.quotaStats.remainingMonth = 0;
+        }
+
+        // Seamless RailKit live search integration for anywhere in India
+        try {
+          const rkRes = await railKitAdapter.searchTrainBetweenStations(from, to, travelDate);
+          if (rkRes?.success && Array.isArray(rkRes.data) && rkRes.data.length > 0) {
+            const mappedTrains = rkRes.data.map((t) => normalizeRailKitTrain(t, from, to));
+            logger.info(`[RailRadarAdapter] Resolved ${mappedTrains.length} live trains from RailKit for ${from} -> ${to}`);
+            return {
+              success: true,
+              from,
+              to,
+              trains: mappedTrains,
+              source: 'railkit',
+              isRailKit: true,
+            };
+          }
+        } catch (rkErr) {
+          logger.debug(`[RailRadarAdapter] RailKit fallback search failed: ${rkErr.message}`);
         }
 
         // Seamless verified timetable fallback on ANY failure (including transient 429 rate limits)
@@ -762,6 +862,26 @@ export class RailRadarAdapter {
           lastUpdated: new Date().toISOString(),
         };
       } catch (err) {
+        try {
+          const rkLive = await railKitAdapter.trackTrain(num, dateStr);
+          if (rkLive?.success && rkLive.data) {
+            const data = rkLive.data;
+            const delayMinutes = Number(data?.delayMinutes || data?.delay || 0);
+            return {
+              success: true,
+              trainNumber: num,
+              currentStation: data?.currentStation || null,
+              delayMinutes: isNaN(delayMinutes) ? 0 : delayMinutes,
+              isTerminated: Boolean(data?.isTerminated),
+              statusMessage: data?.statusMessage || data?.status || (delayMinutes > 0 ? `Running late by ${delayMinutes}m` : 'On time'),
+              isLive: true,
+              lastUpdated: new Date().toISOString(),
+            };
+          }
+        } catch {
+          // RailKit tracking fallback error
+        }
+
         return {
           success: false,
           trainNumber: num,

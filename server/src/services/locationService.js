@@ -1,7 +1,9 @@
+import mongoose from 'mongoose';
 import { Location } from '../models/Location.js';
 import locationProvider from '../providers/location/location.provider.js';
 import { parseTravelIntent } from '../utils/locationParser.js';
 import { searchRailwayStations } from './rail/stationRegistry.js';
+import railKitAdapter from '../providers/rail/railKit.adapter.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -393,6 +395,156 @@ export const locationService = {
       location: candidates[0] || null,
       candidates,
     };
+  },
+
+  /**
+   * Searches railway stations across India with multi-tier discovery:
+   * 1. Authoritative local in-memory station registry (expanded with all major hubs)
+   * 2. MongoDB cached railway stations
+   * 3. RailKit live station lookup by code or name
+   *
+   * @param {string} query
+   * @param {number} [limit=6]
+   * @returns {Promise<Array<Object>>}
+   */
+  async searchRailwayStations(query, limit = 6) {
+    const cleanQuery = String(query || '').trim();
+    if (!cleanQuery) return [];
+
+    const results = [];
+    const seenCodes = new Set();
+
+    // 1. Check local station registry
+    const registryMatches = searchRailwayStations(cleanQuery, limit * 2);
+    for (const st of registryMatches) {
+      if (st.stationCode && !seenCodes.has(st.stationCode.toUpperCase())) {
+        seenCodes.add(st.stationCode.toUpperCase());
+        results.push(st);
+      }
+    }
+
+    // 2. If fewer than limit, check MongoDB cached railway stations (if connected)
+    if (results.length < limit && mongoose.connection?.readyState === 1) {
+      try {
+        const escaped = escapeRegex(cleanQuery);
+        const dbMatches = await Location.find({
+          type: 'railway_station',
+          $or: [
+            { stationCode: new RegExp(`^${escaped}$`, 'i') },
+            { name: new RegExp(`^${escaped}`, 'i') },
+            { aliases: new RegExp(`^${escaped}`, 'i') },
+            { city: new RegExp(`^${escaped}`, 'i') },
+            { displayName: new RegExp(escaped, 'i') },
+          ],
+        }).limit(limit);
+
+        for (const doc of dbMatches) {
+          const docCode = (doc.stationCode || doc.metadata?.stationCode || '').toUpperCase();
+          if (docCode && !seenCodes.has(docCode)) {
+            seenCodes.add(docCode);
+            results.push(formatLocationDoc(doc));
+          }
+        }
+      } catch (err) {
+        logger.debug(`[LocationService] DB station lookup notice: ${err.message}`);
+      }
+    }
+
+    // 3. If still fewer than limit and query is at least 2 chars, query RailKit
+    if (results.length < limit && cleanQuery.length >= 2) {
+      try {
+        const upperQuery = cleanQuery.toUpperCase();
+
+        // 3a. If looks like station code (2-4 uppercase letters)
+        if (/^[A-Z]{2,4}$/.test(upperQuery)) {
+          const codeRes = await railKitAdapter.stationByCode(upperQuery);
+          if (codeRes?.success && codeRes.data) {
+            const st = codeRes.data;
+            const code = String(st.code || upperQuery).toUpperCase();
+            if (!seenCodes.has(code)) {
+              seenCodes.add(code);
+              results.push({
+                id: `station_${code.toLowerCase()}`,
+                name: st.name || code,
+                stationCode: code,
+                displayName: `${st.name || code} - ${code}`,
+                city: st.name || code,
+                state: 'India',
+                type: 'railway_station',
+                country: 'India',
+                location: {
+                  type: 'Point',
+                  coordinates: [Number(st.lon) || 77.2, Number(st.lat) || 28.6],
+                },
+                coordinates: [Number(st.lon) || 77.2, Number(st.lat) || 28.6],
+                latitude: Number(st.lat) || 28.6,
+                longitude: Number(st.lon) || 77.2,
+                source: 'railkit',
+              });
+            }
+          }
+        }
+
+        // 3b. Search by station or city name
+        const nameRes = await railKitAdapter.stationsByName(cleanQuery);
+        const rkStations = nameRes?.data?.stations || (Array.isArray(nameRes?.data) ? nameRes.data : []);
+        for (const st of rkStations) {
+          const code = String(st.code || '').toUpperCase();
+          if (code && !seenCodes.has(code)) {
+            seenCodes.add(code);
+            results.push({
+              id: `station_${code.toLowerCase()}`,
+              name: st.name || code,
+              stationCode: code,
+              displayName: `${st.name || code} - ${code}`,
+              city: st.name || code,
+              state: 'India',
+              type: 'railway_station',
+              country: 'India',
+              location: {
+                type: 'Point',
+                coordinates: [Number(st.lon) || 77.2, Number(st.lat) || 28.6],
+              },
+              coordinates: [Number(st.lon) || 77.2, Number(st.lat) || 28.6],
+              latitude: Number(st.lat) || 28.6,
+              longitude: Number(st.lon) || 77.2,
+              source: 'railkit',
+            });
+          }
+          if (results.length >= limit) break;
+        }
+      } catch (rkErr) {
+        logger.debug(`[LocationService] RailKit station search: ${rkErr.message}`);
+      }
+    }
+
+    // Persist discovered stations to MongoDB in background for instant future caching
+    if (mongoose.connection?.readyState === 1) {
+      for (const st of results.slice(0, limit)) {
+        if (st.source === 'railkit' || st.source === 'railway_registry') {
+          Location.findOne({
+            $or: [{ stationCode: st.stationCode }, { name: st.name }],
+          }).then((existing) => {
+            if (!existing) {
+              Location.create({
+                name: st.name,
+                displayName: st.displayName,
+                type: 'railway_station',
+                stationCode: st.stationCode,
+                city: st.city,
+                state: st.state,
+                country: 'India',
+                countryCode: 'IN',
+                location: st.location,
+                placeId: `station:${st.stationCode}`,
+              }).catch(() => {});
+            }
+          }).catch(() => {});
+        }
+      }
+    }
+
+    return results.slice(0, limit);
   },
 
   /**

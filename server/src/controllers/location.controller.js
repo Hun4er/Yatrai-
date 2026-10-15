@@ -26,7 +26,7 @@ export const locationController = {
 
       let locations;
       if (isRailway) {
-        locations = searchRailwayStations(q.trim(), limit);
+        locations = await locationService.searchRailwayStations(q.trim(), limit);
       } else {
         locations = await locationService.search(q.trim(), { limit });
       }
