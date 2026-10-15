@@ -13,6 +13,8 @@ export { Notification, NOTIFICATION_TYPES } from './Notification.js';
 export { RefreshSession } from './RefreshSession.js';
 export { ErrorLog, ERROR_SEVERITIES } from './ErrorLog.js';
 export { Booking, BOOKING_STATUSES } from './Booking.js';
+export { PersistentCache } from './PersistentCache.js';
+export { ApiUsage } from './ApiUsage.js';
 
 export default {
   User: () => import('./User.js').then((m) => m.User),

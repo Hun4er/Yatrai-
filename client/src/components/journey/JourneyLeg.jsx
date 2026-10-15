@@ -43,10 +43,17 @@ export function getModeIcon(mode) {
 export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = false, onSelect = null }) {
   const Icon = getModeIcon(leg.mode);
 
-  const originName = leg.origin?.name || leg.origin?.city || 'Origin';
-  const destinationName = leg.destination?.name || leg.destination?.city || 'Destination';
-  const originCity = leg.origin?.city && leg.origin?.name !== leg.origin?.city ? leg.origin.city : null;
-  const destinationCity = leg.destination?.city && leg.destination?.name !== leg.destination?.city ? leg.destination.city : null;
+  const originCode = leg.origin?.stationCode || leg.origin?.code || leg.metadata?.fromStationCode || leg.metadata?.fromStation || '';
+  const destinationCode = leg.destination?.stationCode || leg.destination?.code || leg.metadata?.toStationCode || leg.metadata?.toStation || '';
+
+  const originRawName = leg.origin?.name || leg.metadata?.fromStationName || originCode;
+  const destinationRawName = leg.destination?.name || leg.metadata?.toStationName || destinationCode;
+
+  const originName = originRawName ? `${originRawName}${originCode && !originRawName.includes(originCode) ? ` (${originCode})` : ''}` : 'Origin';
+  const destinationName = destinationRawName ? `${destinationRawName}${destinationCode && !destinationRawName.includes(destinationCode) ? ` (${destinationCode})` : ''}` : 'Destination';
+
+  const originCity = leg.origin?.city && !originName.includes(leg.origin.city) ? leg.origin.city : null;
+  const destinationCity = leg.destination?.city && !destinationName.includes(leg.destination.city) ? leg.destination.city : null;
 
   const depTime = leg.departureTimeFormatted || formatTime(leg.departureTime);
   const arrTime = leg.arrivalTimeFormatted || formatTime(leg.arrivalTime);
@@ -197,6 +204,12 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = f
                       {availStatus === 'WAITLIST' && (
                         <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20" title={statusTooltip}>
                           WAITLIST {rawStatus ? `· ${rawStatus}` : ''}
+                          {leg.availability?.prediction ? ` (${leg.availability.prediction})` : ''}
+                        </span>
+                      )}
+                      {availStatus === 'UNCHECKED' && (
+                        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-medium bg-[#15191F] text-[#7E8794] border border-[#303640]">
+                          Availability not checked
                         </span>
                       )}
                       {availStatus === 'UNAVAILABLE' && (

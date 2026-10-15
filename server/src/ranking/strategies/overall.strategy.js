@@ -3,6 +3,7 @@ import { createTieBreaker } from '../utils/tieBreaker.js';
 import { getMetricBounds, normalizeLowerIsBetter } from '../utils/scoreNormalizer.js';
 import { STRATEGY_DEFINITIONS, OVERALL_WEIGHTS } from '../rankingConfig.js';
 import { computeScheduleScore, computeModeChangeScore } from './mostConvenient.strategy.js';
+import { evaluateJourneyBookingQuality } from '../utils/bookingQuality.js';
 
 /**
  * Best Overall Journey Ranking Strategy
@@ -98,10 +99,15 @@ export class OverallStrategy extends BaseRankingStrategy {
         transferScore * this.weights.transferWeight +
         convenienceScore * this.weights.convenienceWeight;
 
+      const bq = evaluateJourneyBookingQuality(j);
+      j._bookingTier = bq.tier;
+      j._maxWlPos = bq.maxWaitlistPosition;
       j._score = Math.round(rawScore * 10000) / 10000;
     }
 
     const comparator = createTieBreaker([
+      { extractor: (j) => j._bookingTier, direction: 'desc' },
+      { extractor: (j) => j._maxWlPos, direction: 'asc', nullsLast: true },
       { extractor: (j) => j._score, direction: 'desc' },
       { extractor: (j) => j.duration, direction: 'asc', nullsLast: true },
       { extractor: (j) => j.totalPrice, direction: 'asc', nullsLast: true },

@@ -68,10 +68,11 @@ export class FareService {
     const isRecovery = typeof trainNumberOrParams === 'object' ? trainNumberOrParams?.isRecovery !== false : true;
 
     // 0. Effective API usage: If availability check already returned the verified RailKit live fare, reuse it directly!
-    const directAvailFare = trainNumberOrParams?.availability?.fare || trainNumberOrParams?.availability?.fareBreakup;
+    const directAvailFare = trainNumberOrParams?.availability?.fare || trainNumberOrParams?.availability?.fareBreakup || trainNumberOrParams?.availability?.pricing;
     if (directAvailFare && typeof directAvailFare.totalFare === 'number' && directAvailFare.totalFare > 0) {
       const farePerPassenger = directAvailFare.totalFare;
       const totalLegFare = farePerPassenger * pCount;
+      logger.debug(`[FareService] Reusing embedded availability fare ₹${totalLegFare} for ${numStr}`);
       return {
         success: true,
         amount: totalLegFare,
@@ -91,30 +92,34 @@ export class FareService {
       };
     }
 
-    // 1. Try RailKit primary provider
+    // 1. Try RailKit primary provider ONLY if live fare is explicitly required and not in search enrichment phase
     let fareRes = null;
     let rkResult = null;
-    try {
-      if (typeof this.railKit.fareLookup === 'function') {
-        rkResult = await this.railKit.fareLookup(numStr, fromStr, toStr, legDate, tClass, legQuota);
-      } else {
-        rkResult = await this.railKit.getFare(numStr, fromStr, toStr, legDate, tClass, legQuota);
+    const isSearchEnrichment = trainNumberOrParams?.isSearchEnrichment !== false && !trainNumberOrParams?.requireLiveFare;
+
+    if (!isSearchEnrichment) {
+      try {
+        if (typeof this.railKit.fareLookup === 'function') {
+          rkResult = await this.railKit.fareLookup(numStr, fromStr, toStr, legDate, tClass, legQuota);
+        } else {
+          rkResult = await this.railKit.getFare(numStr, fromStr, toStr, legDate, tClass, legQuota);
+        }
+        if (rkResult && rkResult.status === 'ok' && rkResult.totalFare !== null) {
+          fareRes = {
+            success: true,
+            baseFare: rkResult.baseFare ?? rkResult.totalFare,
+            totalFare: rkResult.totalFare,
+            currency: 'INR',
+            isEstimated: false,
+            fareUnavailable: false,
+            source: 'RailKit',
+            trainName: rkResult.trainName || null,
+            fareBreakup: rkResult.fareBreakup || null,
+          };
+        }
+      } catch (err) {
+        logger.debug(`[FareService] RailKit fare retrieval failed: ${err.message}`);
       }
-      if (rkResult && rkResult.status === 'ok' && rkResult.totalFare !== null) {
-        fareRes = {
-          success: true,
-          baseFare: rkResult.baseFare ?? rkResult.totalFare,
-          totalFare: rkResult.totalFare,
-          currency: 'INR',
-          isEstimated: false,
-          fareUnavailable: false,
-          source: 'RailKit',
-          trainName: rkResult.trainName || null,
-          fareBreakup: rkResult.fareBreakup || null,
-        };
-      }
-    } catch (err) {
-      logger.debug(`[FareService] RailKit fare retrieval failed: ${err.message}`);
     }
 
     // 2. Try AOPAY secondary fallback if authorized and needed

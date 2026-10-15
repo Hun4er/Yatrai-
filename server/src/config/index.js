@@ -160,12 +160,25 @@ export const config = Object.freeze({
     maxTransfers: parseInt(process.env.RAIL_RECOVERY_MAX_TRANSFERS || '2', 10),
     maxReturnedJourneys: parseInt(process.env.RAIL_RECOVERY_MAX_RETURNED_JOURNEYS || '5', 10),
     maxRecoveryRequests: parseInt(process.env.RAIL_RECOVERY_MAX_REQUESTS || '10', 10),
-    maxTotalRequests: parseInt(process.env.RAIL_RECOVERY_MAX_TOTAL_REQUESTS || '16', 10),
-    maxCandidatesToValidate: parseInt(process.env.RAIL_RECOVERY_MAX_CANDIDATES_VALIDATE || '8', 10),
+    maxTotalRequests: parseInt(process.env.RAIL_RECOVERY_MAX_TOTAL_REQUESTS || '15', 10),
+    maxCandidatesToValidate: parseInt(process.env.RAIL_RECOVERY_MAX_CANDIDATES_VALIDATE || '5', 10),
+    maxTransferPairs: parseInt(process.env.MAX_TRANSFER_PAIRS || '6', 10),
+    maxRailKitRequestsPerSearch: parseInt(process.env.MAX_RAILKIT_REQUESTS_PER_SEARCH || '15', 10),
     minSameStationBufferMinutes: parseInt(process.env.RAIL_RECOVERY_MIN_SAME_STATION_BUFFER || '25', 10),
     minCrossStationBufferMinutes: parseInt(process.env.RAIL_RECOVERY_MIN_CROSS_STATION_BUFFER || '60', 10),
     maxTransferBufferMinutes: parseInt(process.env.RAIL_RECOVERY_MAX_TRANSFER_BUFFER || '720', 10),
     maxDetourRatio: parseFloat(process.env.RAIL_RECOVERY_MAX_DETOUR_RATIO || '1.8'),
+  },
+  waitlistThresholds: {
+    maxGnwlFeasible: parseInt(process.env.MAX_GNWL_FEASIBLE || '10', 10),
+    maxRlwlFeasible: parseInt(process.env.MAX_RLWL_FEASIBLE || '20', 10),
+    maxPqwlFeasible: parseInt(process.env.MAX_PQWL_FEASIBLE || '10', 10),
+    maxDefaultWlFeasible: parseInt(process.env.MAX_DEFAULT_WL_FEASIBLE || '10', 10),
+  },
+  apiQuota: {
+    monthlyLimit: parseInt(process.env.RAILKIT_MONTHLY_LIMIT || '100', 10),
+    warningPercent: 80,
+    criticalPercent: 95,
   },
 });
 

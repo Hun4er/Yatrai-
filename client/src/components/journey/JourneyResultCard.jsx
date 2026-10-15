@@ -472,8 +472,12 @@ export function JourneyResultCard({
           <span className="font-semibold text-text-tertiary">Route:</span>
           {legs.map((leg, idx) => {
             const LegIcon = getModeIcon(leg.mode);
-            const lOrigin = leg.origin?.name || leg.origin?.city || 'Origin';
-            const lDest = leg.destination?.name || leg.destination?.city || 'Destination';
+            const oCode = leg.origin?.stationCode || leg.origin?.code || leg.metadata?.fromStationCode || '';
+            const dCode = leg.destination?.stationCode || leg.destination?.code || leg.metadata?.toStationCode || '';
+            const oName = leg.origin?.name || leg.metadata?.fromStationName || oCode || 'Origin';
+            const dName = leg.destination?.name || leg.metadata?.toStationName || dCode || 'Destination';
+            const lOrigin = oCode && !oName.includes(oCode) ? `${oName} (${oCode})` : oName;
+            const lDest = dCode && !dName.includes(dCode) ? `${dName} (${dCode})` : dName;
             return (
               <span key={leg.id || idx} className="inline-flex items-center gap-1.5">
                 {idx > 0 && <span className="text-text-tertiary">·</span>}

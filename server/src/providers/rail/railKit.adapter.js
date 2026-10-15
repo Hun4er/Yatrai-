@@ -1,6 +1,9 @@
 import { toRailKitDate, formatJourneyDate } from '../../utils/railwayTime.js';
 import { normalizeSeatAvailability, AVAILABILITY_STATUS } from '../../services/rail/availabilityNorm.js';
 import logger from '../../utils/logger.js';
+import config from '../../config/index.js';
+import persistentCacheService, { CACHE_TTL_CONFIG } from '../../services/rail/persistentCache.service.js';
+import apiUsageService from '../../services/rail/apiUsage.service.js';
 
 /**
  * RailKit Provider Adapter
@@ -82,14 +85,67 @@ class RailKitAdapter {
     return s.padStart(5, '0').slice(-5);
   }
 
-  _recordRequest() {
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    if (currentMonth !== this._monthStart) {
-      this._monthlyCount = 0;
-      this._monthStart = currentMonth;
-    }
+  async _recordRequest() {
     this._monthlyCount++;
-    logger.info(`[RailKitAdapter] Monthly request #${this._monthlyCount} (${this._monthStart})`);
+    const usage = await apiUsageService.recordRequest('railkit', config.apiQuota?.monthlyLimit || 100);
+    logger.info(`[RailKitAdapter] Monthly request #${usage.count} (${usage.percentage}% of quota)`);
+    return usage;
+  }
+
+  /**
+   * Cached + deduplicated fetch with MongoDB persistence and in-flight coalescing.
+   */
+  async _cachedFetch(cacheKey, ttlMs, requestFn, category = 'availability') {
+    const now = Date.now();
+
+    // 1. Check L1 Memory cache
+    const cached = this._cache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      return cached.data;
+    }
+
+    // 2. Check L2 Persistent cache (MongoDB)
+    const persistent = await persistentCacheService.get(cacheKey);
+    if (persistent !== null && persistent !== undefined) {
+      this._cache.set(cacheKey, { data: persistent, expiresAt: now + ttlMs });
+      return persistent;
+    }
+
+    // 3. In-flight promise coalescing
+    if (this._inFlight.has(cacheKey)) {
+      return this._inFlight.get(cacheKey);
+    }
+
+    const promise = (async () => {
+      await this._acquireSlot();
+      try {
+        const usage = await this._recordRequest();
+        if (usage.shouldBlockNonEssential && category !== 'availability') {
+          logger.warn(`[RailKitAdapter] Halting non-essential ${category} request due to 95% quota cap`);
+          return null;
+        }
+
+        const data = await requestFn();
+        if (data !== null && data !== undefined) {
+          this._cache.set(cacheKey, { data, expiresAt: Date.now() + ttlMs });
+          await persistentCacheService.set(cacheKey, data, category, ttlMs);
+        } else {
+          await persistentCacheService.setNegative(cacheKey);
+        }
+        return data;
+      } catch (err) {
+        if (err.status === 404 || err.status === 400) {
+          await persistentCacheService.setNegative(cacheKey, { error: err.message, status: err.status });
+        }
+        throw err;
+      } finally {
+        this._releaseSlot();
+        this._inFlight.delete(cacheKey);
+      }
+    })();
+
+    this._inFlight.set(cacheKey, promise);
+    return promise;
   }
 
   _acquireSlot() {
@@ -257,7 +313,7 @@ class RailKitAdapter {
     const url = `${BASE_URL}/api/v1/seats/${num}/${fromCode}/${toCode}/${rkDate}/${coach}/${quota}`;
 
     try {
-      const json = await this._cachedFetch(cacheKey, CACHE_TTL_MS, () => this._fetch(url));
+      const json = await this._cachedFetch(cacheKey, CACHE_TTL_CONFIG.availability, () => this._fetch(url), 'availability');
 
       if (!json || !json.data) {
         logger.debug(`[RailKitAdapter] getAvailability: empty response for ${num} ${fromCode}->${toCode}`);
@@ -344,7 +400,8 @@ class RailKitAdapter {
           isEstimated: false,
           source: 'RailKit',
         };
-        this._cache.set(fareCacheKey, { data: fareData, expiresAt: Date.now() + CACHE_TTL_MS });
+        this._cache.set(fareCacheKey, { data: fareData, expiresAt: Date.now() + CACHE_TTL_CONFIG.fare });
+        await persistentCacheService.set(fareCacheKey, fareData, 'fare', CACHE_TTL_CONFIG.fare);
       }
 
       logger.debug(
@@ -448,7 +505,7 @@ class RailKitAdapter {
     const url = `${BASE_URL}/api/v1/fare/${num}/${rkDate}/${fromCode}/${toCode}/${travelClass}/${quota}`;
 
     try {
-      const json = await this._cachedFetch(cacheKey, CACHE_TTL_MS, () => this._fetch(url));
+      const json = await this._cachedFetch(cacheKey, CACHE_TTL_CONFIG.fare, () => this._fetch(url), 'fare');
 
       if (!json || !json.data) {
         return this._unknownFare(num, fromCode, toCode, internalDate, travelClass, quota, 'Empty response');
@@ -550,7 +607,7 @@ class RailKitAdapter {
     const url = `${BASE_URL}/api/v1/trains/between/${fromCode}/${toCode}${rkDate ? `?date=${rkDate}` : ''}`;
 
     try {
-      const json = await this._cachedFetch(cacheKey, 60 * 60 * 1000, () => this._fetch(url));
+      const json = await this._cachedFetch(cacheKey, CACHE_TTL_CONFIG.timetable, () => this._fetch(url), 'timetable');
       return {
         status: 'ok',
         success: Boolean(json?.success),
@@ -577,7 +634,7 @@ class RailKitAdapter {
     const url = `${BASE_URL}/api/v1/stations/${code}/timetable${rkDate ? `?date=${rkDate}` : ''}`;
 
     try {
-      const json = await this._cachedFetch(cacheKey, 60 * 60 * 1000, () => this._fetch(url));
+      const json = await this._cachedFetch(cacheKey, CACHE_TTL_CONFIG.timetable, () => this._fetch(url), 'timetable');
       return { status: 'ok', success: Boolean(json?.success), data: json?.data || [] };
     } catch (err) {
       return { status: 'error', success: false, data: [], error: err.message };

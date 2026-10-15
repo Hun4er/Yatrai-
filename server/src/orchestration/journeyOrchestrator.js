@@ -780,15 +780,8 @@ export class JourneyOrchestrator {
         const legs = Array.isArray(candidate.legs) ? candidate.legs : [];
         try {
           for (const legData of legs) {
-            let legOriginId = legData.origin?._id || legData.origin?.id || legData.origin;
-            let legDestId = legData.destination?._id || legData.destination?.id || legData.destination;
-
-            if (!mongoose.Types.ObjectId.isValid(legOriginId)) {
-              legOriginId = createdJourney.origin;
-            }
-            if (!mongoose.Types.ObjectId.isValid(legDestId)) {
-              legDestId = createdJourney.destination;
-            }
+            let legOriginId = await this.resolveLegStationLocation(legData.origin, createdJourney.origin);
+            let legDestId = await this.resolveLegStationLocation(legData.destination, createdJourney.destination);
 
             await this.journeyLegService.create({
               journey: createdJourney._id,
@@ -855,6 +848,67 @@ export class JourneyOrchestrator {
   }
 
   /**
+   * Resolves a leg origin/destination station to a valid MongoDB Location ID.
+   * If station code is provided, resolves or creates canonical Location.
+   */
+  async resolveLegStationLocation(stnData, fallbackId) {
+    if (!stnData) return fallbackId;
+    const directId = stnData._id || stnData.id;
+    if (directId && mongoose.Types.ObjectId.isValid(directId)) {
+      return directId;
+    }
+
+    const code = (
+      typeof stnData === 'string'
+        ? stnData
+        : stnData.stationCode || stnData.code || stnData.metadata?.stationCode || ''
+    ).trim().toUpperCase();
+
+    const name = (typeof stnData === 'object' ? (stnData.name || stnData.displayName) : '') || code;
+
+    if (code && /^[A-Z]{2,5}$/.test(code)) {
+      try {
+        let existing = await Location.findOne({
+          $or: [
+            { 'metadata.stationCode': code },
+            { aliases: code },
+          ],
+        });
+        if (existing) return existing._id;
+
+        const { findStationByCode } = await import('../services/rail/stationRegistry.js');
+        const regStn = findStationByCode(code);
+        const stnName = regStn?.name || name || code;
+        const stnCity = regStn?.city || name || code;
+        const stnCoords = regStn?.coordinates || [77.2, 28.6];
+
+        const created = await Location.create({
+          name: stnName,
+          displayName: regStn?.displayName || `${stnName} - ${code}`,
+          type: 'railway_station',
+          city: stnCity,
+          state: regStn?.state || 'India',
+          country: 'India',
+          location: {
+            type: 'Point',
+            coordinates: stnCoords,
+          },
+          aliases: [code, stnName].filter(Boolean),
+          metadata: {
+            stationCode: code,
+            provider: 'railway_registry',
+          },
+        });
+        return created._id;
+      } catch (err) {
+        logger.debug(`[JourneyOrchestrator] Error resolving station location for "${code}": ${err.message}`);
+      }
+    }
+
+    return fallbackId;
+  }
+
+  /**
    * Formats a populated Mongoose journey and its legs into the canonical response shape.
    *
    * @param {Object} journeyDoc
@@ -866,10 +920,13 @@ export class JourneyOrchestrator {
 
     const formatLocation = (loc) => {
       if (!loc) return null;
+      const stnCode = loc.metadata?.stationCode || loc.stationCode || (loc.aliases && loc.aliases.find((a) => /^[A-Z]{2,5}$/.test(a))) || '';
       return {
         id: loc._id ? loc._id.toString() : loc.id || null,
         name: loc.name || '',
         displayName: loc.displayName || loc.name || '',
+        stationCode: stnCode,
+        code: stnCode,
         city: loc.city || '',
         state: loc.state || '',
         type: loc.type || 'station',
@@ -894,11 +951,24 @@ export class JourneyOrchestrator {
       isBookable: raw.isBookable ?? (raw.availabilityStatus === 'AVAILABILITY_VERIFIED' || raw.availabilityStatus === 'RAC_AVAILABLE'),
       legs: legs.map((leg) => {
         const legRaw = typeof leg.toJSON === 'function' ? leg.toJSON() : leg;
+        const originFormatted = formatLocation(legRaw.origin) || {
+          name: legRaw.metadata?.fromStationName || legRaw.metadata?.fromStation || 'Origin',
+          stationCode: legRaw.metadata?.fromStationCode || legRaw.metadata?.fromStation || '',
+          code: legRaw.metadata?.fromStationCode || legRaw.metadata?.fromStation || '',
+          city: legRaw.metadata?.fromStationName || '',
+        };
+        const destFormatted = formatLocation(legRaw.destination) || {
+          name: legRaw.metadata?.toStationName || legRaw.metadata?.toStation || 'Destination',
+          stationCode: legRaw.metadata?.toStationCode || legRaw.metadata?.toStation || '',
+          code: legRaw.metadata?.toStationCode || legRaw.metadata?.toStation || '',
+          city: legRaw.metadata?.toStationName || '',
+        };
+
         return {
           id: legRaw._id ? legRaw._id.toString() : legRaw.id,
           sequence: legRaw.sequence,
-          origin: formatLocation(legRaw.origin),
-          destination: formatLocation(legRaw.destination),
+          origin: originFormatted,
+          destination: destFormatted,
           mode: legRaw.mode,
           provider: legRaw.provider
             ? {

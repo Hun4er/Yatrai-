@@ -6,6 +6,7 @@ import { findVerifiedDirectTrains } from '../../services/rail/verifiedTrainData.
 import { normalizeSeatAvailability, AVAILABILITY_STATUS } from '../../services/rail/availabilityNorm.js';
 import { formatJourneyDate } from '../../utils/railwayTime.js';
 import railKitAdapter from './railKit.adapter.js';
+import persistentCacheService from '../../services/rail/persistentCache.service.js';
 
 /**
  * Normalizes a train item returned by RailKit into canonical format
@@ -77,6 +78,7 @@ export function normalizeRailKitTrain(rkTrain, defaultFrom = '', defaultTo = '')
  */
 export class RailRadarAdapter {
   constructor(options = {}) {
+    this.options = options;
     this.name = 'RailRadar';
     this.code = 'RAILRADAR';
     this.apiKey = options.apiKey || config.providers.railradar?.apiKey || config.providers.rail?.apiKey || null;
@@ -161,6 +163,19 @@ export class RailRadarAdapter {
       return cached.data;
     }
 
+    const isMockFetch = Boolean(this.options?.httpFetch);
+    if (!isMockFetch) {
+      const persistent = await persistentCacheService.get(cacheKey);
+      if (persistent !== null && persistent !== undefined) {
+        this.cache.set(cacheKey, { data: persistent, expiresAt: now + durationMs });
+        this.quotaStats.cacheHits++;
+        if (options?.budgetTracker) {
+          options.budgetTracker.recordCacheHit();
+        }
+        return persistent;
+      }
+    }
+
     if (this.inFlight.has(cacheKey)) {
       return this.inFlight.get(cacheKey);
     }
@@ -172,6 +187,9 @@ export class RailRadarAdapter {
           // If request was unsuccessful, only cache for 5s to avoid duplicate bursts while allowing fast recovery
           const cacheTtl = data?.success === false ? 5000 : durationMs;
           this.cache.set(cacheKey, { data, expiresAt: Date.now() + cacheTtl });
+          if (!isMockFetch) {
+            await persistentCacheService.set(cacheKey, data, 'timetable', cacheTtl);
+          }
         }
         return data;
       } finally {

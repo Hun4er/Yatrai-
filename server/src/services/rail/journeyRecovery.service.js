@@ -9,6 +9,8 @@ import RequestBudgetTracker from './requestBudget.js';
 import logger from '../../utils/logger.js';
 import { calculateJourneyTiming } from '../../utils/railwayTime.js';
 import { resolveStationCode } from '../../providers/transport/rail/rail.provider.js';
+import { findStationByCode } from './stationRegistry.js';
+import { evaluateJourneyBookingQuality, isUnlikelyWaitlist } from '../../ranking/utils/bookingQuality.js';
 import config from '../../config/index.js';
 
 /**
@@ -435,29 +437,71 @@ export class JourneyRecoveryService {
     logger.info(`[DIAGNOSTIC - RECOVERY STAGE 4 & 5 (ENRICHMENT START)] candidatesToEnrich count=${candidatesToEnrich.length}`);
     const enrichedJourneys = [];
 
+    // Session cache to deduplicate leg availability lookups across candidate journeys
+    const sessionLegCache = new Map();
+
     for (const journey of candidatesToEnrich) {
       try {
         const enrichedLegs = [];
-        for (const leg of journey.legs) {
-          const fromCode = typeof leg.origin === 'string' && leg.origin.length <= 5 ? leg.origin : (leg.origin?.code || leg.metadata?.fromStationCode || leg.metadata?.fromStation);
-          const toCode = typeof leg.destination === 'string' && leg.destination.length <= 5 ? leg.destination : (leg.destination?.code || leg.metadata?.toStationCode || leg.metadata?.toStation);
+        let isShortCircuited = false;
 
-          const avail = await this.availabilityService.checkLegAvailability({
-            trainNumber: leg.trainNumber,
-            fromCode,
-            toCode,
-            date: leg.departureTime,
-            travelClass,
-            quota,
-            budgetTracker,
-            isRecovery: true,
-          });
+        for (let legIndex = 0; legIndex < journey.legs.length; legIndex++) {
+          const leg = journey.legs[legIndex];
+          const fromCode = typeof leg.origin === 'string' && leg.origin.length <= 5 ? leg.origin : (leg.origin?.stationCode || leg.origin?.code || leg.metadata?.fromStationCode || leg.metadata?.fromStation);
+          const toCode = typeof leg.destination === 'string' && leg.destination.length <= 5 ? leg.destination : (leg.destination?.stationCode || leg.destination?.code || leg.metadata?.toStationCode || leg.metadata?.toStation);
+          const legDate = leg.departureTime;
+          const legCacheKey = `${leg.trainNumber}:${fromCode}:${toCode}:${String(legDate).slice(0, 10)}:${travelClass}:${quota}`;
+
+          // Check if budget is exhausted
+          if (!budgetTracker.hasBudgetRemaining() || !budgetTracker.canMakeRecoveryRequest()) {
+            logger.info(`[JourneyRecoveryService] Budget limit reached (${budgetTracker.totalRequestsUsed}/${budgetTracker.maxTotalRequests}). Marking remaining legs as unchecked.`);
+            leg.availability = { normalizedStatus: 'UNCHECKED', isUnchecked: true };
+            leg.price = leg.price || 0;
+            enrichedLegs.push(leg);
+            continue;
+          }
+
+          // Leg Deduplication & In-flight coalescing
+          let availPromise;
+          if (sessionLegCache.has(legCacheKey)) {
+            budgetTracker.deduplicatedCount++;
+            availPromise = sessionLegCache.get(legCacheKey);
+          } else {
+            availPromise = this.availabilityService.checkLegAvailability({
+              trainNumber: leg.trainNumber,
+              fromCode,
+              toCode,
+              date: legDate,
+              travelClass,
+              quota,
+              budgetTracker,
+              isRecovery: true,
+            });
+            sessionLegCache.set(legCacheKey, availPromise);
+          }
+
+          const avail = await availPromise;
+
+          // Short-Circuit Rule (Requirement 5):
+          // If leg 1 returns no bookable status (WL beyond threshold, REGRET, NOT_AVAILABLE), skip leg 2
+          if (legIndex === 0 && journey.legs.length > 1) {
+            const rawStatus = String(avail?.rawStatus || avail?.availabilityText || '').toUpperCase();
+            const normStatus = String(avail?.normalizedStatus || '').toUpperCase();
+            if (isUnlikelyWaitlist(rawStatus) || normStatus === 'REGRET' || normStatus === 'NOT_AVAILABLE') {
+              logger.info(`[JourneyRecoveryService] Short-circuiting itinerary: Leg 1 train ${leg.trainNumber} has non-bookable status (${rawStatus || normStatus}). Skipping Leg 2!`);
+              isShortCircuited = true;
+              leg.availability = avail;
+              leg.price = avail.fare?.totalFare || 0;
+              enrichedLegs.push(leg);
+              break;
+            }
+          }
 
           const fare = await this.fareService.getLegFare({
             trainNumber: leg.trainNumber,
             fromCode,
             toCode,
-            date: leg.departureTime,       // correct per-leg date (midnight-aware)
+            date: leg.departureTime,
             travelClass,
             quota,
             distanceKm: leg.distance,
@@ -465,6 +509,7 @@ export class JourneyRecoveryService {
             budgetTracker,
             isRecovery: true,
             availability: avail,
+            isSearchEnrichment: true,
           });
 
           leg.availability = avail;
@@ -475,6 +520,11 @@ export class JourneyRecoveryService {
             availability: avail,
           };
           enrichedLegs.push(leg);
+        }
+
+        if (isShortCircuited) {
+          // Itinerary dropped or marked unfeasible due to Leg 1 failure
+          continue;
         }
 
         const journeyAvail = this.availabilityService.evaluateJourneyAvailability(
@@ -636,6 +686,15 @@ export class JourneyRecoveryService {
     for (let i = 0; i < legItems.length - 1; i++) {
       const arrLeg = legItems[i];
       const depLeg = legItems[i + 1];
+
+      // Enforce strict leg chaining: leg[i].to == leg[i+1].from
+      const curTo = String(arrLeg.edge.to).trim().toUpperCase();
+      const nextFrom = String(depLeg.edge.from).trim().toUpperCase();
+      if (curTo !== nextFrom) {
+        logger.debug(`[JourneyRecoveryService] Rejecting candidate due to broken leg chaining: ${curTo} !== ${nextFrom}`);
+        return null;
+      }
+
       const waitingMinutes = Math.round(
         (depLeg.timing.departureTime.getTime() - arrLeg.timing.arrivalTime.getTime()) / 60000
       );
@@ -648,35 +707,60 @@ export class JourneyRecoveryService {
       });
     }
 
-    const legs = legItems.map((item, index) => ({
-      sequence: index + 1,
-      origin: item.edge.from,
-      destination: item.edge.to,
-      mode: 'rail',
-      providerCode: 'IRCTC',
-      departureTime: item.timing.departureTime,
-      arrivalTime: item.timing.arrivalTime,
-      departureTimeFormatted: item.timing.departureLocalTime,
-      arrivalTimeFormatted: item.timing.arrivalLocalTime,
-      departureDateFormatted: item.timing.departureLocalDate,
-      arrivalDateFormatted: item.timing.arrivalLocalDate,
-      dayOffset: item.timing.dayOffset,
-      duration: item.timing.durationMinutes,
-      distance: item.edge.distanceKm,
-      trainNumber: item.edge.trainNumber,
-      vehicle: { type: 'Train', identifier: item.edge.trainNumber },
-      service: {
-        name: item.edge.trainName,
-        operator: 'Indian Railways',
-        number: item.edge.trainNumber,
-      },
-      metadata: {
-        fromStation: item.edge.from,
-        toStation: item.edge.to,
-        fromStationName: item.edge.fromStationName || item.edge.from,
-        toStationName: item.edge.toStationName || item.edge.to,
-      },
-    }));
+    const legs = legItems.map((item, index) => {
+      const fromStn = findStationByCode(item.edge.from);
+      const toStn = findStationByCode(item.edge.to);
+      const fromName = item.edge.fromStationName || fromStn?.name || item.edge.from;
+      const toName = item.edge.toStationName || toStn?.name || item.edge.to;
+      const fromCity = fromStn?.city || item.edge.fromCity || fromName;
+      const toCity = toStn?.city || item.edge.toCity || toName;
+
+      return {
+        sequence: index + 1,
+        origin: item.edge.from,
+        destination: item.edge.to,
+        originStation: {
+          name: fromName,
+          stationCode: item.edge.from,
+          code: item.edge.from,
+          city: fromCity,
+          state: fromStn?.state || '',
+        },
+        destinationStation: {
+          name: toName,
+          stationCode: item.edge.to,
+          code: item.edge.to,
+          city: toCity,
+          state: toStn?.state || '',
+        },
+        mode: 'rail',
+        providerCode: 'IRCTC',
+        departureTime: item.timing.departureTime,
+        arrivalTime: item.timing.arrivalTime,
+        departureTimeFormatted: item.timing.departureLocalTime,
+        arrivalTimeFormatted: item.timing.arrivalLocalTime,
+        departureDateFormatted: item.timing.departureLocalDate,
+        arrivalDateFormatted: item.timing.arrivalLocalDate,
+        dayOffset: item.timing.dayOffset,
+        duration: item.timing.durationMinutes,
+        distance: item.edge.distanceKm,
+        trainNumber: item.edge.trainNumber,
+        vehicle: { type: 'Train', identifier: item.edge.trainNumber },
+        service: {
+          name: item.edge.trainName,
+          operator: 'Indian Railways',
+          number: item.edge.trainNumber,
+        },
+        metadata: {
+          fromStation: item.edge.from,
+          toStation: item.edge.to,
+          fromStationCode: item.edge.from,
+          toStationCode: item.edge.to,
+          fromStationName: fromName,
+          toStationName: toName,
+        },
+      };
+    });
 
     const candidateId = `rec_${actualOriginCode}_${actualDestCode}_${legItems.map((item) => item.edge.trainNumber || `${item.edge.from}-${item.edge.to}`).join('_')}_${firstLeg.timing.departureLocalDate}`;
 
@@ -802,12 +886,41 @@ export class JourneyRecoveryService {
 
     const addWithCategory = (j, strategy, category, label) => {
       if (!j) return;
+      const bq = evaluateJourneyBookingQuality(j);
+
+      let finalLabel = label;
+      let finalCategory = category;
+      let badge = 'Confirmed';
+      let isFeasible = true;
+
+      if (bq.isUnlikely) {
+        // Unlikely waitlist must NEVER be called Feasible or Recommended
+        finalLabel = 'Waitlist Connection';
+        finalCategory = 'HIGH_WAITLIST_CONNECTION';
+        badge = `High WL (${bq.maxWaitlistPosition})`;
+        isFeasible = false;
+      } else if (!bq.isAllAvailable && !bq.isAvailableOrRac) {
+        finalLabel = label === 'Best Overall' ? 'Best Waitlist Connection' : 'Waitlist Alternative';
+        finalCategory = 'WAITLIST_ALTERNATIVE';
+        badge = `WL (${bq.maxWaitlistPosition})`;
+        isFeasible = true;
+      } else if (bq.isAvailableOrRac && !bq.isAllAvailable) {
+        finalLabel = label === 'Best Overall' ? 'Best Available (RAC)' : (label.includes('Alternative') ? 'RAC Alternative' : label);
+        badge = 'RAC Available';
+        isFeasible = true;
+      } else {
+        badge = 'Confirmed Available';
+        isFeasible = true;
+      }
+
       const clone = {
         ...j,
         ranking: {
           strategy,
-          label,
-          category,
+          label: finalLabel,
+          category: finalCategory,
+          badge,
+          isFeasible,
         },
       };
       result.push(clone);

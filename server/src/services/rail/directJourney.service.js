@@ -229,11 +229,18 @@ export class DirectJourneyService {
       };
     }
 
-    // 3. Concurrently validate availability and fares for running candidates (bounded to top 6)
-    const candidatesToValidate = runningCandidates.slice(0, 6);
-    logger.info(`[DIAGNOSTIC - STAGE 4 & 5 (ENRICHMENT START)] Validating availability & fare for top ${candidatesToValidate.length} running candidates`);
+    // 3. Concurrently validate availability and fares for running candidates (pre-ranked by duration, bounded to top 5)
+    const sortedCandidates = [...runningCandidates].sort((a, b) => (a.duration || 9999) - (b.duration || 9999));
+    const maxDirectCandidates = Math.min(5, sortedCandidates.length);
+    const candidatesToValidate = sortedCandidates.slice(0, maxDirectCandidates);
+    logger.info(`[DIAGNOSTIC - STAGE 4 & 5 (ENRICHMENT START)] Validating availability & fare for top ${candidatesToValidate.length} pre-ranked direct candidates`);
     const enrichedJourneys = await Promise.all(
       candidatesToValidate.map(async (cand) => {
+        if (options.budgetTracker && !options.budgetTracker.canMakeDirectRequest()) {
+          logger.info(`[DirectJourneyService] Direct budget limit reached. Skipping enrichment for train ${cand.trainNumber}.`);
+          return null;
+        }
+
         const avail = await this.availabilityService.checkLegAvailability({
           trainNumber: cand.trainNumber,
           fromCode: cand.fromCode,
@@ -257,6 +264,7 @@ export class DirectJourneyService {
           budgetTracker: options.budgetTracker,
           isRecovery: false,
           availability: avail,
+          isSearchEnrichment: true,
         });
 
         return {
@@ -292,6 +300,8 @@ export class DirectJourneyService {
             trainName: cand.trainName,
             fromStation: cand.fromStationName,
             toStation: cand.toStationName,
+            fromStationCode: cand.fromCode,
+            toStationCode: cand.toCode,
             isEstimatedPrice: fare.isEstimated,
             isFareAvailable: Boolean(fare.totalFare !== null && fare.totalFare > 0),
             fareUnavailable: Boolean(!fare.totalFare || fare.fareUnavailable),
@@ -300,8 +310,20 @@ export class DirectJourneyService {
           legs: [
             {
               sequence: 1,
-              origin: origin._id || origin.id || origin,
-              destination: destination._id || destination.id || destination,
+              origin: origin?._id || origin?.id || cand.fromCode,
+              destination: destination?._id || destination?.id || cand.toCode,
+              originStation: {
+                name: cand.fromStationName || cand.fromCode,
+                stationCode: cand.fromCode,
+                code: cand.fromCode,
+                city: cand.fromStationName || cand.fromCode,
+              },
+              destinationStation: {
+                name: cand.toStationName || cand.toCode,
+                stationCode: cand.toCode,
+                code: cand.toCode,
+                city: cand.toStationName || cand.toCode,
+              },
               mode: 'rail',
               providerCode: 'IRCTC',
               departureTime: cand.departureTime,
@@ -343,8 +365,10 @@ export class DirectJourneyService {
       })
     );
 
-    logger.info(`[DIAGNOSTIC - STAGE 4 & 5 (ENRICHMENT END)] Enriched journeys count=${enrichedJourneys.length}`);
-    for (const j of enrichedJourneys) {
+    const validEnrichedJourneys = enrichedJourneys.filter(Boolean);
+
+    logger.info(`[DIAGNOSTIC - STAGE 4 & 5 (ENRICHMENT END)] Enriched journeys count=${validEnrichedJourneys.length}`);
+    for (const j of validEnrichedJourneys) {
       logger.info(`  [ENRICHED] Train ${j.metadata?.trainNumber} (${j.metadata?.trainName}): avail=${j.availability?.normalizedStatus} (raw: "${j.availability?.rawStatus}", seats: ${j.availability?.seatsAvailable}), fare=₹${j.pricing?.totalFare} (est: ${j.pricing?.isEstimated})`);
     }
 
@@ -354,7 +378,7 @@ export class DirectJourneyService {
     const maxBudget = preferences.maxBudget ? Number(preferences.maxBudget) : null;
 
     // Filter budget suitability
-    let suitableJourneys = enrichedJourneys;
+    let suitableJourneys = validEnrichedJourneys;
     if (maxBudget && maxBudget > 0) {
       suitableJourneys = enrichedJourneys.filter((j) => Number(j.totalPrice) <= maxBudget);
       if (suitableJourneys.length === 0) {

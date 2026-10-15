@@ -28,8 +28,9 @@ export class RequestBudgetTracker {
     this.maxTotalRequests = Number(
       options.maxTotalRequests ??
         options.totalBudget ??
+        recoveryConfig.maxRailKitRequestsPerSearch ??
         recoveryConfig.maxTotalRequests ??
-        16
+        15
     );
 
     this.directRequestsUsed = 0;
@@ -39,6 +40,10 @@ export class RequestBudgetTracker {
     this.seenQueryKeys = new Set();
     this.terminationReason = null;
     this.searchCorrelationId = options.correlationId || `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  }
+
+  hasBudgetRemaining() {
+    return this.totalRequestsUsed < this.maxTotalRequests;
   }
 
   /**
@@ -155,7 +160,7 @@ export class RequestBudgetTracker {
    * Diagnostic summary for observability and response metadata.
    */
   getSummary() {
-    return {
+    const summary = {
       correlationId: this.searchCorrelationId,
       maxRecoveryRequests: this.maxRecoveryRequests,
       maxDirectRequests: this.maxDirectRequests,
@@ -169,6 +174,8 @@ export class RequestBudgetTracker {
       isBudgetExhausted: !this.canMakeRecoveryRequest(),
       terminationReason: this.terminationReason || 'COMPLETED',
     };
+    logger.info(`[RequestBudgetTracker] Per-Search Request Summary: totalUsed=${summary.totalRequestsUsed}/${summary.maxTotalRequests} (direct=${summary.directRequestsUsed}, recovery=${summary.recoveryRequestsUsed}, cacheHits=${summary.cacheHits}, deduplicated=${summary.deduplicatedCount})`);
+    return summary;
   }
 }
 

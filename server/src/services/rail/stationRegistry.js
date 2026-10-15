@@ -1738,7 +1738,14 @@ export function searchRailwayStations(query = '', limit = 8) {
   }));
 }
 
+export function findStationByCode(code) {
+  if (!code) return null;
+  const clean = String(code).trim().toUpperCase();
+  return INDIAN_RAILWAY_STATIONS.find((s) => s.stationCode === clean) || null;
+}
+
 export default {
   INDIAN_RAILWAY_STATIONS,
   searchRailwayStations,
+  findStationByCode,
 };

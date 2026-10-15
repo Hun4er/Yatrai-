@@ -1,6 +1,7 @@
 import { resolveStationCode, STATION_CODE_MAP, METRO_CLUSTERS } from '../../providers/transport/rail/rail.provider.js';
 import { INDIAN_RAILWAY_STATIONS } from './stationRegistry.js';
 import logger from '../../utils/logger.js';
+import config from '../../config/index.js';
 
 /**
  * Verified Indian Railways Network Mainline Corridors
@@ -704,10 +705,28 @@ export class StationExpansionService {
       }
     }
 
-    logger.debug(
-      `[StationExpansionService] Generated ${topologies.length} candidate recovery topologies for ${originCode} -> ${destCode}`
+    const maxTopologies = parseInt(
+      process.env.MAX_TRANSFER_PAIRS || config.railRecovery?.maxTransferPairs || '6',
+      10
     );
-    return topologies.slice(0, 18);
+
+    let resultTopologies = topologies;
+    if (topologies.length > maxTopologies) {
+      if (maxTransfers >= 2) {
+        const threeLegs = topologies.filter((t) => t.numberOfTransfers >= 2 || (t.stages && t.stages.length >= 3));
+        const upToTwoLegs = topologies.filter((t) => (t.numberOfTransfers || 0) < 2);
+        const threeLegCount = Math.min(threeLegs.length, 2);
+        const twoLegCount = maxTopologies - threeLegCount;
+        resultTopologies = [...upToTwoLegs.slice(0, twoLegCount), ...threeLegs.slice(0, threeLegCount)];
+      } else {
+        resultTopologies = topologies.slice(0, maxTopologies);
+      }
+    }
+
+    logger.debug(
+      `[StationExpansionService] Generated ${topologies.length} candidate recovery topologies, capped to top ${resultTopologies.length} for ${originCode} -> ${destCode}`
+    );
+    return resultTopologies;
   }
 }
 
