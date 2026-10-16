@@ -1,3 +1,4 @@
+import fs from 'fs';
 import railRadarAdapter from '../../providers/rail/railRadar.adapter.js';
 import stationExpansionService from './stationExpansion.service.js';
 import connectionValidator from './connectionValidator.js';
@@ -481,6 +482,31 @@ export class JourneyRecoveryService {
           }
 
           const avail = await availPromise;
+
+          if (legIndex > 0) {
+            const leg1Avail = enrichedLegs[0]?.availability;
+            const leg1Raw = String(leg1Avail?.rawStatus || leg1Avail?.availabilityText || '').toUpperCase();
+            const leg1Norm = String(leg1Avail?.normalizedStatus || '').toUpperCase();
+            const leg1Bookable =
+              leg1Norm === AVAILABILITY_STATUS.AVAILABLE ||
+              leg1Norm === AVAILABILITY_STATUS.RAC ||
+              (leg1Norm === AVAILABILITY_STATUS.WAITLIST && !isUnlikelyWaitlist(leg1Raw));
+            try {
+              fs.appendFileSync(
+                'leg_audit.log',
+                JSON.stringify({
+                  timestamp: new Date().toISOString(),
+                  legIndex,
+                  trainNumber: leg.trainNumber,
+                  fromCode,
+                  toCode,
+                  leg1Bookable,
+                  leg1Status: { raw: leg1Raw, norm: leg1Norm },
+                  isLeg2AfterNonBookableLeg1: !leg1Bookable,
+                }) + '\n'
+              );
+            } catch (_) {}
+          }
 
           // Short-Circuit Rule (Requirement 5):
           // If leg 1 returns no bookable status (WL beyond threshold, REGRET, NOT_AVAILABLE), skip leg 2

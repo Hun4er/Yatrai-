@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { toRailKitDate, formatJourneyDate } from '../../utils/railwayTime.js';
 import { normalizeSeatAvailability, AVAILABILITY_STATUS } from '../../services/rail/availabilityNorm.js';
 import logger from '../../utils/logger.js';
@@ -175,6 +176,23 @@ class RailKitAdapter {
   async _fetch(url, attempt = 1) {
     const redactedUrl = url.replace(/X-API-Key=[^&]+/i, 'X-API-Key=[REDACTED]');
     logger.info(`[DIAGNOSTIC - RAILKIT REQUEST] Attempt ${attempt} | URL: ${redactedUrl}`);
+
+    const stackLines = (new Error().stack || '').split('\n').slice(2, 6).map((s) => s.trim());
+    const caller = stackLines.join(' | ');
+    const endpointPath = url.split('?')[0].replace(/^https?:\/\/[^/]+/, '');
+    const auditRecord = {
+      timestamp: new Date().toISOString(),
+      attempt,
+      url: redactedUrl,
+      endpoint: endpointPath,
+      caller,
+      budgetCheckBefore: false,
+      budgetCheckAfter: false,
+      hasTracker: false,
+    };
+    try {
+      fs.appendFileSync('railkit_audit.log', JSON.stringify(auditRecord) + '\n');
+    } catch (_) {}
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);

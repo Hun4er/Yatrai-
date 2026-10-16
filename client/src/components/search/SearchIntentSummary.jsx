@@ -88,18 +88,18 @@ export function SearchIntentSummary({
 
   return (
     <div
-      className="w-full max-w-4xl rounded-xl border border-graphite-800 bg-graphite-900 p-6 sm:p-7 shadow-2xl space-y-6 animate-in fade-in transition-all font-sans"
+      className="w-full max-w-4xl rounded-2xl border border-[#303640] bg-[#181C22]/95 backdrop-blur-md p-6 sm:p-7 shadow-2xl space-y-6 animate-in fade-in transition-all font-sans"
       aria-label="Trip Intent Interpretation"
     >
       {/* Header Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-graphite-800 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#303640] pb-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-graphite-850 border border-graphite-800 text-ink-500">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#15191F] border border-[#303640] text-[#E8B04A]">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-ink-900">We understood your trip</h3>
-            <p className="text-xs text-ink-500">
+            <h3 className="text-base font-semibold text-[#F0F1F3]">We understood your trip</h3>
+            <p className="text-xs text-[#A7AFBA]">
               Review how Yatrai resolved your travel intent before searching.
             </p>
           </div>
@@ -110,7 +110,7 @@ export function SearchIntentSummary({
             type="button"
             onClick={onEditQuery}
             disabled={isLoading}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-graphite-700 bg-graphite-850 px-3 py-1.5 text-xs font-medium text-ink-500 hover:text-ink-900 hover:border-graphite-600 transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[#303640] bg-[#15191F] px-3 py-1.5 text-xs font-medium text-[#A7AFBA] hover:text-[#F0F1F3] hover:border-[#E8B04A] transition-all cursor-pointer"
           >
             <Edit2 className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Edit query</span>
@@ -121,10 +121,10 @@ export function SearchIntentSummary({
       {/* Grid: Origin, Destination, Schedule, Passengers */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Origin Resolution Box */}
-        <div className="rounded-xl border border-graphite-800 bg-graphite-850/60 p-4 space-y-2">
+        <div className="rounded-xl border border-[#303640] bg-[#15191F] p-4 space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-ink-400">
-              <MapPin className="h-3.5 w-3.5 text-ink-500" aria-hidden="true" />
+            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#A7AFBA]">
+              <MapPin className="h-3.5 w-3.5 text-[#E8B04A]" aria-hidden="true" />
               <span>From</span>
             </div>
 
@@ -132,7 +132,7 @@ export function SearchIntentSummary({
               <button
                 type="button"
                 onClick={() => setShowOriginSelector((prev) => !prev)}
-                className="text-xs font-semibold text-amber-500 hover:text-amber-400 inline-flex items-center gap-1 cursor-pointer"
+                className="text-xs font-semibold text-[#E8B04A] hover:text-[#F2BE62] inline-flex items-center gap-1 cursor-pointer"
               >
                 <span>{showOriginSelector ? 'Close' : 'Change location'}</span>
                 <ChevronDown className={`h-3 w-3 transition-transform ${showOriginSelector ? 'rotate-180' : ''}`} />
@@ -141,18 +141,18 @@ export function SearchIntentSummary({
           </div>
 
           <div>
-            <div className="text-base font-bold text-ink-900 font-mono">
+            <div className="text-base font-bold text-[#F0F1F3] font-mono">
               {selectedOrigin?.city || selectedOrigin?.name || originQuery}
               {selectedOrigin?.state ? `, ${selectedOrigin.state}` : ''}
             </div>
 
             {/* Resolved starting point visibility */}
             {selectedOrigin && selectedOrigin.name && (
-              <div className="mt-1 text-xs text-ink-500 flex items-center gap-1.5 font-medium">
-                <span className="text-ink-400">Resolved starting point:</span>
-                <span className="font-semibold text-ink-900 font-mono">{selectedOrigin.name}</span>
+              <div className="mt-1 text-xs text-[#A7AFBA] flex items-center gap-1.5 font-medium">
+                <span className="text-[#7E8794]">Resolved starting point:</span>
+                <span className="font-semibold text-[#F0F1F3] font-mono">{selectedOrigin.name}</span>
                 {selectedOrigin.type && (
-                  <span className="rounded-full bg-graphite-800 border border-graphite-700 px-1.5 py-0.2 text-[10px] text-ink-400 uppercase font-mono">
+                  <span className="rounded-full bg-[#181C22] border border-[#303640] px-1.5 py-0.2 text-[10px] text-[#A7AFBA] uppercase font-mono">
                     {selectedOrigin.type.replace('_', ' ')}
                   </span>
                 )}
@@ -162,9 +162,9 @@ export function SearchIntentSummary({
 
           {/* Multiple Candidates Selection UI */}
           {showOriginSelector && originCandidates.length > 1 && (
-            <div className="mt-3 rounded-xl border border-graphite-700 bg-graphite-850 p-3 space-y-2 animate-in fade-in">
-              <div className="text-[11px] font-semibold text-ink-500 flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3 text-amber-500" />
+            <div className="mt-3 rounded-xl border border-[#303640] bg-[#181C22] p-3 space-y-2 animate-in fade-in">
+              <div className="text-[11px] font-semibold text-[#A7AFBA] flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3 text-[#E8B04A]" />
                 <span>We found multiple locations matching &ldquo;{originQuery}&rdquo;:</span>
               </div>
               <div className="space-y-1">
@@ -180,15 +180,15 @@ export function SearchIntentSummary({
                       }}
                       className={`w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer ${
                         isCandSelected
-                          ? 'bg-amber-500/10 border border-amber-500/30 text-ink-900 font-semibold'
-                          : 'hover:bg-graphite-800/60 text-ink-500'
+                          ? 'bg-[#E8B04A]/10 border border-[#E8B04A]/30 text-[#F0F1F3] font-semibold'
+                          : 'hover:bg-[#15191F] text-[#A7AFBA]'
                       }`}
                     >
                       <div className="truncate">
-                        <div className="text-ink-900 font-medium font-mono">{cand.name}</div>
-                        <div className="text-[10px] text-ink-400 truncate">{cand.displayName}</div>
+                        <div className="text-[#F0F1F3] font-medium font-mono">{cand.name}</div>
+                        <div className="text-[10px] text-[#7E8794] truncate">{cand.displayName}</div>
                       </div>
-                      {isCandSelected && <Check className="h-3.5 w-3.5 text-amber-500 shrink-0 ml-2" />}
+                      {isCandSelected && <Check className="h-3.5 w-3.5 text-[#E8B04A] shrink-0 ml-2" />}
                     </button>
                   );
                 })}
@@ -198,10 +198,10 @@ export function SearchIntentSummary({
         </div>
 
         {/* Destination Resolution Box */}
-        <div className="rounded-xl border border-graphite-800 bg-graphite-850/60 p-4 space-y-2">
+        <div className="rounded-xl border border-[#303640] bg-[#15191F] p-4 space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-ink-400">
-              <Navigation className="h-3.5 w-3.5 text-ink-500" aria-hidden="true" />
+            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#A7AFBA]">
+              <Navigation className="h-3.5 w-3.5 text-[#E8B04A]" aria-hidden="true" />
               <span>To</span>
             </div>
 
@@ -209,7 +209,7 @@ export function SearchIntentSummary({
               <button
                 type="button"
                 onClick={() => setShowDestSelector((prev) => !prev)}
-                className="text-xs font-semibold text-amber-500 hover:text-amber-400 inline-flex items-center gap-1 cursor-pointer"
+                className="text-xs font-semibold text-[#E8B04A] hover:text-[#F2BE62] inline-flex items-center gap-1 cursor-pointer"
               >
                 <span>{showDestSelector ? 'Close' : 'Change location'}</span>
                 <ChevronDown className={`h-3 w-3 transition-transform ${showDestSelector ? 'rotate-180' : ''}`} />
@@ -218,18 +218,18 @@ export function SearchIntentSummary({
           </div>
 
           <div>
-            <div className="text-base font-bold text-ink-900 font-mono">
+            <div className="text-base font-bold text-[#F0F1F3] font-mono">
               {selectedDestination?.city || selectedDestination?.name || destQuery}
               {selectedDestination?.state ? `, ${selectedDestination.state}` : ''}
             </div>
 
             {/* Resolved destination point visibility */}
             {selectedDestination && selectedDestination.name && (
-              <div className="mt-1 text-xs text-ink-500 flex items-center gap-1.5 font-medium">
-                <span className="text-ink-400">Resolved destination:</span>
-                <span className="font-semibold text-ink-900 font-mono">{selectedDestination.name}</span>
+              <div className="mt-1 text-xs text-[#A7AFBA] flex items-center gap-1.5 font-medium">
+                <span className="text-[#7E8794]">Resolved destination:</span>
+                <span className="font-semibold text-[#F0F1F3] font-mono">{selectedDestination.name}</span>
                 {selectedDestination.type && (
-                  <span className="rounded-full bg-graphite-800 border border-graphite-700 px-1.5 py-0.2 text-[10px] text-ink-400 uppercase font-mono">
+                  <span className="rounded-full bg-[#181C22] border border-[#303640] px-1.5 py-0.2 text-[10px] text-[#A7AFBA] uppercase font-mono">
                     {selectedDestination.type.replace('_', ' ')}
                   </span>
                 )}
@@ -239,9 +239,9 @@ export function SearchIntentSummary({
 
           {/* Multiple Candidates Selection UI */}
           {showDestSelector && destCandidates.length > 1 && (
-            <div className="mt-3 rounded-xl border border-graphite-700 bg-graphite-850 p-3 space-y-2 animate-in fade-in">
-              <div className="text-[11px] font-semibold text-ink-500 flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3 text-amber-500" />
+            <div className="mt-3 rounded-xl border border-[#303640] bg-[#181C22] p-3 space-y-2 animate-in fade-in">
+              <div className="text-[11px] font-semibold text-[#A7AFBA] flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3 text-[#E8B04A]" />
                 <span>We found multiple locations matching &ldquo;{destQuery}&rdquo;:</span>
               </div>
               <div className="space-y-1">
@@ -257,15 +257,15 @@ export function SearchIntentSummary({
                       }}
                       className={`w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer ${
                         isCandSelected
-                          ? 'bg-amber-500/10 border border-amber-500/30 text-ink-900 font-semibold'
-                          : 'hover:bg-graphite-800/60 text-ink-500'
+                          ? 'bg-[#E8B04A]/10 border border-[#E8B04A]/30 text-[#F0F1F3] font-semibold'
+                          : 'hover:bg-[#15191F] text-[#A7AFBA]'
                       }`}
                     >
                       <div className="truncate">
-                        <div className="text-ink-900 font-medium font-mono">{cand.name}</div>
-                        <div className="text-[10px] text-ink-400 truncate">{cand.displayName}</div>
+                        <div className="text-[#F0F1F3] font-medium font-mono">{cand.name}</div>
+                        <div className="text-[10px] text-[#7E8794] truncate">{cand.displayName}</div>
                       </div>
-                      {isCandSelected && <Check className="h-3.5 w-3.5 text-amber-500 shrink-0 ml-2" />}
+                      {isCandSelected && <Check className="h-3.5 w-3.5 text-[#E8B04A] shrink-0 ml-2" />}
                     </button>
                   );
                 })}
@@ -277,32 +277,32 @@ export function SearchIntentSummary({
 
       {/* Date & Mode Parameters Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="rounded-xl border border-graphite-800 bg-graphite-850/40 p-3">
-          <div className="text-[11px] uppercase tracking-wider text-ink-400 flex items-center gap-1">
-            <Calendar className="h-3.5 w-3.5 text-ink-500" />
+        <div className="rounded-xl border border-[#303640] bg-[#15191F] p-3">
+          <div className="text-[11px] uppercase tracking-wider text-[#A7AFBA] flex items-center gap-1">
+            <Calendar className="h-3.5 w-3.5 text-[#E8B04A]" />
             <span>Date</span>
           </div>
-          <div className="mt-1 text-sm font-semibold text-ink-900 font-mono">
+          <div className="mt-1 text-sm font-semibold text-[#F0F1F3] font-mono">
             {formattedDate || travelDate}
           </div>
         </div>
 
-        <div className="rounded-xl border border-graphite-800 bg-graphite-850/40 p-3">
-          <div className="text-[11px] uppercase tracking-wider text-ink-400 flex items-center gap-1">
-            <Users className="h-3.5 w-3.5 text-ink-500" />
+        <div className="rounded-xl border border-[#303640] bg-[#15191F] p-3">
+          <div className="text-[11px] uppercase tracking-wider text-[#A7AFBA] flex items-center gap-1">
+            <Users className="h-3.5 w-3.5 text-[#E8B04A]" />
             <span>Passengers</span>
           </div>
-          <div className="mt-1 text-sm font-semibold text-ink-900 font-mono">
+          <div className="mt-1 text-sm font-semibold text-[#F0F1F3] font-mono">
             {passengers} {passengers === 1 ? 'adult' : 'passengers'}
           </div>
         </div>
 
-        <div className="rounded-xl border border-graphite-800 bg-graphite-850/40 p-3">
-          <div className="text-[11px] uppercase tracking-wider text-ink-400 flex items-center gap-1">
-            <Train className="h-3.5 w-3.5 text-ink-500" />
+        <div className="rounded-xl border border-[#303640] bg-[#15191F] p-3">
+          <div className="text-[11px] uppercase tracking-wider text-[#A7AFBA] flex items-center gap-1">
+            <Train className="h-3.5 w-3.5 text-[#E8B04A]" />
             <span>Transport</span>
           </div>
-          <div className="mt-1 text-sm font-semibold text-ink-900 capitalize font-mono">
+          <div className="mt-1 text-sm font-semibold text-[#F0F1F3] capitalize font-mono">
             {requestedModes}
           </div>
         </div>
@@ -310,7 +310,7 @@ export function SearchIntentSummary({
 
       {/* Action Footer */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-        <div className="text-xs text-ink-400">
+        <div className="text-xs text-[#7E8794]">
           Pressing &ldquo;Find Trains&rdquo; will discover verified Indian Railways trains and connecting routes.
         </div>
 
@@ -318,17 +318,17 @@ export function SearchIntentSummary({
           type="button"
           onClick={handleSearchClick}
           disabled={isLoading}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 px-7 py-3 text-sm font-semibold text-graphite-950 shadow-md transition-all duration-150 ease-out cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-graphite-950 shrink-0"
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#E8B04A] hover:bg-[#F2BE62] active:bg-[#D9A139] px-7 py-3 text-sm font-semibold text-[#0B0D10] shadow-lg transition-all duration-150 ease-out cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#E8B04A] focus:ring-offset-2 focus:ring-offset-[#0B0D10] shrink-0"
         >
           {isLoading ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin text-graphite-950" aria-hidden="true" />
+              <Loader2 className="h-4 w-4 animate-spin text-[#0B0D10]" aria-hidden="true" />
               <span>Orchestrating search...</span>
             </>
           ) : (
             <>
               <span>Find Trains</span>
-              <ArrowRight className="h-4 w-4 text-graphite-950" aria-hidden="true" />
+              <ArrowRight className="h-4 w-4 text-[#0B0D10]" aria-hidden="true" />
             </>
           )}
         </button>

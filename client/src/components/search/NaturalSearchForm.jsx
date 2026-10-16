@@ -109,15 +109,15 @@ export function NaturalSearchForm({
     <div className="w-full max-w-5xl space-y-4 font-sans">
       <form
         onSubmit={handleSubmit}
-        className="rounded-2xl border border-[#303640] bg-[#181C22] p-5 sm:p-6 shadow-2xl space-y-4 transition-all"
+        className="rounded-2xl border border-[#303640] bg-[#181C22]/95 backdrop-blur-md p-5 sm:p-6 shadow-2xl space-y-4 transition-all"
         aria-label="Natural Language Journey Search"
       >
         <div className="flex items-center justify-between">
           <label
             htmlFor="natural-query-input"
-            className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-ink-500"
+            className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#A7AFBA]"
           >
-            <Sparkles className="h-4 w-4 text-ink-500" aria-hidden="true" />
+            <Sparkles className="h-4 w-4 text-[#E8B04A]" aria-hidden="true" />
             <span>Describe Your Journey Naturally</span>
           </label>
 
@@ -125,9 +125,10 @@ export function NaturalSearchForm({
             <button
               type="button"
               onClick={onSwitchToStructured}
-              className="text-xs text-ink-500 hover:text-ink-900 transition-colors cursor-pointer"
+              className="text-xs text-[#A7AFBA] hover:text-[#E8B04A] transition-colors cursor-pointer flex items-center gap-1"
             >
-              Use structured form →
+              <span>Use structured form</span>
+              <span aria-hidden="true">→</span>
             </button>
           )}
         </div>
@@ -150,24 +151,24 @@ export function NaturalSearchForm({
                 handleSubmit(e);
               }
             }}
-            className={`w-full rounded-xl border bg-graphite-850 p-4 text-sm text-ink-900 placeholder:text-ink-400 transition-all focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none ${
-              validationError ? 'border-danger-500' : 'border-graphite-800'
+            className={`w-full rounded-xl border bg-[#15191F] p-4 text-sm font-medium text-[#F0F1F3] placeholder:text-[#7E8794] transition-all focus:border-[#E8B04A] focus:outline-none focus:ring-1 focus:ring-[#E8B04A]/30 resize-none ${
+              validationError ? 'border-red-500/80 ring-1 ring-red-500/30' : 'border-[#303640] hover:border-[#3A414C]'
             }`}
           />
         </div>
 
         {validationError && (
-          <p className="text-xs text-danger-500 flex items-center gap-1.5" role="alert">
+          <p className="text-xs text-red-400 flex items-center gap-1.5" role="alert">
             <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
             <span>{validationError}</span>
           </p>
         )}
 
         {/* Action Row */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
           {/* Example query suggestions */}
-          <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-400">
-            <span className="font-semibold text-ink-500">Try:</span>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#7E8794]">
+            <span className="font-semibold text-[#A7AFBA]">Try:</span>
             {sampleQueries.map((sample, idx) => (
               <button
                 key={idx}
@@ -176,7 +177,7 @@ export function NaturalSearchForm({
                   setQuery(sample);
                   handleInterpretAndSubmit(sample);
                 }}
-                className="rounded-lg bg-graphite-850 px-2.5 py-1 text-[11px] text-ink-500 hover:text-ink-900 hover:bg-graphite-800 border border-graphite-800/80 transition-colors cursor-pointer text-left"
+                className="rounded-lg bg-[#15191F] px-2.5 py-1 text-[11px] text-[#A7AFBA] hover:text-[#F0F1F3] hover:bg-[#303640]/50 border border-[#303640] transition-colors cursor-pointer text-left"
               >
                 &ldquo;{sample}&rdquo;
               </button>
@@ -187,22 +188,22 @@ export function NaturalSearchForm({
             type="submit"
             id="natural-search-submit-btn"
             disabled={isLoading || isInterpreting}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 px-6 py-3 text-sm font-semibold text-graphite-950 shadow-md transition-all duration-150 ease-out disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-graphite-950 shrink-0"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#E8B04A] hover:bg-[#F2BE62] active:bg-[#D9A139] px-6 py-3 text-sm font-semibold text-[#0B0D10] shadow-lg transition-all duration-150 ease-out disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#E8B04A] focus:ring-offset-2 focus:ring-offset-[#0B0D10] shrink-0"
             aria-busy={isLoading || isInterpreting}
           >
             {isInterpreting ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin text-graphite-950" aria-hidden="true" />
+                <Loader2 className="h-4 w-4 animate-spin text-[#0B0D10]" aria-hidden="true" />
                 <span>Interpreting trip...</span>
               </>
             ) : isLoading ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin text-graphite-950" aria-hidden="true" />
+                <Loader2 className="h-4 w-4 animate-spin text-[#0B0D10]" aria-hidden="true" />
                 <span>Searching journeys...</span>
               </>
             ) : (
               <>
-                <Search className="h-4 w-4 text-graphite-950" aria-hidden="true" />
+                <Search className="h-4 w-4 text-[#0B0D10]" aria-hidden="true" />
                 <span>Find Trains</span>
               </>
             )}
@@ -215,14 +216,14 @@ export function NaturalSearchForm({
         <div
           role="region"
           aria-label="Clarification needed"
-          className="rounded-xl border border-amber-500/40 bg-graphite-900 p-5 shadow-lg space-y-3 animate-in fade-in"
+          className="rounded-xl border border-[#E8B04A]/40 bg-[#181C22] p-5 shadow-lg space-y-3 animate-in fade-in"
         >
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-500">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#E8B04A]">
             <HelpCircle className="h-4 w-4" aria-hidden="true" />
             <span>Additional Information Needed</span>
           </div>
 
-          <p className="text-sm font-medium text-ink-900">
+          <p className="text-sm font-medium text-[#F0F1F3]">
             {clarificationState.message}
           </p>
 
@@ -233,11 +234,11 @@ export function NaturalSearchForm({
               placeholder={`Enter missing ${clarificationState.missingFields?.join(', ')}...`}
               value={clarificationValue}
               onChange={(e) => setClarificationValue(e.target.value)}
-              className="flex-1 rounded-xl border border-graphite-800 bg-graphite-850 px-4 py-2.5 text-xs text-ink-900 placeholder:text-ink-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="flex-1 rounded-xl border border-[#303640] bg-[#15191F] px-4 py-2.5 text-xs text-[#F0F1F3] placeholder:text-[#7E8794] focus:border-[#E8B04A] focus:outline-none focus:ring-1 focus:ring-[#E8B04A]/30"
             />
             <button
               type="submit"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 px-4 py-2.5 text-xs font-semibold text-graphite-950 shadow-sm cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#E8B04A] hover:bg-[#F2BE62] px-4 py-2.5 text-xs font-semibold text-[#0B0D10] shadow-sm cursor-pointer"
             >
               <span>Continue</span>
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
