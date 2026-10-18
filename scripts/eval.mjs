@@ -75,9 +75,9 @@ const TEST_ROUTES = [
   },
   {
     id: 'T4',
-    description: 'Patna → Gaya (short hub connection)',
-    origin: 'PNBE',
-    destination: 'GAYA',
+    description: 'Delhi → Lucknow (cluster expansion both ends)',
+    origin: 'NDLS',
+    destination: 'LKO',
     departureDate: TEST_DATE,
     passengers: 1,
     preferences: { class: '3A', quota: 'GN' },
