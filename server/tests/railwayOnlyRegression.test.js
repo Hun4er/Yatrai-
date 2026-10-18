@@ -5,7 +5,7 @@ import { resultAssembler } from '../src/orchestration/resultAssembler.js';
 import { cheapestStrategy } from '../src/ranking/strategies/cheapest.strategy.js';
 import { overallStrategy } from '../src/ranking/strategies/overall.strategy.js';
 import { DirectJourneyService } from '../src/services/rail/directJourney.service.js';
-import { RailRadarAdapter } from '../src/providers/rail/railRadar.adapter.js';
+import { RailKitAdapter } from '../src/providers/rail/railKit.adapter.js';
 import { formatPrice, getPriceLabel } from '../../client/src/utils/formatters.js';
 import { deriveFilterBounds, filterJourneys } from '../../client/src/utils/journeyFilters.js';
 
@@ -36,7 +36,7 @@ describe('Railway-Only Search & Fare Pipeline Regression Suite', () => {
 
   const mockValidRailCandidate = {
     source: 'rail',
-    provider: 'Indian Railways Provider (RailRadar)',
+    provider: 'Indian Railways Provider (RailKit)',
     providerCode: 'IRCTC',
     duration: 720,
     totalDistance: 980,
@@ -148,18 +148,18 @@ describe('Railway-Only Search & Fare Pipeline Regression Suite', () => {
     assert.equal(connectingCount, 1, 'Connecting count must be exactly 1 connecting itinerary');
   });
 
-  // 7. A RailRadar rate-limit response produces a clear railway-specific error
-  it('7. A RailRadar rate-limit response produces a clear railway-specific error', async () => {
+  // 7. A RailKit rate-limit response produces a clear railway-specific error
+  it('7. A RailKit rate-limit response produces a clear railway-specific error', async () => {
     const mockRateLimitedAdapter = {
       searchDirectTrains: async () => ({
         success: false,
         statusCode: 429,
-        error: 'Rate limit exceeded for provider "railradar".',
+        error: 'Rate limit exceeded for provider "railkit".',
         trains: [],
       }),
     };
 
-    const directService = new DirectJourneyService({ railRadar: mockRateLimitedAdapter });
+    const directService = new DirectJourneyService({ railKit: mockRateLimitedAdapter });
     const result = await directService.searchDirectTrains({
       origin: { name: 'Sonipat', code: 'SNP' },
       destination: { name: 'Patna', code: 'PNBE' },
@@ -183,7 +183,7 @@ describe('Railway-Only Search & Fare Pipeline Regression Suite', () => {
       }),
     };
 
-    const directService = new DirectJourneyService({ railRadar: mockFailingAdapter });
+    const directService = new DirectJourneyService({ railKit: mockFailingAdapter });
     const result = await directService.searchDirectTrains({
       origin: { name: 'Sonipat', code: 'SNP' },
       destination: { name: 'Patna', code: 'PNBE' },
@@ -204,7 +204,7 @@ describe('Railway-Only Search & Fare Pipeline Regression Suite', () => {
       }),
     };
 
-    const directService = new DirectJourneyService({ railRadar: mockEmptyAdapter });
+    const directService = new DirectJourneyService({ railKit: mockEmptyAdapter });
     const result = await directService.searchDirectTrains({
       origin: { name: 'Sonipat', code: 'SNP' },
       destination: { name: 'Patna', code: 'PNBE' },
@@ -261,7 +261,7 @@ describe('Railway-Only Search & Fare Pipeline Regression Suite', () => {
 
   // 12. Repeated searches do not create uncontrolled duplicate provider requests
   it('12. Repeated searches do not create uncontrolled duplicate provider requests', async () => {
-    const adapter = new RailRadarAdapter();
+    const adapter = new RailKitAdapter({ disablePersistentCache: true });
     let callCount = 0;
 
     const mockFetchCall = async () => {
@@ -272,11 +272,11 @@ describe('Railway-Only Search & Fare Pipeline Regression Suite', () => {
 
     // Trigger 5 concurrent identical requests
     const promises = [
-      adapter.cachedRequest('direct:SNP:PNBE', 60000, mockFetchCall),
-      adapter.cachedRequest('direct:SNP:PNBE', 60000, mockFetchCall),
-      adapter.cachedRequest('direct:SNP:PNBE', 60000, mockFetchCall),
-      adapter.cachedRequest('direct:SNP:PNBE', 60000, mockFetchCall),
-      adapter.cachedRequest('direct:SNP:PNBE', 60000, mockFetchCall),
+      adapter._cachedFetch('direct:SNP:PNBE:dedup', 60000, mockFetchCall, 'timetable'),
+      adapter._cachedFetch('direct:SNP:PNBE:dedup', 60000, mockFetchCall, 'timetable'),
+      adapter._cachedFetch('direct:SNP:PNBE:dedup', 60000, mockFetchCall, 'timetable'),
+      adapter._cachedFetch('direct:SNP:PNBE:dedup', 60000, mockFetchCall, 'timetable'),
+      adapter._cachedFetch('direct:SNP:PNBE:dedup', 60000, mockFetchCall, 'timetable'),
     ];
 
     const results = await Promise.all(promises);

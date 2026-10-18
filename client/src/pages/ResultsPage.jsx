@@ -220,15 +220,27 @@ export function ResultsPage({
   const failedProviders = providerMeta.filter(
     (p) =>
       (p.status === 'failed' || p.error) &&
-      ['rail', 'irctc', 'railradar'].includes(String(p.provider || '').toLowerCase())
+      ['rail', 'irctc', 'railkit'].includes(String(p.provider || '').toLowerCase())
   );
   const hasPartialFailures = failedProviders.length > 0;
+
+  const isMaintenanceWindow =
+    error?.code === 'MAINTENANCE_WINDOW' ||
+    error?.details?.isMaintenanceWindow ||
+    /IRCTC maintenance window/i.test(error?.message || '') ||
+    Boolean(data?.meta?.isMaintenanceWindow);
 
   const isMonthlyQuota =
     error?.code === 'PROVIDER_MONTHLY_QUOTA_EXHAUSTED' ||
     error?.subCode === 'MONTHLY_QUOTA_EXHAUSTED' ||
     error?.details?.isMonthlyQuota ||
     /monthly quota/i.test(error?.message || '');
+
+  const isLiveDisabled =
+    error?.status === 403 ||
+    error?.statusCode === 403 ||
+    error?.code === 'LIVE_REQUESTS_BLOCKED' ||
+    /LIVE_REQUESTS_ALLOWED|live requests blocked|live data is disabled/i.test(error?.message || '');
 
   const isRateLimited =
     backendJourneys.length === 0 &&
@@ -496,8 +508,36 @@ export function ResultsPage({
       {/* Main Content Area */}
       {isLoading && <LoadingState />}
 
+      {/* IRCTC Maintenance Window State (23:45 - 00:15 IST) */}
+      {!isLoading && isMaintenanceWindow && (
+        <div className="rounded-2xl border border-blue-500/30 bg-graphite-900 p-6 sm:p-8 text-center space-y-4 shadow-xl">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10 text-blue-400">
+            <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+          </div>
+
+          <div className="space-y-1.5">
+            <h3 className="text-lg font-bold text-text-primary">
+              IRCTC Maintenance Window (23:45 – 00:15 IST)
+            </h3>
+            <p className="text-sm text-text-secondary max-w-lg mx-auto leading-relaxed">
+              IRCTC ticketing servers undergo nightly maintenance between 23:45 and 00:15 IST. Live seat availability and booking are unavailable during this period and will reopen at 00:15 IST.
+            </p>
+          </div>
+
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onNavigateHome}
+              className="inline-flex items-center gap-2 rounded-xl border border-graphite-800 bg-graphite-850 px-4 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-graphite-800 hover:border-graphite-700 transition-colors cursor-pointer"
+            >
+              <span>Modify criteria</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Railway Rate Limit / Monthly Quota State */}
-      {!isLoading && isRateLimited && (
+      {!isLoading && !isMaintenanceWindow && isRateLimited && (
         <div className="rounded-2xl border border-amber-500/30 bg-graphite-900 p-6 sm:p-8 text-center space-y-4 shadow-xl">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
             <AlertTriangle className="h-6 w-6" aria-hidden="true" />
@@ -506,14 +546,14 @@ export function ResultsPage({
           <div className="space-y-1.5">
             <h3 className="text-lg font-bold text-text-primary">
               {isMonthlyQuota
-                ? 'RailRadar Monthly Quota Exhausted'
+                ? 'RailKit Monthly Quota Exhausted'
                 : 'Railway search temporarily rate-limited'}
             </h3>
 
             <p className="text-sm text-text-secondary max-w-lg mx-auto leading-relaxed">
               {isMonthlyQuota ? (
                 <>
-                  Your external RailRadar account quota of <strong>100 requests/month</strong> has been exhausted (0 remaining).
+                  Your external RailKit account quota of <strong>10,000 requests/month</strong> has been exhausted (0 remaining).
                   Yatrai provides verified Indian Railways timetable schedules for core corridors.
                 </>
               ) : (
@@ -564,8 +604,12 @@ export function ResultsPage({
 
       {!isLoading && !isRateLimited && status === 'error' && (
         <ErrorState
-          title="Unable to find journeys"
-          message={error?.message || "We couldn't complete the journey search. Please check your criteria."}
+          title={isLiveDisabled ? 'Live Data Disabled' : 'Unable to find journeys'}
+          message={
+            isLiveDisabled
+              ? 'Live data is disabled. Set LIVE_REQUESTS_ALLOWED=true or enable recorded mode'
+              : (error?.message || "We couldn't complete the journey search. Please check your criteria.")
+          }
           onRetry={onRetry}
           onModifySearch={onNavigateHome}
         />

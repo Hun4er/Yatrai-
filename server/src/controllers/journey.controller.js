@@ -66,9 +66,11 @@ export const journeyController = {
           ranking,
           sortBy,
           userId,
+          exploreAlternatives: Boolean(req.body?.exploreAlternatives),
         },
         {
           railwayOnly: true,
+          exploreAlternatives: Boolean(req.body?.exploreAlternatives),
         }
       );
 

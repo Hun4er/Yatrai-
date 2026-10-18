@@ -1150,7 +1150,7 @@ export class JourneyOrchestrator {
             isMonthlyQuota: isMonthly,
             subCode: isMonthly ? 'MONTHLY_QUOTA_EXHAUSTED' : 'RATE_LIMITED',
             quotaNotice: isMonthly
-              ? 'Upstream provider (RailRadar) monthly quota has reached its 100 requests limit.'
+              ? 'Upstream provider (RailKit) monthly quota has reached its limit.'
               : null,
             originalError: rateLimitedEnvelope.error?.message,
           };
@@ -1197,13 +1197,14 @@ export class JourneyOrchestrator {
           const budgetTracker =
             options.budgetTracker ||
             new RequestBudgetTracker({
-              correlationId: searchContext.searchId || searchContext.correlationId,
-              maxRecoveryRequests: isCheckMore
-                ? (config.railRecovery?.checkMoreAllowance || 6)
-                : (options.maxRecoveryRequests ?? config.railRecovery?.maxRecoveryRequests ?? 8),
               ...options,
             });
-          const searchOpts = { ...options, budgetTracker, isCheckMore };
+          const searchOpts = {
+            ...options,
+            budgetTracker,
+            isCheckMore,
+            exploreAlternatives: Boolean(options.exploreAlternatives || searchContext.exploreAlternatives),
+          };
 
           let directResult = null;
           await runWithBudget(budgetTracker, async () => {
@@ -1327,7 +1328,7 @@ export class JourneyOrchestrator {
 
           if (shouldRunRailPipeline) {
             const hasRailEnvelope = executionSummary.envelopes.some(
-              (e) => e.provider === 'rail' || e.provider === 'railradar' || e.mode === 'rail'
+              (e) => e.provider === 'rail' || e.provider === 'railkit' || e.mode === 'rail'
             );
             if (!hasRailEnvelope) {
               executionSummary.envelopes.push({

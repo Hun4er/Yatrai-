@@ -148,6 +148,7 @@ export const api = {
       requestedModes,
       preferences,
       ranking,
+      exploreAlternatives,
     }) =>
       request('/journeys/search', {
         method: 'POST',
@@ -160,6 +161,7 @@ export const api = {
           requestedModes,
           preferences,
           ranking,
+          exploreAlternatives,
         }),
       }),
 
@@ -186,7 +188,7 @@ export const api = {
       }),
 
     // Real-Time Railway Journey Recovery
-    recover: ({ origin, destination, departureDate, travelClass, quota, passengers, ranking }) =>
+    recover: ({ origin, destination, departureDate, travelClass, quota, passengers, ranking, exploreAlternatives = true }) =>
       request('/journeys/recover', {
         method: 'POST',
         body: JSON.stringify({
@@ -197,6 +199,8 @@ export const api = {
           quota,
           passengers,
           ranking,
+          exploreAlternatives,
+          options: { exploreAlternatives: true },
         }),
       }),
 

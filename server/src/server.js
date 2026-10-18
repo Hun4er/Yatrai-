@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import config from './config/index.js';
 import logger from './utils/logger.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
+import railKitAdapter from './providers/rail/railKit.adapter.js';
 
 const app = createApp();
 
@@ -10,10 +11,12 @@ const server = app.listen(config.port, async () => {
     `Yatrai API Server running in [${config.env}] mode on http://${config.host}:${config.port}`
   );
   logger.info(`Health check available at http://${config.host}:${config.port}/api/health`);
+  logger.info(`[Startup] LIVE_REQUESTS_ALLOWED: ${process.env.LIVE_REQUESTS_ALLOWED}`);
 
   // Attempt database connection on startup
   try {
     await connectDatabase();
+    await railKitAdapter.syncUsage();
   } catch (dbError) {
     logger.warn(
       `[Database Warning] Could not connect to MongoDB on startup: ${dbError.message}. Proceeding without active DB connection.`

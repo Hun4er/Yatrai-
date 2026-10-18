@@ -300,16 +300,39 @@ Phase 4 establishes the core internal **Journey Search Engine**, orchestrating s
 ### Testing & Verification
 
 ```bash
-# Run automated test suite (includes 23 journey search engine tests; 82 total)
-npm test
-
-# Run live journey search verification script against MongoDB
-npm run journey:verify
+# Run automated test suite across all server test suites (463 tests, 137 suites, 100% passing)
+cd server && npm test
 ```
 
 ---
 
-## 13. Code Quality & Linting
+## 13. RailKit Provider Integration & Quota Architecture
+
+### Single Authoritative Provider
+Yatrai integrates strictly with [RailKit](https://railkit.in) as its authoritative real-time Indian Railways data provider (`https://api.railkit.in`). All date parameters are converted to `DD-MM-YYYY` exclusively at the provider adapter boundary (`railKit.adapter.js`), while all internal domain logic, models, and UI components operate strictly with `YYYY-MM-DD` and IST timestamps.
+
+### Quota Tracking & RAILKIT_USAGE_OFFSET
+To protect against exceeding the 10,000 monthly request quota and account for historical requests consumed before database initialization:
+- **Environment Variable:** `RAILKIT_USAGE_OFFSET` (integer, default `0`).
+- **Offset Formula:**
+  ```text
+  Total Effective Outbound Requests = Raw Database Count + RAILKIT_USAGE_OFFSET
+  ```
+  To reconcile the local counter with the RailKit web dashboard:
+  ```text
+  RAILKIT_USAGE_OFFSET = Dashboard Requests - Raw Database Count
+  ```
+- **Threshold Alerts:**
+  - **80% (8,000 requests):** High-priority warning logged; non-essential lookups throttled.
+  - **95% (9,500 requests):** Critical alert logged; strict budget caps engaged to safeguard remaining quota.
+
+### IRCTC Daily Maintenance Guard
+- **Window:** Daily between **23:45 IST and 00:15 IST** (30-minute window).
+- **Behavior:** IRCTC suspends passenger reservation system (PRS) queries during this nightly maintenance window. Yatrai detects this time frame via `isIrctcMaintenanceWindow()`, refuses outbound seat availability requests to avoid quota burn or transient failures, and returns a graceful status: `"IRCTC maintenance window, reopens 00:15"`.
+
+---
+
+## 14. Code Quality & Linting
 
 ### Linting
 

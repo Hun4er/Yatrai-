@@ -1,6 +1,6 @@
 import railKitAdapter from '../../providers/rail/railKit.adapter.js';
 import aopayAdapter from '../../providers/rail/aopay.adapter.js';
-import { formatJourneyDate } from '../../utils/railwayTime.js';
+import { formatJourneyDate, isIrctcMaintenanceWindow } from '../../utils/railwayTime.js';
 import logger from '../../utils/logger.js';
 import {
   AVAILABILITY_STATUS,
@@ -57,11 +57,58 @@ export class AvailabilityService {
     quota = 'GN',
     budgetTracker = null,
     isRecovery = true,
+    offeredClasses = null,
   }) {
     const num = String(trainNumber || '').trim();
     const from = String(fromCode || '').trim().toUpperCase();
     const to = String(toCode || '').trim().toUpperCase();
     const dateStr = formatJourneyDate(date) || (typeof date === 'string' ? date.slice(0, 10) : new Date().toISOString().slice(0, 10));
+
+    // Guard 1: IRCTC Maintenance Window (23:45 - 00:15 IST)
+    // Make no availability calls; never cache or count as availability result
+    if (isIrctcMaintenanceWindow()) {
+      return {
+        success: false,
+        provider: 'RailKit',
+        trainNumber: num,
+        travelClass,
+        quota,
+        normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
+        originalStatus: 'MAINTENANCE_WINDOW',
+        statusText: 'IRCTC maintenance window, reopens 00:15',
+        message: 'IRCTC maintenance window, reopens 00:15',
+        seatsAvailable: null,
+        isAvailable: false,
+        isMaintenanceWindow: true,
+        lastUpdated: new Date().toISOString(),
+        isLive: false,
+      };
+    }
+
+    // Guard 2: Skip classes the train does not offer (from cached static train info)
+    const normClass = String(travelClass || '').trim().toUpperCase();
+    const classesList = Array.isArray(offeredClasses)
+      ? offeredClasses.map((c) => String(c).trim().toUpperCase())
+      : null;
+    if (classesList && classesList.length > 0 && !classesList.includes(normClass)) {
+      return {
+        success: false,
+        provider: 'RailKit',
+        trainNumber: num,
+        travelClass: normClass,
+        quota,
+        normalizedStatus: 'CLASS_NOT_OFFERED',
+        originalStatus: 'CLASS_NOT_OFFERED',
+        statusText: `Class ${normClass} not offered on train ${num}`,
+        message: `Class ${normClass} not offered on train ${num}`,
+        seatsAvailable: null,
+        isAvailable: false,
+        lastUpdated: new Date().toISOString(),
+        isLive: false,
+        isUnchecked: true,
+        reason: 'CLASS_NOT_OFFERED',
+      };
+    }
 
     const cacheKey = this.buildCacheKey(num, from, to, dateStr, travelClass, quota);
     const now = Date.now();

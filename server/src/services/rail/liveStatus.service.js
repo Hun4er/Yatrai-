@@ -1,4 +1,4 @@
-import railRadarAdapter from '../../providers/rail/railRadar.adapter.js';
+import railKitAdapter from '../../providers/rail/railKit.adapter.js';
 import logger from '../../utils/logger.js';
 
 /**
@@ -11,7 +11,7 @@ import logger from '../../utils/logger.js';
  */
 export class LiveStatusService {
   constructor(dependencies = {}) {
-    this.railRadar = dependencies.railRadar || railRadarAdapter;
+    this.railKit = dependencies.railKit || dependencies.railRadar || railKitAdapter;
   }
 
   /**
@@ -31,7 +31,14 @@ export class LiveStatusService {
     }
 
     try {
-      return await this.railRadar.getLiveStatus(trainNumber, date);
+      if (typeof this.railKit.getLiveStatus === 'function') {
+        return await this.railKit.getLiveStatus(trainNumber, date);
+      }
+      return {
+        isLive: false,
+        delayMinutes: 0,
+        statusMessage: 'Schedule-based',
+      };
     } catch (err) {
       logger.debug(`[LiveStatusService] Failed to query live status for ${trainNumber}: ${err.message}`);
       return {

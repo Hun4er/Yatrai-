@@ -3,7 +3,7 @@ import { BaseTransportProvider } from '../interface.js';
 import { httpFetch } from '../httpClient.js';
 import { ProviderError } from '../errors.js';
 import { calculateJourneyTiming } from '../../../utils/railwayTime.js';
-import railRadarAdapter from '../../rail/railRadar.adapter.js';
+import railKitAdapter, { normalizeRailKitTrain } from '../../rail/railKit.adapter.js';
 import { findVerifiedDirectTrains } from '../../../services/rail/verifiedTrainData.js';
 
 /**
@@ -374,7 +374,7 @@ export function resolveStationCode(location) {
 export class RailTransportProvider extends BaseTransportProvider {
   constructor(options = {}) {
     super({
-      name: 'Indian Railways Provider (RailRadar)',
+      name: 'Indian Railways Provider (RailKit)',
       code: 'IRCTC',
       mode: 'rail',
       enabled: options.enabled ?? config.providers.rail.enabled,
@@ -497,40 +497,18 @@ export class RailTransportProvider extends BaseTransportProvider {
         }
 
         let endpointUrl;
-        if (isRailRadar && fetchFn === globalThis.fetch) {
-          const directResult = await railRadarAdapter.searchDirectTrains(fromCode, toCode, {
+        if (fetchFn === globalThis.fetch) {
+          const directResult = await railKitAdapter.searchTrainBetweenStations(fromCode, toCode, {
             timeoutMs: options.timeoutMs || this.timeoutMs,
             departureDate: travelDateStr,
             date: travelDateStr,
           });
-          if (!directResult.success && directResult.statusCode === 429) {
-            const verified = findVerifiedDirectTrains(fromCode, toCode, travelDateStr);
-            if (verified.length > 0) {
-              rawResponse = { data: { trains: verified } };
-            } else {
-              throw new ProviderError(`Rate limit exceeded for provider "rail".`, {
-                provider: 'rail',
-                code: 'PROVIDER_RATE_LIMITED',
-                statusCode: 429,
-                retryable: false,
-                details: {
-                  isMonthlyQuota: directResult.isMonthlyQuota,
-                },
-              });
-            }
+          if (directResult && directResult.success && Array.isArray(directResult.data)) {
+            const mapped = directResult.data.map((t) => normalizeRailKitTrain(t, fromCode, toCode));
+            rawResponse = { data: { trains: mapped } };
           } else {
-            rawResponse = directResult.rawResponse || { data: { trains: directResult.trains || [] } };
+            rawResponse = { data: { trains: [] } };
           }
-        } else if (isRailRadar) {
-          endpointUrl = `${apiUrl.replace(/\/$/, '')}/trains/between/${encodeURIComponent(fromCode)}/${encodeURIComponent(toCode)}`;
-          const res = await httpFetch(endpointUrl, {
-            method: 'GET',
-            headers,
-            timeoutMs: options.timeoutMs || this.timeoutMs,
-            provider: 'rail',
-            fetchFn,
-          });
-          rawResponse = res.data;
         } else {
           const fromStation = origin.name || origin.city || 'ORIGIN';
           const toStation = destination.name || destination.city || 'DESTINATION';
@@ -591,11 +569,12 @@ export class RailTransportProvider extends BaseTransportProvider {
             for (const { from: f, to: t } of clusterPairs.slice(0, 2)) {
               try {
                 if (fetchFn === globalThis.fetch) {
-                  const cRes = await railRadarAdapter.searchDirectTrains(f, t, {
+                  const cRes = await railKitAdapter.searchTrainBetweenStations(f, t, {
                     timeoutMs: Math.min(options.timeoutMs || this.timeoutMs, 4000),
                   });
-                  if (cRes.trains && cRes.trains.length > 0) {
-                    trainList.push(...cRes.trains);
+                  if (cRes && cRes.success && Array.isArray(cRes.data) && cRes.data.length > 0) {
+                    const mapped = cRes.data.map((item) => normalizeRailKitTrain(item, f, t));
+                    trainList.push(...mapped);
                     break; // Stop immediately upon finding viable trains to protect quota
                   }
                 } else {

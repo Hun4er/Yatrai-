@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import ApiUsage from '../../models/ApiUsage.js';
+import config from '../../config/index.js';
 import logger from '../../utils/logger.js';
 
 class ApiUsageService {
@@ -15,10 +16,10 @@ class ApiUsageService {
    * Records an outbound request for a provider and returns usage status.
    *
    * @param {string} provider - 'railkit' or 'railradar'
-   * @param {number} [limit=100]
-   * @returns {Promise<{ count: number, limit: number, percentage: number, isWarning: boolean, isCritical: boolean, shouldBlockNonEssential: boolean }>}
+   * @param {number} [customLimit]
+   * @returns {Promise<{ rawCount: number, usageOffset: number, count: number, limit: number, percentage: number, isWarning: boolean, isCritical: boolean, shouldBlockNonEssential: boolean }>}
    */
-  async recordRequest(provider = 'railkit', limit = 100) {
+  async recordRequest(provider = 'railkit', customLimit = null) {
     const month = this.getCurrentMonthKey();
     const memKey = `${provider}:${month}`;
 
@@ -26,6 +27,8 @@ class ApiUsageService {
     this._memoryCounts.set(memKey, currentMem);
 
     let count = currentMem;
+    const limit = customLimit || config.apiQuota?.monthlyLimit || 10000;
+    const offset = Number(config.apiQuota?.usageOffset || 0);
 
     if (mongoose.connection.readyState === 1) {
       try {
@@ -40,22 +43,25 @@ class ApiUsageService {
       }
     }
 
-    const percentage = Math.round((count / limit) * 100);
-    const isWarning = percentage >= 80;
-    const isCritical = percentage >= 95;
+    const totalCount = count + offset;
+    const percentage = Math.round((totalCount / limit) * 100);
+    const isWarning = percentage >= (config.apiQuota?.warningPercent || 80);
+    const isCritical = percentage >= (config.apiQuota?.criticalPercent || 95);
 
     if (isCritical) {
       logger.warn(
-        `[CRITICAL USAGE WARNING] ${provider.toUpperCase()} has consumed ${count}/${limit} requests (${percentage}% of monthly quota). Halting non-essential enrichment!`
+        `[CRITICAL USAGE WARNING] ${provider.toUpperCase()} has consumed ${totalCount}/${limit} requests (${percentage}% of monthly quota). Halting non-essential enrichment!`
       );
     } else if (isWarning) {
       logger.warn(
-        `[USAGE WARNING] ${provider.toUpperCase()} has consumed ${count}/${limit} requests (${percentage}% of monthly quota). Approaching limit!`
+        `[USAGE WARNING] ${provider.toUpperCase()} has consumed ${totalCount}/${limit} requests (${percentage}% of monthly quota). Approaching limit!`
       );
     }
 
     return {
-      count,
+      rawCount: count,
+      usageOffset: offset,
+      count: totalCount,
       limit,
       percentage,
       isWarning,
@@ -67,11 +73,13 @@ class ApiUsageService {
   /**
    * Retrieves current usage stats for a provider.
    */
-  async getUsage(provider = 'railkit', limit = 100) {
+  async getUsage(provider = 'railkit', customLimit = null) {
     const month = this.getCurrentMonthKey();
     const memKey = `${provider}:${month}`;
 
     let count = this._memoryCounts.get(memKey) || 0;
+    const limit = customLimit || config.apiQuota?.monthlyLimit || 10000;
+    const offset = Number(config.apiQuota?.usageOffset || 0);
 
     if (mongoose.connection.readyState === 1) {
       try {
@@ -82,16 +90,19 @@ class ApiUsageService {
       }
     }
 
-    const percentage = Math.round((count / limit) * 100);
+    const totalCount = count + offset;
+    const percentage = Math.round((totalCount / limit) * 100);
     return {
       provider,
       month,
-      count,
+      rawCount: count,
+      usageOffset: offset,
+      count: totalCount,
       limit,
       percentage,
-      isWarning: percentage >= 80,
-      isCritical: percentage >= 95,
-      shouldBlockNonEssential: percentage >= 95,
+      isWarning: percentage >= (config.apiQuota?.warningPercent || 80),
+      isCritical: percentage >= (config.apiQuota?.criticalPercent || 95),
+      shouldBlockNonEssential: percentage >= (config.apiQuota?.criticalPercent || 95),
     };
   }
 }

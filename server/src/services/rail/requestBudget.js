@@ -50,10 +50,27 @@ export class RequestBudgetTracker {
         14
     );
 
+    const staticConfig = config.railStatic || config.railRecovery || {};
+    this.maxStaticRequests = Number(
+      options.maxStaticRequests ??
+        options.staticBudget ??
+        staticConfig.maxStaticRequests ??
+        25
+    );
+    this.tierLimits = {
+      tier1: Number(options.tier1Limit ?? staticConfig.tier1Limit ?? 2),
+      tier2: Number(options.tier2Limit ?? staticConfig.tier2Limit ?? 8),
+      tier3: Number(options.tier3Limit ?? staticConfig.tier3Limit ?? Math.max(0, this.maxStaticRequests - 10)),
+    };
+
     this.directRequestsUsed = 0;
     this.recoveryRequestsUsed = 0;
+    this.staticRequestsUsed = 0;
     this.directReserved = 0;
     this.recoveryReserved = 0;
+    this.staticReserved = 0;
+    this.tierUsed = { tier1: 0, tier2: 0, tier3: 0 };
+    this.tierReserved = { tier1: 0, tier2: 0, tier3: 0 };
     this.cacheHits = 0;
     this.deduplicatedCount = 0;
     this.seenQueryKeys = new Set();
@@ -122,16 +139,70 @@ export class RequestBudgetTracker {
     return true;
   }
 
+  canMakeStaticRequest(tier = 'tier1') {
+    if (this.staticRequestsUsed + this.staticReserved >= this.maxStaticRequests) {
+      if (!this.terminationReason) {
+        this.terminationReason = 'STATIC_BUDGET_EXHAUSTED';
+      }
+      return false;
+    }
+    const t = (tier || 'tier1').toLowerCase();
+    const limit = this.tierLimits[t] ?? this.maxStaticRequests;
+    const current = (this.tierUsed[t] || 0) + (this.tierReserved[t] || 0);
+    if (current >= limit) {
+      return false;
+    }
+    return true;
+  }
+
   /**
    * Atomically reserves a budget unit BEFORE dispatching an outbound request.
    * If budget is exhausted, returns null.
    * On cache hit or pre-network failure, caller MUST call release().
    * On network completion, caller MUST call commit().
    *
-   * @param {'recovery'|'direct'} [category='recovery']
+   * @param {'recovery'|'direct'|'static'|'timetable'} [category='recovery']
+   * @param {Object} [options={}] - Options including tier ('tier1', 'tier2', 'tier3')
    * @returns {{ commit: Function, release: Function }|null}
    */
-  reserve(category = 'recovery') {
+  reserve(category = 'recovery', options = {}) {
+    const isStatic =
+      category === 'static' ||
+      category === 'timetable' ||
+      category === 'station' ||
+      category === 'trainInfo' ||
+      category === 'trainsBetween';
+
+    if (isStatic) {
+      const tier = (options?.tier || 'tier1').toLowerCase();
+      if (!this.canMakeStaticRequest(tier)) {
+        logger.debug(
+          `[RequestBudgetTracker] Static budget limit reached for ${tier} (${(this.tierUsed[tier] || 0) + (this.tierReserved[tier] || 0)}/${this.tierLimits[tier] || this.maxStaticRequests}). Reservation rejected.`
+        );
+        return null;
+      }
+      this.staticReserved++;
+      this.tierReserved[tier] = (this.tierReserved[tier] || 0) + 1;
+
+      let finalized = false;
+      return {
+        commit: () => {
+          if (finalized) return;
+          finalized = true;
+          this.staticReserved = Math.max(0, this.staticReserved - 1);
+          this.staticRequestsUsed++;
+          this.tierReserved[tier] = Math.max(0, (this.tierReserved[tier] || 1) - 1);
+          this.tierUsed[tier] = (this.tierUsed[tier] || 0) + 1;
+        },
+        release: () => {
+          if (finalized) return;
+          finalized = true;
+          this.staticReserved = Math.max(0, this.staticReserved - 1);
+          this.tierReserved[tier] = Math.max(0, (this.tierReserved[tier] || 1) - 1);
+        },
+      };
+    }
+
     const isRecovery = category !== 'direct';
 
     if (isRecovery) {
@@ -229,22 +300,28 @@ export class RequestBudgetTracker {
       correlationId: this.searchCorrelationId,
       maxRecoveryRequests: this.maxRecoveryRequests,
       maxDirectRequests: this.maxDirectRequests,
+      maxStaticRequests: this.maxStaticRequests,
       maxTotalRequests: this.maxTotalRequests,
+      tierLimits: { ...this.tierLimits },
+      tierUsed: { ...this.tierUsed },
+      staticRequestsUsed: this.staticRequestsUsed,
       directRequestsUsed: this.directRequestsUsed,
       recoveryRequestsUsed: this.recoveryRequestsUsed,
-      totalRequestsUsed: this.totalRequestsUsed,
+      totalRequestsUsed: this.totalRequestsUsed + this.staticRequestsUsed,
       directReserved: this.directReserved,
       recoveryReserved: this.recoveryReserved,
-      totalReserved: this.totalReserved,
+      staticReserved: this.staticReserved,
+      totalReserved: this.totalReserved + this.staticReserved,
       remainingRecoveryRequests: this.remainingRecoveryRequests,
       remainingDirectRequests: this.remainingDirectRequests,
+      remainingStaticRequests: Math.max(0, this.maxStaticRequests - (this.staticRequestsUsed + this.staticReserved)),
       cacheHits: this.cacheHits,
       deduplicatedCount: this.deduplicatedCount,
       isBudgetExhausted: !this.canMakeRecoveryRequest(),
       terminationReason: this.terminationReason || 'COMPLETED',
     };
     logger.info(
-      `[RequestBudgetTracker] Per-Search Request Summary: totalUsed=${summary.totalRequestsUsed}/${summary.maxTotalRequests} (direct=${summary.directRequestsUsed}, recovery=${summary.recoveryRequestsUsed}, cacheHits=${summary.cacheHits}, deduplicated=${summary.deduplicatedCount})`
+      `[RequestBudgetTracker] Per-Search Request Summary: totalUsed=${summary.totalRequestsUsed} (direct=${summary.directRequestsUsed}, recovery=${summary.recoveryRequestsUsed}, static=${summary.staticRequestsUsed} [T1:${this.tierUsed.tier1}, T2:${this.tierUsed.tier2}, T3:${this.tierUsed.tier3}], cacheHits=${summary.cacheHits}, deduplicated=${summary.deduplicatedCount})`
     );
     return summary;
   }

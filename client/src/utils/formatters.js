@@ -128,11 +128,15 @@ export function formatDateDisplay(dateVal) {
  * Format price and currency using standard browser internationalization.
  * Supports any currency (e.g. INR, USD, EUR) without hardcoding symbols.
  */
-export function formatPrice(amount, currency = 'INR') {
+export function formatPrice(amount, currency = 'INR', options = {}) {
   if (amount === undefined || amount === null || isNaN(amount) || Number(amount) <= 0) {
     return 'Fare unavailable';
   }
-  const num = Number(amount);
+  const num = Math.round(Number(amount));
+  const isEst = Boolean(options.isEstimated || options.fareSource === 'estimate');
+  if (isEst) {
+    return `Est. ₹${num} (distance-based)`;
+  }
   const curr = (currency || 'INR').toUpperCase();
   try {
     return new Intl.NumberFormat('en-IN', {

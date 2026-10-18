@@ -313,10 +313,7 @@ export function formatJourneyDate(dateVal) {
 
 /**
  * Converts any internal date representation to RailKit's required DD-MM-YYYY format.
- *
- * RailRadar uses YYYY-MM-DD; RailKit uses DD-MM-YYYY.
- * NEVER call this for RailRadar calls, and NEVER pass its output to RailRadar.
- * Use formatJourneyDate() for all internal / RailRadar dates.
+ * All dates must be passed to RailKit as DD-MM-YYYY.
  *
  * @param {string|Date|number} dateVal - Internal date (YYYY-MM-DD, ISO string, or Date)
  * @returns {string} DD-MM-YYYY for RailKit, or '' on failure
@@ -330,12 +327,28 @@ export function toRailKitDate(dateVal) {
   return `${d}-${m}-${y}`;
 }
 
+/**
+ * Checks whether current time falls within the IRCTC nightly maintenance shutdown window:
+ * 23:45 IST to 00:15 IST (11:45 PM to 12:15 AM IST).
+ * During this window, IRCTC disables PRS reservation availability queries.
+ */
+export function isIrctcMaintenanceWindow(now = new Date()) {
+  const istEpoch = now.getTime() + IST_OFFSET_MS;
+  const istDate = new Date(istEpoch);
+  const hours = istDate.getUTCHours();
+  const minutes = istDate.getUTCMinutes();
+  const timeInMinutes = hours * 60 + minutes;
+  // 23:45 IST = 1425 minutes, 00:15 IST = 15 minutes
+  return timeInMinutes >= 1425 || timeInMinutes < 15;
+}
+
 export default {
   normalizeRailwayDateTime,
   formatInIST,
   calculateJourneyTiming,
   formatJourneyDate,
   toRailKitDate,
+  isIrctcMaintenanceWindow,
   IST_OFFSET_STR,
   IST_OFFSET_MS,
 };

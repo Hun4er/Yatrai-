@@ -154,13 +154,8 @@ test('4. DirectJourneyService: Cluster search, timetable ranking, and availabili
     }),
   };
 
-  const mockRailRadar = {
-    searchDirectTrains: async () => ({ success: true, trains: [] }),
-  };
-
   const service = new DirectJourneyService({
     railKit: mockRailKit,
-    railRadar: mockRailRadar,
     availabilityService: mockAvailability,
     fareService: mockFare,
   });
@@ -173,7 +168,7 @@ test('4. DirectJourneyService: Cluster search, timetable ranking, and availabili
       departureDate: '2026-10-25',
       preferences: { class: '3A', quota: 'GN' },
     },
-    { budgetTracker }
+    { budgetTracker, exploreAlternatives: true }
   );
 
   assert.equal(result.status, 'DIRECT_AVAILABLE');

@@ -166,7 +166,9 @@ export function JourneyResultCard({
   const dayOffsetBadge = formatDayOffsetBadge(dayOffset);
 
   const durationText = formatDuration(journey.duration);
-  const priceText = formatPrice(journey.totalPrice, journey.currency);
+  const isEstimated = Boolean(journey.pricing?.isEstimated || journey.metadata?.isEstimatedPrice || journey.isEstimated);
+  const fareSource = journey.pricing?.fareSource || journey.metadata?.fareSource || (isEstimated ? 'estimate' : null);
+  const priceText = formatPrice(journey.totalPrice, journey.currency, { isEstimated, fareSource });
   const priceLabel = getPriceLabel(journey);
 
   const transfers = journey.numberOfTransfers ?? 0;
@@ -189,8 +191,19 @@ export function JourneyResultCard({
     legs[0]?.service?.operator ||
     (transportModes[0] === 'road' ? 'Road Transit' : null);
 
-  const isBestOverall = isTopPick || journey.ranking?.strategy === 'overall' || journey.ranking?.label === 'Best Overall';
-  const rankingLabel = journey.ranking?.label || (isTopPick ? 'Best Overall' : null);
+  const isBestOverall = Boolean(isTopPick);
+  const rankingLabel = isTopPick ? 'Best Overall' : (journey.ranking?.label !== 'Best Overall' ? journey.ranking?.label : null);
+
+  const isUnreserved = Boolean(
+    journey.isUnreserved ||
+    journey.metadata?.isUnreserved ||
+    journey.availabilityStatus === 'UNRESERVED' ||
+    journey.metadata?.availabilityStatus === 'UNRESERVED' ||
+    journey.availability?.normalizedStatus === 'UNRESERVED' ||
+    journey.legs?.some((l) => l.booking?.status === 'unreserved' || l.availability?.normalizedStatus === 'UNRESERVED') ||
+    /unreserved/i.test(journey.service?.class || '') ||
+    /passenger|memu|demu|emu/i.test(journey.service?.name || '')
+  );
 
   // Section 8: Explainable recommendation reasons
   const recommendationReasons = isBestOverall
@@ -265,29 +278,37 @@ export function JourneyResultCard({
           )}
 
           {/* Seat Availability Status Badge */}
-          {((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'AVAILABILITY_VERIFIED' ||
-            ((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'AVAILABLE' && journey.isBookable)) && (
-            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-              Seats Verified
+          {isUnreserved ? (
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20 shrink-0">
+              Unreserved
             </span>
-          )}
-          {((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'RAC_AVAILABLE' ||
-            (journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'RAC' ||
-            (journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'RAC_ONLY') && (
-            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
-              RAC
-            </span>
-          )}
-          {((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'WAITLIST_ONLY' ||
-            (journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'WAITLIST') && (
-            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
-              Waitlist
-            </span>
-          )}
-          {journey.availabilityStatus === 'NOT_BOOKABLE' && (
-            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20 shrink-0">
-              Not Bookable
-            </span>
+          ) : (
+            <>
+              {((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'AVAILABILITY_VERIFIED' ||
+                ((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'AVAILABLE' && journey.isBookable)) && (
+                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                  Seats Verified
+                </span>
+              )}
+              {((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'RAC_AVAILABLE' ||
+                (journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'RAC' ||
+                (journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'RAC_ONLY') && (
+                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+                  RAC
+                </span>
+              )}
+              {((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'WAITLIST_ONLY' ||
+                (journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'WAITLIST') && (
+                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+                  Waitlist
+                </span>
+              )}
+              {journey.availabilityStatus === 'NOT_BOOKABLE' && (
+                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20 shrink-0">
+                  Not Bookable
+                </span>
+              )}
+            </>
           )}
         </div>
 
@@ -600,7 +621,11 @@ export function JourneyResultCard({
                     <div className="flex items-center justify-between font-bold text-text-primary">
                       <span>Leg {i + 1}: {leg.service?.name || 'Train'} (#{leg.service?.number || leg.trainNumber})</span>
                       <span className={legFare ? 'text-emerald-400 font-mono' : 'text-[#7E8794] font-normal'}>
-                        {legFare ? `₹${legFare}` : 'Fare unavailable'}
+                        {legFare
+                          ? (leg.isEstimated || leg.pricing?.isEstimated || leg.fareSource === 'estimate'
+                              ? `Est. ₹${legFare} (distance-based)`
+                              : `₹${legFare}`)
+                          : 'Fare unavailable'}
                       </span>
                     </div>
                     <div className="text-text-secondary">

@@ -25,16 +25,21 @@ async function pingUrl(url, options = {}, timeoutMs = 3000) {
 }
 
 export class ProviderHealthService {
+  constructor() {
+    this._lastRailHealth = null;
+  }
+
   /**
    * Checks real-time health of all transport and geocoding providers.
    *
+   * @param {Object} [options]
    * @returns {Promise<Object>}
    */
-  async checkAll() {
+  async checkAll(options = {}) {
     const checkedAt = new Date().toISOString();
 
     const [railHealth, roadHealth, flightHealth, busHealth, geocodingHealth] = await Promise.all([
-      this.checkRail(),
+      this.checkRail(options),
       this.checkRoad(),
       this.checkFlight(),
       this.checkBus(),
@@ -42,10 +47,13 @@ export class ProviderHealthService {
     ]);
 
     const providers = [railHealth, roadHealth, flightHealth, busHealth, geocodingHealth];
-    const operationalCount = providers.filter((p) => p.status === 'healthy').length;
+    const operationalCount = providers.filter((p) => p.status === 'healthy' || p.status === 'not_checked_live').length;
+
+    const isRailOperational = railHealth.status === 'healthy' || railHealth.status === 'not_checked_live';
+    const isRoadOperational = roadHealth.status === 'healthy' || roadHealth.status === 'not_checked_live';
 
     const overallStatus =
-      railHealth.status === 'healthy' && roadHealth.status === 'healthy'
+      isRailOperational && isRoadOperational
         ? 'healthy'
         : operationalCount > 0
           ? 'degraded'
@@ -60,28 +68,53 @@ export class ProviderHealthService {
     };
   }
 
-  async checkRail() {
-    const { enabled, apiUrl, apiKey, timeoutMs } = config.providers.rail;
-    if (!enabled) {
+  async checkRail(options = {}) {
+    const isLive = Boolean(options.live || options.isLive);
+    if (!isLive) {
+      if (this._lastRailHealth) {
+        return {
+          ...this._lastRailHealth,
+          liveChecked: false,
+          cached: true,
+        };
+      }
       return {
         mode: 'rail',
-        provider: 'Indian Railways (RailRadar)',
+        provider: 'Indian Railways (RailKit)',
+        enabled: Boolean(config.providers.rail.enabled),
+        configured: Boolean(config.providers.rail.apiUrl && config.providers.rail.apiKey),
+        status: 'not_checked_live',
+        liveChecked: false,
+        message: 'Not checked live (call with ?live=true)',
+        bookable: true,
+      };
+    }
+
+    const { enabled, apiUrl, apiKey, timeoutMs } = config.providers.rail;
+    if (!enabled) {
+      const res = {
+        mode: 'rail',
+        provider: 'Indian Railways (RailKit)',
         enabled: false,
         configured: false,
         status: 'disabled',
         message: 'Rail provider is disabled in configuration',
       };
+      this._lastRailHealth = res;
+      return res;
     }
 
     if (!apiUrl || !apiKey) {
-      return {
+      const res = {
         mode: 'rail',
-        provider: 'Indian Railways (RailRadar)',
+        provider: 'Indian Railways (RailKit)',
         enabled: true,
         configured: false,
         status: 'unavailable',
         message: 'RAIL_API_KEY or RAIL_API_URL not configured',
       };
+      this._lastRailHealth = res;
+      return res;
     }
 
     const testUrl = `${apiUrl.replace(/\/$/, '')}/trains/between/NDLS/BPL`;
@@ -93,26 +126,32 @@ export class ProviderHealthService {
 
     const res = await pingUrl(testUrl, { headers }, Math.min(timeoutMs || 4000, 4000));
     if (res.ok) {
-      return {
+      const result = {
         mode: 'rail',
-        provider: 'Indian Railways (RailRadar)',
+        provider: 'Indian Railways (RailKit)',
         enabled: true,
         configured: true,
         status: 'healthy',
         latencyMs: res.latencyMs,
         bookable: true,
+        liveChecked: true,
       };
+      this._lastRailHealth = result;
+      return result;
     }
 
-    return {
+    const result = {
       mode: 'rail',
-      provider: 'Indian Railways (RailRadar)',
+      provider: 'Indian Railways (RailKit)',
       enabled: true,
       configured: true,
       status: res.status === 401 || res.status === 403 ? 'unauthorized' : 'degraded',
       latencyMs: res.latencyMs,
       error: res.error || `HTTP ${res.status}`,
+      liveChecked: true,
     };
+    this._lastRailHealth = result;
+    return result;
   }
 
   async checkRoad() {

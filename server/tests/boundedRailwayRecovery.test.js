@@ -8,7 +8,7 @@ import { fareService } from '../src/services/rail/fare.service.js';
 import { directJourneyService, DIRECT_SEARCH_STATUS } from '../src/services/rail/directJourney.service.js';
 import { journeyRecoveryService } from '../src/services/rail/journeyRecovery.service.js';
 import { RequestBudgetTracker } from '../src/services/rail/requestBudget.js';
-import { RailRadarAdapter } from '../src/providers/rail/railRadar.adapter.js';
+import { RailKitAdapter } from '../src/providers/rail/railKit.adapter.js';
 
 describe('Bounded Train Journey Recovery Algorithm — 17 Mandatory Verification Scenarios', () => {
   before(async () => {
@@ -141,11 +141,11 @@ describe('Bounded Train Journey Recovery Algorithm — 17 Mandatory Verification
     };
 
     const testAvailService = new (availabilityService.constructor)({
-      railRadar: mockRailRadar,
+      railKit: mockRailRadar,
     });
 
     const recovery = new (journeyRecoveryService.constructor)({
-      railRadar: mockRailRadar,
+      railKit: mockRailRadar,
       stationExpansion: stationExpansionService,
       connectionValidator,
       availabilityService: testAvailService,
@@ -236,11 +236,11 @@ describe('Bounded Train Journey Recovery Algorithm — 17 Mandatory Verification
     };
 
     const testAvailService = new (availabilityService.constructor)({
-      railRadar: mockRailRadar,
+      railKit: mockRailRadar,
     });
 
     const recovery = new (journeyRecoveryService.constructor)({
-      railRadar: mockRailRadar,
+      railKit: mockRailRadar,
       stationExpansion: stationExpansionService,
       connectionValidator,
       availabilityService: testAvailService,
@@ -471,13 +471,23 @@ describe('Bounded Train Journey Recovery Algorithm — 17 Mandatory Verification
 
   // 14. Rate limits do not cause unbounded retries
   it('Requirement 14: Rate limits (HTTP 429) do not cause unbounded retries and engage local protection', async () => {
-    const adapter = new RailRadarAdapter();
-    adapter.maxRequestsPerMinute = 2;
-    adapter.requestTimestamps = [Date.now(), Date.now()]; // simulate exhausted rate budget
+    let callCount = 0;
+    const mockFetch = async () => {
+      callCount++;
+      const err = new Error('Too Many Requests');
+      err.status = 429;
+      throw err;
+    };
 
-    const budget = adapter.checkRateLimitBudget();
-    assert.equal(budget.allowed, false);
-    assert.ok(budget.waitMs > 0);
+    const adapter = new RailKitAdapter({ fetchFn: mockFetch, disablePersistentCache: true });
+    const tracker = new RequestBudgetTracker();
+    const res = await adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', '3A', 'GN', {
+      budgetTracker: tracker,
+      isRecovery: false,
+    });
+
+    assert.equal(callCount, 1, 'HTTP 429 must never be retried');
+    assert.equal(res.reason, 'RATE_LIMITED');
   });
 
   // 15. Provider failure is not misclassified as no trains
@@ -492,7 +502,7 @@ describe('Bounded Train Journey Recovery Algorithm — 17 Mandatory Verification
     };
 
     const directService = new (directJourneyService.constructor)({
-      railRadar: mockFailedAdapter,
+      railKit: mockFailedAdapter,
       availabilityService,
       fareService,
     });

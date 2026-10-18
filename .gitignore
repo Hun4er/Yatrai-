@@ -38,6 +38,10 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# Local persistent database
+server/data/
+data/
 .idea/
 *.suo
 *.ntvs*

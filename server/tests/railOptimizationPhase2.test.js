@@ -64,21 +64,21 @@ describe('Phase 2: RailKit Usage Optimization & Invariants', () => {
     let leg1Queries = 0;
     let leg2Queries = 0;
 
-    const mockRailRadar = {
-      searchDirectTrains: async (from, to) => {
+    const mockRailKit = {
+      searchTrainBetweenStations: async (from, to) => {
         if (from === 'BSB' && to === 'PRYJ') {
           return {
             success: true,
-            trains: [
+            data: [
               {
-                trainNumber: '11062',
-                trainName: 'Kamayani Express',
-                departureTime: '06:00',
-                arrivalTime: '08:30',
+                train_no: '11062',
+                train_name: 'Kamayani Express',
+                from_time: '06:00',
+                to_time: '08:30',
                 distance: 125,
-                duration: 150,
-                from: { code: 'BSB', name: 'Varanasi' },
-                to: { code: 'PRYJ', name: 'Prayagraj' },
+                travel_time: '02:30',
+                from_stn_code: 'BSB',
+                to_stn_code: 'PRYJ',
               },
             ],
           };
@@ -86,21 +86,21 @@ describe('Phase 2: RailKit Usage Optimization & Invariants', () => {
         if (from === 'PRYJ' && to === 'GAYA') {
           return {
             success: true,
-            trains: [
+            data: [
               {
-                trainNumber: '12802',
-                trainName: 'Purushottam Express',
-                departureTime: '10:00',
-                arrivalTime: '15:30',
+                train_no: '12802',
+                train_name: 'Purushottam Express',
+                from_time: '10:00',
+                to_time: '15:30',
                 distance: 360,
-                duration: 330,
-                from: { code: 'PRYJ', name: 'Prayagraj' },
-                to: { code: 'GAYA', name: 'Gaya' },
+                travel_time: '05:30',
+                from_stn_code: 'PRYJ',
+                to_stn_code: 'GAYA',
               },
             ],
           };
         }
-        return { success: true, trains: [] };
+        return { success: true, data: [] };
       },
       getAvailability: async () => ({
         success: true,
@@ -136,7 +136,7 @@ describe('Phase 2: RailKit Usage Optimization & Invariants', () => {
     };
 
     const recovery = new JourneyRecoveryService({
-      railRadar: mockRailRadar,
+      railKit: mockRailKit,
       stationExpansion: stationExpansionService,
       connectionValidator,
       availabilityService: mockAvailService,
@@ -162,31 +162,31 @@ describe('Phase 2: RailKit Usage Optimization & Invariants', () => {
   it('Invariant 3: Early stop halts availability lookups once 2 confirmed itineraries are found', async () => {
     let availCalls = 0;
 
-    const mockRailRadar = {
-      searchDirectTrains: async (from, to) => {
+    const mockRailKit = {
+      searchTrainBetweenStations: async (from, to) => {
         if (from === 'BSB' && to === 'PRYJ') {
           return {
             success: true,
-            trains: [
+            data: [
               {
-                trainNumber: '22436',
-                trainName: 'Vande Bharat',
-                departureTime: '06:00',
-                arrivalTime: '08:00',
+                train_no: '22436',
+                train_name: 'Vande Bharat',
+                from_time: '06:00',
+                to_time: '08:00',
                 distance: 125,
-                duration: 120,
-                from: { code: 'BSB', name: 'Varanasi' },
-                to: { code: 'PRYJ', name: 'Prayagraj' },
+                travel_time: '02:00',
+                from_stn_code: 'BSB',
+                to_stn_code: 'PRYJ',
               },
               {
-                trainNumber: '12417',
-                trainName: 'Prayagraj Express',
-                departureTime: '07:00',
-                arrivalTime: '09:00',
+                train_no: '12417',
+                train_name: 'Prayagraj Express',
+                from_time: '07:00',
+                to_time: '09:00',
                 distance: 125,
-                duration: 120,
-                from: { code: 'BSB', name: 'Varanasi' },
-                to: { code: 'PRYJ', name: 'Prayagraj' },
+                travel_time: '02:00',
+                from_stn_code: 'BSB',
+                to_stn_code: 'PRYJ',
               },
             ],
           };
@@ -194,31 +194,31 @@ describe('Phase 2: RailKit Usage Optimization & Invariants', () => {
         if (from === 'PRYJ' && to === 'CNB') {
           return {
             success: true,
-            trains: [
+            data: [
               {
-                trainNumber: '12003',
-                trainName: 'Shatabdi',
-                departureTime: '10:00',
-                arrivalTime: '12:00',
+                train_no: '12003',
+                train_name: 'Shatabdi',
+                from_time: '10:00',
+                to_time: '12:00',
                 distance: 195,
-                duration: 120,
-                from: { code: 'PRYJ', name: 'Prayagraj' },
-                to: { code: 'CNB', name: 'Kanpur' },
+                travel_time: '02:00',
+                from_stn_code: 'PRYJ',
+                to_stn_code: 'CNB',
               },
               {
-                trainNumber: '12555',
-                trainName: 'Gorakhdham',
-                departureTime: '11:00',
-                arrivalTime: '13:00',
+                train_no: '12555',
+                train_name: 'Gorakhdham',
+                from_time: '11:00',
+                to_time: '13:00',
                 distance: 195,
-                duration: 120,
-                from: { code: 'PRYJ', name: 'Prayagraj' },
-                to: { code: 'CNB', name: 'Kanpur' },
+                travel_time: '02:00',
+                from_stn_code: 'PRYJ',
+                to_stn_code: 'CNB',
               },
             ],
           };
         }
-        return { success: true, trains: [] };
+        return { success: true, data: [] };
       },
     };
 
@@ -236,7 +236,7 @@ describe('Phase 2: RailKit Usage Optimization & Invariants', () => {
     };
 
     const recovery = new JourneyRecoveryService({
-      railRadar: mockRailRadar,
+      railKit: mockRailKit,
       stationExpansion: stationExpansionService,
       connectionValidator,
       availabilityService: mockAvailService,
@@ -263,23 +263,24 @@ describe('Phase 2: RailKit Usage Optimization & Invariants', () => {
   // Invariant 4: Future travel dates bypass live tracking
   it('Invariant 4: Future travel dates bypass live train tracking calls', async () => {
     let liveCalls = 0;
-    const mockRailRadar = {
+    const mockRailKit = {
       getLiveStatus: async () => {
         liveCalls++;
         return { isLive: true, delayMinutes: 45 };
       },
     };
 
-    const liveService = new LiveStatusService({ railRadar: mockRailRadar });
+    const liveService = new LiveStatusService({ railKit: mockRailKit });
 
+    const futureDate = new Date(Date.now() + 7 * 24 * 3600 * 1000);
     const arrivalLeg = {
-      departureTime: '2026-10-19T06:00:00.000Z',
-      arrivalTime: '2026-10-19T09:00:00.000Z',
+      departureTime: new Date(futureDate.getTime()).toISOString(),
+      arrivalTime: new Date(futureDate.getTime() + 3 * 3600 * 1000).toISOString(),
       vehicle: { identifier: '12417' },
     };
     const departureLeg = {
-      departureTime: '2026-10-19T10:00:00.000Z',
-      arrivalTime: '2026-10-19T14:00:00.000Z',
+      departureTime: new Date(futureDate.getTime() + 4 * 3600 * 1000).toISOString(),
+      arrivalTime: new Date(futureDate.getTime() + 8 * 3600 * 1000).toISOString(),
       vehicle: { identifier: '12004' },
     };
 

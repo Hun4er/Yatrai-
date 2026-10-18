@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { haversineDistanceKm } from './distance.service.js';
 import { findStationByCode } from './stationRegistry.js';
+import config from '../../config/index.js';
 import logger from '../../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -158,10 +159,68 @@ export function getStationDifference(requestedCode, actualCode, role = 'origin')
   };
 }
 
+/**
+ * Returns tiered cluster pairs for station pairs:
+ * - Tier 1: Primary requested pair only
+ * - Tier 2: (other origin cluster stations -> primary dest) and (primary origin -> other dest cluster stations),
+ *           filtered by distance <= maxDistance (default 25 km).
+ * - Tier 3: remaining pairs (other origin -> other dest), filtered by distance <= maxDistance.
+ *
+ * @param {string} originCode
+ * @param {string} destCode
+ * @param {Object} [options]
+ * @returns {{ tier1: Array, tier2: Array, tier3: Array }}
+ */
+export function getTieredClusterPairs(originCode, destCode, options = {}) {
+  const upperOrigin = String(originCode || '').toUpperCase().trim();
+  const upperDest = String(destCode || '').toUpperCase().trim();
+  const maxDistance = options.maxClusterDistanceKm ?? config.railRecovery?.maxClusterDistanceKm ?? 25;
+
+  const fromClusters = getClusterStationCodes(upperOrigin);
+  const toClusters = getClusterStationCodes(upperDest);
+
+  const tier1 = [{ from: upperOrigin, to: upperDest, tier: 'tier1', isPrimary: true, distanceKm: 0 }];
+
+  const tier2 = [];
+  // other origin cluster stations -> primary dest
+  for (const f of fromClusters) {
+    if (f === upperOrigin) continue;
+    const dist = calculateStationDistanceKm(upperOrigin, f);
+    if (dist <= maxDistance) {
+      tier2.push({ from: f, to: upperDest, tier: 'tier2', isPrimary: false, distanceKm: dist });
+    }
+  }
+  // primary origin -> other dest cluster stations
+  for (const t of toClusters) {
+    if (t === upperDest) continue;
+    const dist = calculateStationDistanceKm(upperDest, t);
+    if (dist <= maxDistance) {
+      tier2.push({ from: upperOrigin, to: t, tier: 'tier2', isPrimary: false, distanceKm: dist });
+    }
+  }
+
+  const tier3 = [];
+  // other origin cluster stations -> other dest cluster stations
+  for (const f of fromClusters) {
+    if (f === upperOrigin) continue;
+    const distF = calculateStationDistanceKm(upperOrigin, f);
+    if (distF > maxDistance) continue;
+    for (const t of toClusters) {
+      if (t === upperDest) continue;
+      const distT = calculateStationDistanceKm(upperDest, t);
+      if (distT > maxDistance) continue;
+      tier3.push({ from: f, to: t, tier: 'tier3', isPrimary: false, distanceKm: distF + distT });
+    }
+  }
+
+  return { tier1, tier2, tier3 };
+}
+
 export default {
   getStationDetails,
   getClusterForStation,
   getClusterStationCodes,
   calculateStationDistanceKm,
   getStationDifference,
+  getTieredClusterPairs,
 };

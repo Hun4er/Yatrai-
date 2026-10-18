@@ -45,7 +45,7 @@ export class ResultAssembler {
     if (options.railwayOnly) {
       filtered = providerSummaries.filter((p) => {
         const mode = String(p.provider || p.mode || '').toLowerCase();
-        return mode === 'rail' || mode === 'irctc' || mode === 'railradar' || mode === 'development';
+        return mode === 'rail' || mode === 'irctc' || mode === 'railkit' || mode === 'development';
       });
     }
 

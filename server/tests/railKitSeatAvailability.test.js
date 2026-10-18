@@ -2,126 +2,140 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { AVAILABILITY_STATUS, JOURNEY_AVAILABILITY, normalizeSeatAvailability } from '../src/services/rail/availabilityNorm.js';
 import { AvailabilityService } from '../src/services/rail/availability.service.js';
-import { RailRadarAdapter } from '../src/providers/rail/railRadar.adapter.js';
+import { RailKitAdapter } from '../src/providers/rail/railKit.adapter.js';
 import { RequestBudgetTracker } from '../src/services/rail/requestBudget.js';
-import { formatJourneyDate } from '../src/utils/railwayTime.js';
+import { formatJourneyDate, toRailKitDate } from '../src/utils/railwayTime.js';
 import { DirectJourneyService } from '../src/services/rail/directJourney.service.js';
 import { JourneyRecoveryService } from '../src/services/rail/journeyRecovery.service.js';
 import stationExpansionService from '../src/services/rail/stationExpansion.service.js';
 import connectionValidator from '../src/services/rail/connectionValidator.js';
 import fareService from '../src/services/rail/fare.service.js';
 
-describe('RailRadar Seat Availability Integration — 20 Mandatory Verification Scenarios', () => {
-  // 1. Correct /seats endpoint and query parameters
-  it('Scenario 1: Calls documented /v1/trains/{number}/seats endpoint with exact query parameters', async () => {
-    let capturedUrl = null;
-    let capturedParams = null;
+function createMockResponse(data, status = 200) {
+  const bodyText = typeof data === 'string' ? data : JSON.stringify(data);
+  return {
+    status,
+    ok: status >= 200 && status < 300,
+    text: async () => bodyText,
+    json: async () => JSON.parse(bodyText),
+  };
+}
 
-    const mockHttpFetch = async (url) => {
+describe('RailKit Seat Availability Integration — 20 Mandatory Verification Scenarios', () => {
+  // 1. Correct /api/v1/seats endpoint and query parameters
+  it('Scenario 1: Calls documented /api/v1/seats endpoint with exact URL parameters and DD-MM-YYYY date', async () => {
+    let capturedUrl = null;
+
+    const mockFetch = async (url) => {
       capturedUrl = url;
-      const parsedUrl = new URL(url);
-      capturedParams = Object.fromEntries(parsedUrl.searchParams.entries());
-      return {
-        status: 200,
+      if (url.includes('/stations/')) {
+        return createMockResponse({ success: true, data: { station_code: 'TEST' } });
+      }
+      return createMockResponse({
+        success: true,
         data: {
-          success: true,
-          data: {
-            trainNumber: '12004',
-            avlDayList: [
-              {
-                availablityDate: '2026-11-15',
-                availablityStatus: 'AVAILABLE-0042',
-              },
-            ],
-          },
+          train: { trainNumber: '12004', trainName: 'Shatabdi Express' },
+          availability: [
+            {
+              date: '15-11-2026',
+              status: 'AVAILABLE',
+              rawStatus: 'AVAILABLE-0042',
+              availableSeats: 42,
+            },
+          ],
         },
-      };
+      });
     };
 
-    const adapter = new RailRadarAdapter({
-      httpFetch: mockHttpFetch,
+    const tracker = new RequestBudgetTracker();
+    const adapter = new RailKitAdapter({
+      fetchFn: mockFetch,
+      disablePersistentCache: true,
       apiKey: 'test-api-key',
-      enableAvailabilityEndpoint: true,
     });
 
-    const result = await adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', 'CC', 'GN');
-
-    assert.ok(capturedUrl.includes('/v1/trains/12004/seats'));
-    assert.deepEqual(capturedParams, {
-      source: 'NDLS',
-      destination: 'LKO',
-      journeyDate: '2026-11-15',
-      classCode: 'CC',
-      quotaCode: 'GN',
+    const result = await adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', 'CC', 'GN', {
+      budgetTracker: tracker,
+      isRecovery: false,
     });
+
+    assert.ok(capturedUrl.includes('/api/v1/seats/12004/NDLS/LKO/15-11-2026/CC/GN'));
     assert.equal(result.normalizedStatus, 'AVAILABLE');
     assert.equal(result.seatsAvailable, 42);
   });
 
-  // 2. Documented avlDayList response parsing
-  it('Scenario 2: Correctly parses documented data.avlDayList response structure with availablityDate and availablityStatus', async () => {
-    const mockHttpFetch = async () => ({
-      status: 200,
-      data: {
+  // 2. Documented availability response parsing
+  it('Scenario 2: Correctly parses documented data.availability response structure with date, rawStatus, and availableSeats', async () => {
+    const mockFetch = async (url) => {
+      if (url.includes('/stations/')) {
+        return createMockResponse({ success: true, data: { station_code: 'TEST' } });
+      }
+      return createMockResponse({
         success: true,
         data: {
-          trainNumber: '12417',
-          source: 'PRYJ',
-          destination: 'NDLS',
-          avlDayList: [
+          train: { trainNumber: '12417' },
+          availability: [
             {
-              availablityDate: '2026-11-14',
-              availablityStatus: 'GNWL10/WL5',
+              date: '14-11-2026',
+              status: 'WAITLIST',
+              rawStatus: 'GNWL10/WL5',
+              availableSeats: 0,
             },
             {
-              availablityDate: '2026-11-15',
-              availablityStatus: 'AVAILABLE-0018',
+              date: '15-11-2026',
+              status: 'AVAILABLE',
+              rawStatus: 'AVAILABLE-0018',
+              availableSeats: 18,
             },
             {
-              availablityDate: '2026-11-16',
-              availablityStatus: 'RAC 4',
+              date: '16-11-2026',
+              status: 'RAC',
+              rawStatus: 'RAC 4',
+              availableSeats: 0,
             },
           ],
         },
-      },
-    });
+      });
+    };
 
-    const adapter = new RailRadarAdapter({
-      httpFetch: mockHttpFetch,
-      apiKey: 'test-api-key',
-      enableAvailabilityEndpoint: true,
-    });
+    const tracker = new RequestBudgetTracker();
+    const adapter = new RailKitAdapter({ fetchFn: mockFetch, disablePersistentCache: true, apiKey: 'test-api-key' });
 
-    const res = await adapter.getAvailability('12417', 'PRYJ', 'NDLS', '2026-11-15', '3A', 'GN');
+    const res = await adapter.getAvailability('12417', 'PRYJ', 'NDLS', '2026-11-15', '3A', 'GN', {
+      budgetTracker: tracker,
+      isRecovery: false,
+    });
     assert.equal(res.success, true);
     assert.equal(res.normalizedStatus, 'AVAILABLE');
     assert.equal(res.seatsAvailable, 18);
-    assert.equal(res.originalStatus, 'AVAILABLE-0018');
+    assert.equal(res.rawStatus, 'AVAILABLE-0018');
   });
 
   // 3. Correct matching of requested journey date
   it('Scenario 3: Matches requested journey date specifically among multiple calendar dates', async () => {
-    const mockHttpFetch = async () => ({
-      status: 200,
-      data: {
+    const mockFetch = async (url) => {
+      if (url.includes('/stations/')) {
+        return createMockResponse({ success: true, data: { station_code: 'TEST' } });
+      }
+      return createMockResponse({
         success: true,
         data: {
-          avlDayList: [
-            { availablityDate: '2026-11-14', availablityStatus: 'AVAILABLE-0100' },
-            { availablityDate: '2026-11-15', availablityStatus: 'NOT AVAILABLE' },
-            { availablityDate: '2026-11-16', availablityStatus: 'AVAILABLE-0050' },
+          availability: [
+            { date: '14-11-2026', rawStatus: 'AVAILABLE-0100', availableSeats: 100 },
+            { date: '15-11-2026', rawStatus: 'NOT AVAILABLE', availableSeats: 0 },
+            { date: '16-11-2026', rawStatus: 'AVAILABLE-0050', availableSeats: 50 },
           ],
         },
-      },
-    });
+      });
+    };
 
-    const adapter = new RailRadarAdapter({
-      httpFetch: mockHttpFetch,
-      apiKey: 'test-api-key',
-      enableAvailabilityEndpoint: true,
-    });
+    const tracker = new RequestBudgetTracker();
+    const adapter = new RailKitAdapter({ fetchFn: mockFetch, disablePersistentCache: true, apiKey: 'test-api-key' });
 
-    const res = await adapter.getAvailability('12417', 'PRYJ', 'NDLS', '2026-11-15', '3A', 'GN');
+    const res = await adapter.getAvailability('12417', 'PRYJ', 'NDLS', '2026-11-15', '3A', 'GN', {
+      budgetTracker: tracker,
+      isRecovery: false,
+    });
     assert.equal(res.normalizedStatus, 'UNAVAILABLE');
     assert.equal(res.isAvailable, false);
   });
@@ -195,88 +209,108 @@ describe('RailRadar Seat Availability Integration — 20 Mandatory Verification 
 
   // 8. Missing or malformed provider response returning UNKNOWN
   it('Scenario 8: Missing or malformed provider response returns normalized status UNKNOWN', async () => {
-    const mockHttpFetch = async () => ({
-      status: 200,
-      data: {
+    const mockFetch = async (url) => {
+      if (url.includes('/stations/')) {
+        return createMockResponse({ success: true, data: { station_code: 'TEST' } });
+      }
+      return createMockResponse({
         success: true,
         data: {
           unexpectedField: 'invalid_shape',
         },
-      },
-    });
+      });
+    };
 
-    const adapter = new RailRadarAdapter({
-      httpFetch: mockHttpFetch,
-      apiKey: 'test-api-key',
-      enableAvailabilityEndpoint: true,
-    });
+    const tracker = new RequestBudgetTracker();
+    const adapter = new RailKitAdapter({ fetchFn: mockFetch, disablePersistentCache: true, apiKey: 'test-api-key' });
 
-    const res = await adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', 'CC', 'GN');
+    const res = await adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', 'CC', 'GN', {
+      budgetTracker: tracker,
+      isRecovery: false,
+    });
     assert.equal(res.normalizedStatus, AVAILABILITY_STATUS.UNKNOWN);
     assert.equal(res.seatsAvailable, null);
     assert.equal(res.isAvailable, false);
   });
 
-  // 9. Timeout, HTTP 429, HTTP 401/403 and HTTP 5xx handling
-  it('Scenario 9: Handles HTTP 429 rate limit, 401/403 auth errors, 500 server errors, and timeouts gracefully', async () => {
-    const mockHttpFetch = async (url) => {
-      if (url.includes('classCode=429')) {
-        const err = new Error('Too Many Requests');
-        err.statusCode = 429;
-        throw err;
+  // 9. Timeout, HTTP 429, HTTP 400/404 handling
+  it('Scenario 9: Handles HTTP 429 rate limit, 400/404 errors, 500 server errors, and timeouts gracefully', async () => {
+    const mockFetch = async (url) => {
+      if (url.includes('/stations/')) {
+        return createMockResponse({ success: true, data: { station_code: 'TEST' } });
       }
-      if (url.includes('classCode=403')) {
-        const err = new Error('Forbidden');
-        err.statusCode = 403;
-        throw err;
+      if (url.includes('/429/')) {
+        return {
+          status: 429,
+          ok: false,
+          text: async () => 'Too Many Requests',
+        };
       }
-      if (url.includes('classCode=500')) {
-        const err = new Error('Internal Server Error');
-        err.statusCode = 500;
-        throw err;
+      if (url.includes('/400/')) {
+        return {
+          status: 400,
+          ok: false,
+          text: async () => 'Bad Request',
+        };
+      }
+      if (url.includes('/500/')) {
+        return {
+          status: 500,
+          ok: false,
+          text: async () => 'Internal Server Error',
+        };
       }
       const timeoutErr = new Error('timeout of 8000ms exceeded');
       timeoutErr.code = 'ECONNABORTED';
       throw timeoutErr;
     };
 
-    const adapter = new RailRadarAdapter({
-      httpFetch: mockHttpFetch,
-      apiKey: 'test-api-key',
-      enableAvailabilityEndpoint: true,
-    });
+    const tracker = new RequestBudgetTracker();
+    const adapter = new RailKitAdapter({ fetchFn: mockFetch, disablePersistentCache: true, apiKey: 'test-api-key' });
 
     // 429
-    const res429 = await adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', '429', 'GN');
+    const res429 = await adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', '429', 'GN', {
+      budgetTracker: tracker,
+      isRecovery: false,
+    });
     assert.equal(res429.normalizedStatus, 'UNKNOWN');
-    assert.equal(res429.errorCode, 'RATE_LIMITED');
+    assert.equal(res429.reason, 'RATE_LIMITED');
 
-    // 403
-    const res403 = await adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', '403', 'GN');
-    assert.equal(res403.normalizedStatus, 'UNKNOWN');
-    assert.equal(res403.errorCode, 'UNSUPPORTED_ENDPOINT');
+    // 400
+    const res400 = await adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', '400', 'GN', {
+      budgetTracker: tracker,
+      isRecovery: false,
+    });
+    assert.equal(res400.normalizedStatus, 'UNKNOWN');
 
     // 500
-    const res500 = await adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', '500', 'GN');
+    const res500 = await adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', '500', 'GN', {
+      budgetTracker: tracker,
+      isRecovery: false,
+    });
     assert.equal(res500.normalizedStatus, 'UNKNOWN');
-    assert.equal(res500.errorCode, 'SERVER_ERROR');
 
     // Timeout
-    const resTimeout = await adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', 'SL', 'GN');
+    const resTimeout = await adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', 'SL', 'GN', {
+      budgetTracker: tracker,
+      isRecovery: false,
+    });
     assert.equal(resTimeout.normalizedStatus, 'UNKNOWN');
-    assert.equal(resTimeout.errorCode, 'TIMEOUT');
   });
 
   // 10. JavaScript Date conversion to a valid journey date
-  it('Scenario 10: Correctly converts JS Date objects, ISO strings, timestamps, and date strings to valid YYYY-MM-DD in IST', () => {
+  it('Scenario 10: Correctly converts JS Date objects, ISO strings, timestamps, and date strings to valid YYYY-MM-DD in IST and DD-MM-YYYY for RailKit', () => {
     const jsDate = new Date('2026-11-15T18:30:00.000Z'); // 2026-11-16 in IST (+05:30)
     assert.equal(formatJourneyDate(jsDate), '2026-11-16');
+    assert.equal(toRailKitDate(formatJourneyDate(jsDate)), '16-11-2026');
 
     const isoString = '2026-11-15T00:00:00.000Z';
     assert.equal(formatJourneyDate(isoString), '2026-11-15');
+    assert.equal(toRailKitDate(formatJourneyDate(isoString)), '15-11-2026');
 
     const simpleDate = '2026-11-15';
     assert.equal(formatJourneyDate(simpleDate), '2026-11-15');
+    assert.equal(toRailKitDate(simpleDate), '15-11-2026');
 
     const epochMs = Date.UTC(2026, 10, 15, 4, 0, 0);
     assert.equal(formatJourneyDate(epochMs), '2026-11-15');
@@ -284,7 +318,7 @@ describe('RailRadar Seat Availability Integration — 20 Mandatory Verification 
 
   // 11. Overnight recovery legs receive correct calendar date
   it('Scenario 11: Multi-leg recovery properly calculates overnight date rollover for subsequent legs', async () => {
-    const mockRailRadar = {
+    const mockRailKit = {
       searchDirectTrains: async (from, to) => {
         if (from === 'BSB' && to === 'PRYJ') {
           return {
@@ -331,11 +365,11 @@ describe('RailRadar Seat Availability Integration — 20 Mandatory Verification 
     };
 
     const testAvailService = new AvailabilityService({
-      railRadar: mockRailRadar,
+      railKit: mockRailKit,
     });
 
     const recovery = new JourneyRecoveryService({
-      railRadar: mockRailRadar,
+      railKit: mockRailKit,
       stationExpansion: stationExpansionService,
       connectionValidator,
       availabilityService: testAvailService,
@@ -357,19 +391,19 @@ describe('RailRadar Seat Availability Integration — 20 Mandatory Verification 
 
   // 12. Direct journeys require verified availability
   it('Scenario 12: Direct journeys return empty directJourneys when availability is waitlist or unavailable in confirmed-only mode', async () => {
-    const mockRailRadar = {
-      searchDirectTrains: async () => ({
+    const mockRailKit = {
+      searchTrainBetweenStations: async () => ({
         success: true,
-        trains: [
+        data: [
           {
-            trainNumber: '12004',
-            trainName: 'Shatabdi Express',
-            departureTime: '06:00',
-            arrivalTime: '12:00',
-            duration: 360,
+            train_no: '12004',
+            train_name: 'Shatabdi Express',
+            from_time: '06:00',
+            to_time: '12:00',
+            travel_time: '06:00',
             distance: 510,
-            from: { code: 'NDLS', name: 'New Delhi' },
-            to: { code: 'LKO', name: 'Lucknow' },
+            from_stn_code: 'NDLS',
+            to_stn_code: 'LKO',
           },
         ],
       }),
@@ -381,9 +415,9 @@ describe('RailRadar Seat Availability Integration — 20 Mandatory Verification 
       }),
     };
 
-    const availService = new AvailabilityService({ railRadar: mockRailRadar });
+    const availService = new AvailabilityService({ railKit: mockRailKit });
     const directService = new DirectJourneyService({
-      railRadar: mockRailRadar,
+      railKit: mockRailKit,
       availabilityService: availService,
       fareService,
     });
@@ -450,14 +484,14 @@ describe('RailRadar Seat Availability Integration — 20 Mandatory Verification 
 
   // 15. Schedule-cache data never treated as seat availability
   it('Scenario 15: Schedule search results or cached timetables are never treated as seat availability confirmation', async () => {
-    const mockRailRadar = {
-      searchDirectTrains: async () => ({
+    const mockRailKit = {
+      searchTrainBetweenStations: async () => ({
         success: true,
-        trains: [
+        data: [
           {
-            trainNumber: '12004',
-            departureTime: '06:00',
-            arrivalTime: '12:00',
+            train_no: '12004',
+            from_time: '06:00',
+            to_time: '12:00',
           },
         ],
       }),
@@ -466,7 +500,7 @@ describe('RailRadar Seat Availability Integration — 20 Mandatory Verification 
       },
     };
 
-    const availService = new AvailabilityService({ railRadar: mockRailRadar });
+    const availService = new AvailabilityService({ railKit: mockRailKit });
     const legAvail = await availService.checkLegAvailability({
       trainNumber: '12004',
       fromCode: 'NDLS',
@@ -501,14 +535,14 @@ describe('RailRadar Seat Availability Integration — 20 Mandatory Verification 
     assert.equal(tracker.canMakeRecoveryRequest(), false);
 
     let providerCalled = false;
-    const mockRailRadar = {
+    const mockRailKit = {
       getAvailability: async () => {
         providerCalled = true;
         return { success: true, normalizedStatus: 'AVAILABLE' };
       },
     };
 
-    const availService = new AvailabilityService({ railRadar: mockRailRadar });
+    const availService = new AvailabilityService({ railKit: mockRailKit });
     const res = await availService.checkLegAvailability({
       trainNumber: '12004',
       fromCode: 'NDLS',
@@ -526,29 +560,30 @@ describe('RailRadar Seat Availability Integration — 20 Mandatory Verification 
   // 18. Deduplication preventing duplicate concurrent requests
   it('Scenario 18: In-flight deduplication eliminates duplicate concurrent requests for the exact same leg and date', async () => {
     let callCount = 0;
-    const mockHttpFetch = async () => {
+    const mockFetch = async (url) => {
+      if (url.includes('/stations/')) {
+        return createMockResponse({ success: true, data: { station_code: 'TEST' } });
+      }
       callCount++;
       await new Promise((r) => setTimeout(r, 20));
-      return {
-        status: 200,
+      return createMockResponse({
+        success: true,
         data: {
-          success: true,
-          data: {
-            avlDayList: [{ availablityDate: '2026-11-15', availablityStatus: 'AVAILABLE-0042' }],
-          },
+          availability: [{ date: '15-11-2026', rawStatus: 'AVAILABLE-0042', availableSeats: 42 }],
         },
-      };
+      });
     };
 
-    const adapter = new RailRadarAdapter({
-      httpFetch: mockHttpFetch,
+    const tracker = new RequestBudgetTracker();
+    const adapter = new RailKitAdapter({
+      fetchFn: mockFetch,
+      disablePersistentCache: true,
       apiKey: 'test-api-key',
-      enableAvailabilityEndpoint: true,
     });
 
     const [res1, res2] = await Promise.all([
-      adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', '3A', 'GN'),
-      adapter.getAvailability('12004', 'NDLS', 'LKO', '2026-11-15', '3A', 'GN'),
+      adapter.getAvailability('99901', 'NDLS', 'LKO', '2026-11-15', '3A', 'GN', { budgetTracker: tracker }),
+      adapter.getAvailability('99901', 'NDLS', 'LKO', '2026-11-15', '3A', 'GN', { budgetTracker: tracker }),
     ]);
 
     assert.equal(callCount, 1); // Deduplicated to single HTTP invocation
@@ -558,19 +593,19 @@ describe('RailRadar Seat Availability Integration — 20 Mandatory Verification 
 
   // 19. Existing response-contract compatibility
   it('Scenario 19: Retains existing response contract with verified availability metadata', async () => {
-    const mockRailRadar = {
-      searchDirectTrains: async () => ({
+    const mockRailKit = {
+      searchTrainBetweenStations: async () => ({
         success: true,
-        trains: [
+        data: [
           {
-            trainNumber: '12004',
-            trainName: 'Lucknow Swarna Shatabdi',
-            departureTime: '06:10',
-            arrivalTime: '12:40',
-            duration: 390,
+            train_no: '12004',
+            train_name: 'Lucknow Swarna Shatabdi',
+            from_time: '06:10',
+            to_time: '12:40',
+            travel_time: '06:30',
             distance: 512,
-            from: { code: 'NDLS', name: 'New Delhi' },
-            to: { code: 'LKO', name: 'Lucknow' },
+            from_stn_code: 'NDLS',
+            to_stn_code: 'LKO',
           },
         ],
       }),
@@ -583,9 +618,9 @@ describe('RailRadar Seat Availability Integration — 20 Mandatory Verification 
       }),
     };
 
-    const availService = new AvailabilityService({ railRadar: mockRailRadar });
+    const availService = new AvailabilityService({ railKit: mockRailKit });
     const directService = new DirectJourneyService({
-      railRadar: mockRailRadar,
+      railKit: mockRailKit,
       availabilityService: availService,
       fareService,
     });
@@ -613,7 +648,7 @@ describe('RailRadar Seat Availability Integration — 20 Mandatory Verification 
 
   // 20. Regression test for existing recovery behavior
   it('Scenario 20: Verified recovery excludes unconfirmed candidates while returning verified multi-leg options', async () => {
-    const mockRailRadar = {
+    const mockRailKit = {
       searchDirectTrains: async (from, to) => {
         if (from === 'BSB' && to === 'PRYJ') {
           return {
@@ -659,9 +694,9 @@ describe('RailRadar Seat Availability Integration — 20 Mandatory Verification 
       }),
     };
 
-    const testAvailService = new AvailabilityService({ railRadar: mockRailRadar });
+    const testAvailService = new AvailabilityService({ railKit: mockRailKit });
     const recovery = new JourneyRecoveryService({
-      railRadar: mockRailRadar,
+      railKit: mockRailKit,
       stationExpansion: stationExpansionService,
       connectionValidator,
       availabilityService: testAvailService,

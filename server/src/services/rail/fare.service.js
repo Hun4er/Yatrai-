@@ -14,7 +14,7 @@ import logger from '../../utils/logger.js';
  */
 export class FareService {
   constructor(dependencies = {}) {
-    this.railKit = dependencies.railKit || dependencies.railRadar || railKitAdapter;
+    this.railKit = dependencies.railKit || railKitAdapter;
     this.aopay = dependencies.aopay || aopayAdapter;
   }
 
@@ -87,6 +87,7 @@ export class FareService {
         currency: 'INR',
         isEstimated: false,
         source: 'RailKit',
+        fareSource: 'availability',
         fareBreakup: directAvailFare,
         timestamp: new Date().toISOString(),
       };
@@ -113,6 +114,7 @@ export class FareService {
             isEstimated: false,
             fareUnavailable: false,
             source: 'RailKit',
+            fareSource: 'fare-endpoint',
             trainName: rkResult.trainName || null,
             fareBreakup: rkResult.fareBreakup || null,
           };
@@ -127,7 +129,10 @@ export class FareService {
       try {
         const aopayFare = await this.aopay.getFare(numStr, fromStr, toStr, tClass);
         if (aopayFare && aopayFare.success && !aopayFare.isEstimated) {
-          fareRes = aopayFare;
+          fareRes = {
+            ...aopayFare,
+            fareSource: 'fare-endpoint',
+          };
         }
       } catch (err) {
         logger.debug(`[FareService] AOPAY fare fallback failed: ${err.message}`);
@@ -146,7 +151,8 @@ export class FareService {
             totalFare: classFare * pCount,
             currency: 'INR',
             isEstimated: false,
-            source: 'IRCTC Verified Tariff',
+            source: 'IRCTC Verified Tariff (Static)',
+            fareSource: 'static',
             fareUnavailable: false,
           };
         }
@@ -162,22 +168,23 @@ export class FareService {
     );
 
     if (!hasVerifiedFare) {
-      if (process.env.NODE_ENV === 'test') {
+      if (distanceKm && Number(distanceKm) > 0) {
         const tariff = this.calculateTelescopicTariff(distanceKm, tClass);
         return {
           success: true,
-          amount: tariff + 15 * pCount,
+          amount: (tariff + 15) * pCount,
           trainNumber: numStr,
           fromCode: fromStr,
           toCode: toStr,
           travelClass: tClass,
           passengers: pCount,
-          baseFare: tariff,
-          totalFare: tariff + 15 * pCount,
+          baseFare: tariff * pCount,
+          totalFare: (tariff + 15) * pCount,
           bookingFee: 15 * pCount,
           currency: 'INR',
           isEstimated: true,
-          source: 'IRCTC Telescopic Tariff',
+          source: 'IRCTC Distance Tariff (Estimated)',
+          fareSource: 'estimate',
           fareUnavailable: false,
           timestamp: new Date().toISOString(),
         };
@@ -197,6 +204,7 @@ export class FareService {
         currency: 'INR',
         isEstimated: false,
         source: null,
+        fareSource: null,
         fareUnavailable: true,
         timestamp: new Date().toISOString(),
       };
@@ -220,6 +228,7 @@ export class FareService {
       currency: 'INR',
       isEstimated,
       source: fareRes.source || 'provider',
+      fareSource: fareRes.fareSource || 'static',
       fareBreakup: fareRes.fareBreakup || null,
       timestamp: new Date().toISOString(),
     };

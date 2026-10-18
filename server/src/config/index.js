@@ -85,14 +85,6 @@ export const config = Object.freeze({
       timeoutMs: parseInt(process.env.RAIL_TIMEOUT_MS || '5000', 10),
       enabled: process.env.RAIL_ENABLED !== 'false',
     },
-    railradar: {
-      apiKey: process.env.RAILRADAR_API_KEY || process.env.RAIL_API_KEY || process.env.RAIL_API || null,
-      apiUrl: process.env.RAILRADAR_BASE_URL || process.env.RAILRADAR_API_URL || 'https://api.railradar.in/v1',
-      timeoutMs: parseInt(process.env.RAILRADAR_TIMEOUT_MS || process.env.RAIL_TIMEOUT_MS || '5000', 10),
-      enabled: process.env.RAILRADAR_ENABLED !== 'false' && process.env.RAIL_ENABLED !== 'false',
-      enableAvailabilityEndpoint: process.env.RAILRADAR_ENABLE_AVAILABILITY !== 'false',
-      availabilityTtlMs: parseInt(process.env.RAILRADAR_AVAILABILITY_TTL_MS || '300000', 10),
-    },
     railkit: {
       apiKey: process.env.RAILKIT_API_KEY || null,
       apiUrl: process.env.RAILKIT_API_URL || 'https://api.railkit.in',
@@ -173,6 +165,7 @@ export const config = Object.freeze({
     minCrossStationBufferMinutes: parseInt(process.env.RAIL_RECOVERY_MIN_CROSS_STATION_BUFFER || '60', 10),
     maxTransferBufferMinutes: parseInt(process.env.RAIL_RECOVERY_MAX_TRANSFER_BUFFER || '720', 10),
     maxDetourRatio: parseFloat(process.env.RAIL_RECOVERY_MAX_DETOUR_RATIO || '1.8'),
+    maxClusterDistanceKm: parseFloat(process.env.MAX_CLUSTER_DISTANCE_KM || '25'),
   },
   waitlistThresholds: {
     maxGnwlFeasible: parseInt(process.env.MAX_GNWL_FEASIBLE || '10', 10),
@@ -181,7 +174,8 @@ export const config = Object.freeze({
     maxDefaultWlFeasible: parseInt(process.env.MAX_DEFAULT_WL_FEASIBLE || '10', 10),
   },
   apiQuota: {
-    monthlyLimit: parseInt(process.env.RAILKIT_MONTHLY_LIMIT || '100', 10),
+    monthlyLimit: parseInt(process.env.RAILKIT_MONTHLY_LIMIT || '10000', 10),
+    usageOffset: parseInt(process.env.RAILKIT_USAGE_OFFSET || '0', 10),
     warningPercent: 80,
     criticalPercent: 95,
   },

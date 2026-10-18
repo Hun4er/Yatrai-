@@ -10,7 +10,7 @@ import { stationExpansionService } from '../src/services/rail/stationExpansion.s
 import { directJourneyService } from '../src/services/rail/directJourney.service.js';
 import { journeyRecoveryService } from '../src/services/rail/journeyRecovery.service.js';
 import { aopayAdapter } from '../src/providers/rail/aopay.adapter.js';
-import { railRadarAdapter } from '../src/providers/rail/railRadar.adapter.js';
+import railKitAdapter from '../src/providers/rail/railKit.adapter.js';
 
 describe('Yatrai Real-Time Railway Journey Recovery System (21 Mandatory Scenarios)', () => {
   before(async () => {
@@ -292,14 +292,14 @@ describe('Yatrai Real-Time Railway Journey Recovery System (21 Mandatory Scenari
 
   // Scenario 17: Request deduplication & rate-limiting protection
   it('Scenario 17: provider adapter deduplicates identical in-flight requests', async () => {
-    const promise1 = railRadarAdapter.cachedRequest('test-key', async () => {
+    const promise1 = railKitAdapter._cachedFetch('test-dedup-key', 5000, async () => {
       await new Promise((r) => setTimeout(r, 50));
       return { success: true, timestamp: Date.now() };
-    }, 5000);
+    }, 'general');
 
-    const promise2 = railRadarAdapter.cachedRequest('test-key', async () => {
+    const promise2 = railKitAdapter._cachedFetch('test-dedup-key', 5000, async () => {
       return { success: true, timestamp: Date.now() };
-    }, 5000);
+    }, 'general');
 
     const [res1, res2] = await Promise.all([promise1, promise2]);
     assert.equal(res1.timestamp, res2.timestamp);

@@ -45,46 +45,47 @@ export async function connectDatabase(customUri) {
 
     // Mask credentials in connection log
     const maskedUri = uri.replace(/\/\/[^:]+:[^@]+@/, '//***:***@');
-    logger.info(`Connecting to MongoDB at ${maskedUri}...`);
+    logger.info(`[Database] Connecting to MongoDB at ${maskedUri}...`);
 
     await mongoose.connect(uri, {
       serverSelectionTimeoutMS: 3000,
       autoIndex: config.isDevelopment || config.isTest,
     });
 
-    logger.info('MongoDB connected successfully.');
+    logger.info(`[Database] MongoDB connected successfully to persistent database: ${maskedUri} (db: ${mongoose.connection.name})`);
     return mongoose;
   } catch (error) {
-    logger.warn(`Primary MongoDB connection failed: ${error.message}`);
+    const maskedUri = (uri || '').replace(/\/\/[^:]+:[^@]+@/, '//***:***@');
+    logger.warn(`[Database] Primary MongoDB connection to ${maskedUri} failed: ${error.message}`);
     await mongoose.disconnect().catch(() => {});
 
-    // In development or test environments, automatically spin up in-memory MongoDB
-    if (config.isDevelopment || config.isTest) {
+    // In unit test environments ONLY, allow in-memory MongoDB fallback
+    if (config.isTest) {
       try {
-        logger.info('Spinning up development in-memory MongoDB instance via mongodb-memory-server...');
+        logger.info('[Database] Test environment active: spinning up in-memory MongoDB instance via mongodb-memory-server...');
         const { MongoMemoryServer } = await import('mongodb-memory-server');
         if (!memoryServerInstance) {
           memoryServerInstance = await MongoMemoryServer.create();
         }
         const memUri = memoryServerInstance.getUri();
-        logger.info(`Connecting to in-memory MongoDB at ${memUri}...`);
+        logger.info(`[Database] Connecting to in-memory test MongoDB at ${memUri}...`);
 
         await mongoose.connect(memUri, {
           serverSelectionTimeoutMS: 3000,
         });
 
-        logger.info('In-memory MongoDB connected successfully. Auto-seeding initial development dataset...');
-        const { seedDatabase } = await import('../database/seed/seed.js');
-        await seedDatabase({ shouldReset: false, disconnectOnFinish: false, uri: memUri });
-        logger.info('Development dataset seeded successfully. Backend ready!');
+        logger.info('[Database] In-memory test MongoDB connected successfully.');
         return mongoose;
       } catch (memError) {
-        logger.error(`Failed to initialize in-memory development database: ${memError.message}`);
+        logger.error(`[Database] Failed to initialize in-memory test database: ${memError.message}`);
         throw memError;
       }
     }
 
-    throw error;
+    // In development and production, fail loudly with a clear actionable message
+    const fatalMsg = `[Database] FATAL: Real MongoDB is required in development (via MONGODB_URI) so that persistent cache and API usage counters survive server restarts. Failed to connect to ${maskedUri}: ${error.message}. Please start local MongoDB (mongodb://127.0.0.1:27017/yatrai_dev) or configure a reachable MongoDB Atlas connection string in server/.env.`;
+    logger.error(fatalMsg);
+    throw new Error(fatalMsg);
   } finally {
     isConnecting = false;
   }

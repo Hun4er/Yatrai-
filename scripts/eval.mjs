@@ -27,6 +27,23 @@ const SERVER_URL = (process.env.SERVER_URL || 'http://localhost:5000').replace(/
 const TIMEOUT_MS = parseInt(process.env.EVAL_TIMEOUT_MS || '30000', 10);
 const RESULTS_FILE = path.resolve(__dirname, '../eval_results.json');
 
+// Hard live-request limits (configured to prevent accidental quota exhaustion)
+const MAX_LIVE_REQUESTS_PER_ROUTE = parseInt(process.env.MAX_LIVE_REQUESTS_PER_ROUTE || '10', 10);
+const MAX_TOTAL_LIVE_REQUESTS = parseInt(process.env.MAX_TOTAL_LIVE_REQUESTS || '25', 10);
+
+async function getRailKitStats() {
+  try {
+    const res = await fetch(`${SERVER_URL}/api/providers/railkit/stats`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.data || null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── CANONICAL TEST ROUTES ───────────────────────────────────────────────────
 // These are real city pairs with known rail corridors. Dates are set to avoid
 // past-date rejections by calculating 7 days ahead from script run time.
@@ -203,11 +220,17 @@ async function runEvaluation() {
   const results = [];
   let totalPass = 0;
   let totalFail = 0;
-  let totalApiRequests = 0;
+  let totalLiveRequests = 0;
+
+  const initialStats = await getRailKitStats();
+  if (initialStats) {
+    console.log(`Initial RailKit Adapter state: ${initialStats.monthlyRequests} lifetime requests recorded.`);
+  }
 
   for (const route of TEST_ROUTES) {
     process.stdout.write(`[${route.id}] ${route.description} ... `);
 
+    const statsBefore = await getRailKitStats();
     const startMs = Date.now();
     const httpResult = await httpPost(`${SERVER_URL}/api/journeys/search`, {
       origin: route.origin,
@@ -218,15 +241,27 @@ async function runEvaluation() {
       requestedModes: ['rail'],
     });
     const elapsedMs = Date.now() - startMs;
+    const statsAfter = await getRailKitStats();
+
+    const routeLiveRequests = (statsAfter && statsBefore)
+      ? Math.max(0, statsAfter.monthlyRequests - statsBefore.monthlyRequests)
+      : 0;
+    totalLiveRequests += routeLiveRequests;
 
     const ev = evalStatus(route, httpResult);
 
+    // Hard limit verification
+    if (routeLiveRequests > MAX_LIVE_REQUESTS_PER_ROUTE) {
+      ev.pass = false;
+      ev.reason = `EXCEEDED_ROUTE_HARD_LIMIT (${routeLiveRequests} > ${MAX_LIVE_REQUESTS_PER_ROUTE})`;
+    }
+
     const emoji = ev.pass ? '✅' : '❌';
     console.log(`${emoji} ${ev.reason} (${elapsedMs}ms)`);
+    console.log(`   Live RailKit requests consumed: ${routeLiveRequests} (cumulative: ${totalLiveRequests}/${MAX_TOTAL_LIVE_REQUESTS})`);
 
     if (ev.pass) {
       totalPass++;
-      if (ev.apiRequestsConsumed) totalApiRequests += ev.apiRequestsConsumed;
 
       const top = ev.topJourney;
       console.log(`   Direct: ${ev.directCount}, Alternatives: ${ev.alternativeCount}`);
@@ -240,9 +275,6 @@ async function runEvaluation() {
         if (top?.isClusterShift) {
           console.log(`     ⚠️  Cluster shift: ${top.clusterNote}`);
         }
-      }
-      if (ev.apiRequestsConsumed != null) {
-        console.log(`   API requests consumed this search: ${ev.apiRequestsConsumed}`);
       }
     } else {
       totalFail++;
@@ -258,31 +290,36 @@ async function runEvaluation() {
       alternativeCount: ev.alternativeCount || 0,
       directSearchStatus: ev.directSearchStatus || null,
       bookingQuality: ev.bookingQuality || null,
-      apiRequestsConsumed: ev.apiRequestsConsumed || null,
+      liveRequestsConsumed: routeLiveRequests,
       topFare: ev.topJourney?.totalPrice ?? ev.topJourney?.pricing?.totalFare ?? null,
       topAvailabilityStatus: ev.topJourney?.availability?.normalizedStatus ?? null,
       isClusterShift: ev.topJourney?.isClusterShift ?? false,
     });
 
     console.log('');
+
+    if (totalLiveRequests > MAX_TOTAL_LIVE_REQUESTS) {
+      console.error(`🚨 CRITICAL: Total live requests exceeded hard limit of ${MAX_TOTAL_LIVE_REQUESTS}! Halting evaluation early.`);
+      totalFail++;
+      break;
+    }
   }
 
   console.log('═══════════════════════════════════════════════════════════════');
   console.log(`SUMMARY: ${totalPass}/${TEST_ROUTES.length} routes passed`);
-  if (totalApiRequests > 0) {
-    console.log(`Total API requests consumed: ~${totalApiRequests}`);
-  }
+  console.log(`Total live RailKit requests consumed: ${totalLiveRequests} (hard limit: ${MAX_TOTAL_LIVE_REQUESTS})`);
   console.log('═══════════════════════════════════════════════════════════════\n');
 
   // 2. Per-route pass/fail table
-  console.log('Route │ Status │ Direct │ Alternatives │ Booking Quality');
-  console.log('──────┼────────┼────────┼──────────────┼──────────────────────');
+  console.log('Route │ Status │ Direct │ Alternatives │ Live Calls │ Booking Quality');
+  console.log('──────┼────────┼────────┼──────────────┼────────────┼──────────────────────');
   for (const r of results) {
     const status = r.pass ? '  PASS' : '  FAIL';
     const dir = String(r.directCount).padStart(6);
     const alt = String(r.alternativeCount).padStart(12);
-    const bq = (r.bookingQuality || 'N/A').slice(0, 25);
-    console.log(`  ${r.id}  │${status} │${dir} │${alt} │ ${bq}`);
+    const live = String(r.liveRequestsConsumed ?? 0).padStart(10);
+    const bq = (r.bookingQuality || 'N/A').slice(0, 22);
+    console.log(`  ${r.id}  │${status} │${dir} │${alt} │${live}  │ ${bq}`);
   }
 
   // 3. Save JSON results
@@ -293,7 +330,8 @@ async function runEvaluation() {
     totalRoutes: TEST_ROUTES.length,
     passed: totalPass,
     failed: totalFail,
-    totalApiRequestsConsumed: totalApiRequests,
+    totalLiveRequestsConsumed: totalLiveRequests,
+    maxTotalLiveRequestsAllowed: MAX_TOTAL_LIVE_REQUESTS,
     routes: results,
   };
   fs.writeFileSync(RESULTS_FILE, JSON.stringify(summary, null, 2), 'utf8');

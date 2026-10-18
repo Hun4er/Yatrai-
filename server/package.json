@@ -16,7 +16,7 @@
     "location:verify": "node scripts/verifyLocationResolution.js",
     "journey:verify": "node scripts/verifyJourneySearch.js",
     "providers:verify": "node scripts/verifyTransportProviders.js",
-    "test": "node --test tests/**/*.test.js"
+    "test": "node --test tests/**/*.test.js src/tests/**/*.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

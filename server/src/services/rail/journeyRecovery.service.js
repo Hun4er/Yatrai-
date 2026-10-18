@@ -1,5 +1,5 @@
 import fs from 'fs';
-import railRadarAdapter from '../../providers/rail/railRadar.adapter.js';
+import railKitAdapter, { normalizeRailKitTrain } from '../../providers/rail/railKit.adapter.js';
 import stationExpansionService from './stationExpansion.service.js';
 import connectionValidator from './connectionValidator.js';
 import availabilityService, { AVAILABILITY_STATUS, JOURNEY_AVAILABILITY } from './availability.service.js';
@@ -72,7 +72,7 @@ class RailwayRecoveryGraph {
  */
 export class JourneyRecoveryService {
   constructor(dependencies = {}) {
-    this.railRadar = dependencies.railRadar || railRadarAdapter;
+    this.railKit = dependencies.railKit || dependencies.railRadar || railKitAdapter;
     this.stationExpansion = dependencies.stationExpansion || stationExpansionService;
     this.connectionValidator = dependencies.connectionValidator || connectionValidator;
     this.availabilityService = dependencies.availabilityService || availabilityService;
@@ -273,8 +273,18 @@ export class JourneyRecoveryService {
       };
 
       try {
-        const res = await this.railRadar.searchDirectTrains(stage.from, stage.to, queryOpts);
-        const trains = res?.trains || [];
+        let trains = [];
+        if (typeof this.railKit?.searchTrainBetweenStations === 'function') {
+          const rkRes = await this.railKit.searchTrainBetweenStations(stage.from, stage.to, queryOpts);
+          if (rkRes && rkRes.success && Array.isArray(rkRes.data)) {
+            trains = rkRes.data.map((item) => normalizeRailKitTrain(item, stage.from, stage.to));
+          } else if (Array.isArray(rkRes?.trains)) {
+            trains = rkRes.trains;
+          }
+        } else if (typeof this.railKit?.searchDirectTrains === 'function') {
+          const res = await this.railKit.searchDirectTrains(stage.from, stage.to, queryOpts);
+          trains = res?.trains || [];
+        }
 
         for (const t of trains.slice(0, maxTrainsPerLeg)) {
           const tNum = String(t.train?.number || t.trainNumber || t.number || '');
@@ -628,7 +638,7 @@ export class JourneyRecoveryService {
           ...journey.metadata,
           isRecovery: true,
           isRecoveredAlternative: true,
-          provider: 'Indian Railways (RailRadar Multi-Leg)',
+          provider: 'Indian Railways (RailKit Multi-Leg)',
           originExpansionHops: journey.originExpansionHops,
           destinationExpansionHops: journey.destinationExpansionHops,
           intermediateStations: journey.intermediateStations,
@@ -917,7 +927,7 @@ export class JourneyRecoveryService {
       metadata: {
         isRecovery: true,
         isRecoveredAlternative: true,
-        provider: 'Indian Railways (RailRadar Multi-Leg)',
+        provider: 'Indian Railways (RailKit Multi-Leg)',
         originExpansionHops: isAlternateOrigin ? 1 : 0,
         destinationExpansionHops: isAlternateDest ? 1 : 0,
         intermediateStations,

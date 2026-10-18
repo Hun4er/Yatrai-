@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { toRailKitDate, formatJourneyDate } from '../../utils/railwayTime.js';
+import { toRailKitDate, formatJourneyDate, isIrctcMaintenanceWindow } from '../../utils/railwayTime.js';
 import { normalizeSeatAvailability, AVAILABILITY_STATUS } from '../../services/rail/availabilityNorm.js';
 import logger from '../../utils/logger.js';
 import config from '../../config/index.js';
@@ -38,10 +38,12 @@ const STATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   // Station code format: 2-5 uppercase letters only
 const STATION_CODE_RE = /^[A-Z]{2,5}$/;
 
-class RailKitAdapter {
-  constructor() {
+export class RailKitAdapter {
+  constructor(options = {}) {
     this.name = 'RailKit';
     this.code = 'RAILKIT';
+    this._fetchFn = options?.fetchFn || null;
+    this._disablePersistentCache = Boolean(options?.disablePersistentCache);
 
     // Cache: cacheKey -> { data, expiresAt }
     this._cache = new Map();
@@ -88,10 +90,26 @@ class RailKitAdapter {
   }
 
   async _recordRequest() {
-    this._monthlyCount++;
-    const usage = await apiUsageService.recordRequest('railkit', config.apiQuota?.monthlyLimit || 100);
-    logger.info(`[RailKitAdapter] Monthly request #${usage.count} (${usage.percentage}% of quota)`);
+    const limit = config.apiQuota?.monthlyLimit || 10000;
+    const usage = await apiUsageService.recordRequest('railkit', limit);
+    this._monthlyCount = usage.rawCount ?? usage.count;
+    logger.info(`[RailKitAdapter] Outbound request #${usage.count} (raw: ${usage.rawCount}, offset: ${usage.usageOffset}, ${usage.percentage}% of quota)`);
     return usage;
+  }
+
+  async syncUsage() {
+    try {
+      const limit = config.apiQuota?.monthlyLimit || 10000;
+      const usage = await apiUsageService.getUsage('railkit', limit);
+      if (usage && typeof usage.rawCount === 'number') {
+        this._monthlyCount = usage.rawCount;
+        logger.info(`[RailKitAdapter] Synced persistent usage counter from database: raw=${this._monthlyCount}, total=${usage.count} (offset=${usage.usageOffset})`);
+      } else if (usage && typeof usage.count === 'number') {
+        this._monthlyCount = usage.count;
+      }
+    } catch (err) {
+      logger.debug(`[RailKitAdapter] Failed to sync usage counter: ${err.message}`);
+    }
   }
 
   /**
@@ -110,11 +128,13 @@ class RailKitAdapter {
     }
 
     // 2. Check L2 Persistent cache (MongoDB)
-    const persistent = await persistentCacheService.get(cacheKey);
-    if (persistent !== null && persistent !== undefined) {
-      this._cache.set(cacheKey, { data: persistent, expiresAt: now + ttlMs });
-      if (tracker) tracker.recordCacheHit();
-      return persistent;
+    if (!this._disablePersistentCache) {
+      const persistent = await persistentCacheService.get(cacheKey);
+      if (persistent !== null && persistent !== undefined) {
+        this._cache.set(cacheKey, { data: persistent, expiresAt: now + ttlMs });
+        if (tracker) tracker.recordCacheHit();
+        return persistent;
+      }
     }
 
     // 3. In-flight promise coalescing
@@ -123,7 +143,7 @@ class RailKitAdapter {
       return this._inFlight.get(cacheKey);
     }
 
-    // 4. Budget check & Atomic Reservation (Availability / Recovery / Direct)
+    // 4. Budget check & Atomic Reservation (Availability / Recovery / Direct / Static / Timetable)
     let reservation = null;
     if (category === 'availability') {
       if (!tracker) {
@@ -136,18 +156,25 @@ class RailKitAdapter {
         logger.info(`[RailKitAdapter] Budget limit reached for ${budgetCategory}. Outbound call skipped for ${cacheKey}`);
         return null;
       }
+    } else if (
+      category === 'timetable' ||
+      category === 'static' ||
+      category === 'trainsBetween' ||
+      category === 'station' ||
+      category === 'trainInfo'
+    ) {
+      if (tracker) {
+        reservation = tracker.reserve('static', options);
+        if (!reservation) {
+          logger.info(`[RailKitAdapter] Static allowance limit reached for ${options?.tier || 'tier1'}. Outbound call skipped for ${cacheKey}`);
+          return null;
+        }
+      }
     }
 
     const promise = (async () => {
       await this._acquireSlot();
       try {
-        const usage = await this._recordRequest();
-        if (usage?.shouldBlockNonEssential && category !== 'availability') {
-          logger.warn(`[RailKitAdapter] Halting non-essential ${category} request due to 95% quota cap`);
-          reservation?.release();
-          return null;
-        }
-
         const data = await requestFn();
         reservation?.commit();
 
@@ -202,6 +229,20 @@ class RailKitAdapter {
     const redactedUrl = url.replace(/X-API-Key=[^&]+/i, 'X-API-Key=[REDACTED]');
     logger.info(`[DIAGNOSTIC - RAILKIT REQUEST] Attempt ${attempt} | URL: ${redactedUrl}`);
 
+    const isLiveAllowed = process.env.LIVE_REQUESTS_ALLOWED === 'true';
+    if (!isLiveAllowed) {
+      const err = new Error(
+        `[RailKitAdapter] Outbound live request BLOCKED: LIVE_REQUESTS_ALLOWED is false. Attempted URL: ${redactedUrl}. Outbound calls are refused unless LIVE_REQUESTS_ALLOWED=true.`
+      );
+      err.code = 'LIVE_REQUESTS_BLOCKED';
+      err.status = 403;
+      logger.warn(err.message);
+      throw err;
+    }
+
+    // SINGLE COUNTING POINT: Count every outbound RailKit HTTP request exactly once
+    await this._recordRequest();
+
     const stackLines = (new Error().stack || '').split('\n').slice(2, 6).map((s) => s.trim());
     const caller = stackLines.join(' | ');
     const endpointPath = url.split('?')[0].replace(/^https?:\/\/[^/]+/, '');
@@ -226,13 +267,19 @@ class RailKitAdapter {
 
     let res;
     let resBodyText = '';
+    const fetchFunc = this._fetchFn || globalThis.fetch;
     try {
-      res = await fetch(url, { headers: this._headers(), signal: controller.signal });
-      resBodyText = await res.text().catch((e) => `[Failed to read body: ${e.message}]`);
+      res = await fetchFunc(url, { headers: this._headers(), signal: controller.signal });
+      if (typeof res.text === 'function') {
+        resBodyText = await res.text().catch((e) => `[Failed to read body: ${e.message}]`);
+      }
       logger.info(`[DIAGNOSTIC - RAILKIT RESPONSE] URL: ${redactedUrl} | HTTP Status: ${res.status} | Body: ${resBodyText}`);
     } catch (err) {
       clearTimeout(timer);
       logger.error(`[DIAGNOSTIC - RAILKIT FETCH ERROR] URL: ${redactedUrl} | Attempt ${attempt} | Error: ${err.message}`);
+      if (err.status === 429 || err.status === 400 || err.status === 404 || err.code === 'LIVE_REQUESTS_BLOCKED') {
+        throw err;
+      }
       if (attempt === 1) {
         logger.debug(`[RailKitAdapter] Network error attempt 1, retrying: ${err.message}`);
         return this._fetch(url, 2);
@@ -314,6 +361,36 @@ class RailKitAdapter {
     const toCode = this._normalizeCode(toStnCode);
     const internalDate = formatJourneyDate(date); // ensure YYYY-MM-DD for internal consistency
     const rkDate = toRailKitDate(internalDate);    // DD-MM-YYYY required by RailKit
+
+    // Guard: IRCTC Maintenance Window (23:45 - 00:15 IST)
+    // Make no availability calls; never cache or count as availability result
+    if (isIrctcMaintenanceWindow()) {
+      return {
+        status: 'error',
+        success: false,
+        provider: 'RailKit',
+        trainNo: num,
+        trainNumber: num,
+        fromCode,
+        fromStnCode: fromCode,
+        toCode,
+        toStnCode: toCode,
+        date: internalDate,
+        travelClass: coach,
+        coach,
+        quota,
+        normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
+        originalStatus: 'MAINTENANCE_WINDOW',
+        statusText: 'IRCTC maintenance window, reopens 00:15',
+        availabilityText: 'IRCTC maintenance window, reopens 00:15',
+        message: 'IRCTC maintenance window, reopens 00:15',
+        seatsAvailable: null,
+        isAvailable: false,
+        isMaintenanceWindow: true,
+        lastUpdated: new Date().toISOString(),
+        isLive: false,
+      };
+    }
 
     // Validate station codes
     for (const [code, label] of [[fromCode, 'from'], [toCode, 'to']]) {
@@ -643,7 +720,11 @@ class RailKitAdapter {
    * SDK: searchTrainBetweenStations(fromStnCode: string, toStnCode: string, date?: string)
    * REST: GET /api/v1/trains/between/:fromStnCode/:toStnCode?date=DD-MM-YYYY
    */
-  async searchTrainBetweenStations(fromStnCode, toStnCode, date) {
+  async searchTrainBetweenStations(fromStnCode, toStnCode, date, options = {}) {
+    if (typeof date === 'object' && date !== null && !(date instanceof Date)) {
+      options = date;
+      date = options.date || options.departureDate || null;
+    }
     const fromCode = this._normalizeCode(fromStnCode);
     const toCode = this._normalizeCode(toStnCode);
     const internalDate = date ? formatJourneyDate(date) : '';
@@ -653,7 +734,17 @@ class RailKitAdapter {
     const url = `${BASE_URL}/api/v1/trains/between/${fromCode}/${toCode}${rkDate ? `?date=${rkDate}` : ''}`;
 
     try {
-      const json = await this._cachedFetch(cacheKey, CACHE_TTL_CONFIG.timetable, () => this._fetch(url), 'timetable');
+      const json = await this._cachedFetch(cacheKey, CACHE_TTL_CONFIG.timetable, () => this._fetch(url), 'timetable', options);
+      if (json === null) {
+        return {
+          status: 'not_checked',
+          success: false,
+          provider: 'RailKit',
+          data: [],
+          reason: 'STATIC_BUDGET_EXHAUSTED',
+          isBudgetExhausted: true,
+        };
+      }
       return {
         status: 'ok',
         success: Boolean(json?.success),
@@ -702,7 +793,7 @@ class RailKitAdapter {
     const url = `${BASE_URL}/api/v1/trains/${num}/info`;
 
     try {
-      const json = await this._cachedFetch(cacheKey, 24 * 60 * 60 * 1000, () => this._fetch(url));
+      const json = await this._cachedFetch(cacheKey, 24 * 60 * 60 * 1000, () => this._fetch(url), 'static');
       return { status: 'ok', success: Boolean(json?.success), data: json?.data || null };
     } catch (err) {
       return { status: 'error', success: false, data: null, error: err.message };
@@ -720,7 +811,7 @@ class RailKitAdapter {
     const url = `${BASE_URL}/api/v1/stations/${code}`;
 
     try {
-      const json = await this._cachedFetch(cacheKey, 24 * 60 * 60 * 1000, () => this._fetch(url));
+      const json = await this._cachedFetch(cacheKey, 24 * 60 * 60 * 1000, () => this._fetch(url), 'static');
       return { status: 'ok', success: Boolean(json?.success), data: json?.data || null };
     } catch (err) {
       return { status: 'error', success: false, data: null, error: err.message };
@@ -740,7 +831,7 @@ class RailKitAdapter {
     const q = String(name || '').trim();
     const url = `${BASE_URL}/api/v1/stations/search?name=${encodeURIComponent(q)}`;
     try {
-      const json = await this._cachedFetch(`stn:name:${q}`, 24 * 60 * 60 * 1000, () => this._fetch(url));
+      const json = await this._cachedFetch(`stn:name:${q}`, 24 * 60 * 60 * 1000, () => this._fetch(url), 'static');
       return { status: 'ok', success: Boolean(json?.success), data: json?.data || [] };
     } catch (err) {
       return { status: 'error', success: false, data: [], error: err.message };
@@ -756,7 +847,7 @@ class RailKitAdapter {
     const q = String(name || '').trim();
     const url = `${BASE_URL}/api/v1/trains/search?name=${encodeURIComponent(q)}`;
     try {
-      const json = await this._cachedFetch(`train:name:${q}`, 24 * 60 * 60 * 1000, () => this._fetch(url));
+      const json = await this._cachedFetch(`train:name:${q}`, 24 * 60 * 60 * 1000, () => this._fetch(url), 'static');
       return { status: 'ok', success: Boolean(json?.success), data: json?.data || [] };
     } catch (err) {
       return { status: 'error', success: false, data: [], error: err.message };
@@ -772,7 +863,7 @@ class RailKitAdapter {
     const num = this._normalizeTrainNo(trainNumber);
     const url = `${BASE_URL}/api/v1/trains/${num}`;
     try {
-      const json = await this._cachedFetch(`train:num:${num}`, 24 * 60 * 60 * 1000, () => this._fetch(url));
+      const json = await this._cachedFetch(`train:num:${num}`, 24 * 60 * 60 * 1000, () => this._fetch(url), 'static');
       return { status: 'ok', success: Boolean(json?.success), data: json?.data || null };
     } catch (err) {
       return { status: 'error', success: false, data: null, error: err.message };
@@ -898,9 +989,21 @@ class RailKitAdapter {
   }
 
   getStats() {
+    const raw = this._monthlyCount || 0;
+    const offset = Number(config.apiQuota?.usageOffset || 0);
+    const quota = Number(config.apiQuota?.monthlyLimit || 10000);
+    const total = raw + offset;
+    const percentage = Math.round((total / quota) * 100);
+
     return {
       provider: 'RailKit',
-      monthlyRequests: this._monthlyCount,
+      rawOutboundRequests: raw,
+      usageOffset: offset,
+      totalOutboundRequests: total,
+      outboundRequests: total,
+      monthlyRequests: total,
+      quotaLimit: quota,
+      percentage,
       monthStart: this._monthStart,
       cacheSize: this._cache.size,
       inFlightCount: this._inFlight.size,
@@ -933,4 +1036,75 @@ export const trainsByName = (...args) => railKitAdapter.trainsByName(...args);
 export const checkPNRStatus = (...args) => railKitAdapter.checkPNRStatus(...args);
 export const trackTrain = (...args) => railKitAdapter.trackTrain(...args);
 export const cancelList = (...args) => railKitAdapter.cancelList(...args);
+
+/**
+ * Normalizes a train item returned by RailKit into canonical format
+ * expected by DirectJourneyService and JourneyRecoveryService.
+ */
+export function normalizeRailKitTrain(rkTrain, defaultFrom = '', defaultTo = '') {
+  if (!rkTrain) return null;
+  const dayNames = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  let runDays = [];
+  if (typeof rkTrain.running_days === 'string' && rkTrain.running_days.length === 7) {
+    runDays = rkTrain.running_days
+      .split('')
+      .map((flag, idx) => (flag === '1' ? dayNames[idx] : null))
+      .filter(Boolean);
+  } else if (Array.isArray(rkTrain.runDays)) {
+    runDays = rkTrain.runDays;
+  }
+
+  let durationMinutes = null;
+  if (rkTrain.travel_time) {
+    const m = String(rkTrain.travel_time).match(/(\d+):(\d+)/);
+    if (m) durationMinutes = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  }
+
+  const fromCode = rkTrain.from_stn_code || defaultFrom;
+  const toCode = rkTrain.to_stn_code || defaultTo;
+  const fromName = rkTrain.from_stn_name || rkTrain.source_stn_name || fromCode;
+  const toName = rkTrain.to_stn_name || rkTrain.dstn_stn_name || toCode;
+  const trainNum = String(rkTrain.train_no || rkTrain.trainNumber || rkTrain.number || '');
+  const trainName = rkTrain.train_name || rkTrain.trainName || rkTrain.name || 'Express';
+
+  let classes = [];
+  if (Array.isArray(rkTrain.classes)) {
+    classes = rkTrain.classes.map((c) => String(c).trim().toUpperCase());
+  } else if (typeof rkTrain.classes === 'string') {
+    classes = rkTrain.classes.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+  } else if (typeof rkTrain.train_type === 'string') {
+    classes = rkTrain.train_type.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+  }
+
+  return {
+    train: {
+      number: trainNum,
+      name: trainName,
+      runDays,
+      classes,
+    },
+    trainNumber: trainNum,
+    trainName,
+    classes,
+    from: {
+      code: fromCode,
+      name: fromName,
+      departure: rkTrain.from_time || rkTrain.departureTime || '06:00',
+      day: 1,
+    },
+    to: {
+      code: toCode,
+      name: toName,
+      arrival: rkTrain.to_time || rkTrain.arrivalTime || '18:00',
+      day: 1,
+    },
+    durationMinutes,
+    duration: durationMinutes,
+    distance: Number(rkTrain.distance) || 500,
+    distanceKm: Number(rkTrain.distance) || 500,
+    runDays,
+    source: 'railkit',
+    raw: rkTrain,
+  };
+}
 
