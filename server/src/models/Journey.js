@@ -92,6 +92,18 @@ const JourneySchema = new Schema(
       type: Boolean,
       default: false,
     },
+    isClusterShift: {
+      type: Boolean,
+      default: false,
+    },
+    clusterNote: {
+      type: String,
+      default: null,
+    },
+    stationDifference: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
     schemaVersion: {
       type: Number,
       default: 1,

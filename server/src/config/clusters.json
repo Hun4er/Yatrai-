@@ -1,0 +1,218 @@
+{
+  "delhi": {
+    "name": "Delhi NCR",
+    "primaryCode": "NDLS",
+    "stations": [
+      {
+        "code": "NDLS",
+        "name": "NEW DELHI",
+        "lat": 28.642464,
+        "lon": 77.220154
+      },
+      {
+        "code": "DLI",
+        "name": "DELHI JN",
+        "lat": 28.661596,
+        "lon": 77.228136
+      },
+      {
+        "code": "NZM",
+        "name": "HAZRAT NIZAMUDDIN JN",
+        "lat": 28.58731,
+        "lon": 77.254229
+      },
+      {
+        "code": "ANVT",
+        "name": "ANAND VIHAR TERMINAL",
+        "lat": 28.643218,
+        "lon": 77.307444
+      },
+      {
+        "code": "DEE",
+        "name": "DELHI SARAI ROHILLA",
+        "lat": 28.662952,
+        "lon": 77.187066
+      },
+      {
+        "code": "DSA",
+        "name": "DELHI SHAHDARA",
+        "lat": 28.672968,
+        "lon": 77.293024
+      }
+    ]
+  },
+  "patna": {
+    "name": "Patna",
+    "primaryCode": "PNBE",
+    "stations": [
+      {
+        "code": "PNBE",
+        "name": "PATNA JN",
+        "lat": 25.60287,
+        "lon": 85.137134
+      },
+      {
+        "code": "DNR",
+        "name": "DANAPUR",
+        "lat": 25.582201,
+        "lon": 85.044909
+      },
+      {
+        "code": "PPTA",
+        "name": "PATLIPUTRA",
+        "lat": 25.62155,
+        "lon": 85.068892
+      },
+      {
+        "code": "RJPB",
+        "name": "RAJENDRA NAGAR TERMINAL",
+        "lat": 25.603141,
+        "lon": 85.162239
+      }
+    ]
+  },
+  "varanasi": {
+    "name": "Varanasi",
+    "primaryCode": "BSB",
+    "stations": [
+      {
+        "code": "BSB",
+        "name": "VARANASI",
+        "lat": 25.326901,
+        "lon": 82.986088
+      },
+      {
+        "code": "BSBS",
+        "name": "BANARAS",
+        "lat": 25.29975,
+        "lon": 82.971856
+      }
+    ]
+  },
+  "surat": {
+    "name": "Surat",
+    "primaryCode": "ST",
+    "stations": [
+      {
+        "code": "ST",
+        "name": "SURAT",
+        "lat": 21.206418,
+        "lon": 72.840643
+      },
+      {
+        "code": "UDN",
+        "name": "UDHNA JN",
+        "lat": 21.170766,
+        "lon": 72.851071
+      },
+      {
+        "code": "BHET",
+        "name": "BHESTAN",
+        "lat": 21.1279,
+        "lon": 72.8613
+      }
+    ]
+  },
+  "mumbai": {
+    "name": "Mumbai",
+    "primaryCode": "CSMT",
+    "stations": [
+      {
+        "code": "CSMT",
+        "name": "CHHATRAPATI SHIVAJI MAHARAJ TERMINUS",
+        "lat": 18.944101,
+        "lon": 72.836523
+      },
+      {
+        "code": "MMCT",
+        "name": "MUMBAI CENTRAL",
+        "lat": 18.970727,
+        "lon": 72.819443
+      },
+      {
+        "code": "BDTS",
+        "name": "BANDRA TERMINUS",
+        "lat": 19.062341,
+        "lon": 72.840965
+      },
+      {
+        "code": "LTT",
+        "name": "LOKMANYATILAK",
+        "lat": 19.07025,
+        "lon": 72.891669
+      },
+      {
+        "code": "DR",
+        "name": "DADAR",
+        "lat": 19.017189,
+        "lon": 72.842982
+      },
+      {
+        "code": "DDR",
+        "name": "DADAR",
+        "lat": 19.019441,
+        "lon": 72.843175
+      }
+    ]
+  },
+  "kolkata": {
+    "name": "Kolkata",
+    "primaryCode": "HWH",
+    "stations": [
+      {
+        "code": "HWH",
+        "name": "HOWRAH JN",
+        "lat": 22.584058,
+        "lon": 88.340979
+      },
+      {
+        "code": "SDAH",
+        "name": "SEALDAH",
+        "lat": 22.567098,
+        "lon": 88.375053
+      },
+      {
+        "code": "KOAA",
+        "name": "KOLKATTA TERMINAL",
+        "lat": 22.601135,
+        "lon": 88.385139
+      },
+      {
+        "code": "SHM",
+        "name": "SHALIMAR",
+        "lat": 22.555208,
+        "lon": 88.315315
+      }
+    ]
+  },
+  "lucknow": {
+    "name": "Lucknow",
+    "primaryCode": "LKO",
+    "stations": [
+      {
+        "code": "LKO",
+        "name": "LUCKNOW JN",
+        "lat": 26.830505,
+        "lon": 80.925121
+      },
+      {
+        "code": "LJN",
+        "name": "LUCKNOW LJN",
+        "lat": 26.831807,
+        "lon": 80.918427
+      }
+    ]
+  },
+  "gaya": {
+    "name": "Gaya",
+    "primaryCode": "GAYA",
+    "stations": [
+      {
+        "code": "GAYA",
+        "name": "GAYA JN",
+        "lat": 24.804188,
+        "lon": 84.999504
+      }
+    ]
+  }
+}

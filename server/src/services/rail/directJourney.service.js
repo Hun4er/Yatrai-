@@ -1,10 +1,13 @@
-import railRadarAdapter from '../../providers/rail/railRadar.adapter.js';
-import { resolveStationCode, getClusterStationCodes } from '../../providers/transport/rail/rail.provider.js';
+import railRadarAdapter, { normalizeRailKitTrain } from '../../providers/rail/railRadar.adapter.js';
+import railKitAdapter from '../../providers/rail/railKit.adapter.js';
+import { resolveStationCode } from '../../providers/transport/rail/rail.provider.js';
+import clusterService from './cluster.service.js';
 import availabilityService, { AVAILABILITY_STATUS, JOURNEY_AVAILABILITY, normalizeSeatAvailability } from './availability.service.js';
 import fareService from './fare.service.js';
 import logger from '../../utils/logger.js';
 import { calculateJourneyTiming } from '../../utils/railwayTime.js';
 import { findVerifiedDirectTrains } from './verifiedTrainData.js';
+import config from '../../config/index.js';
 
 /**
  * Direct Search Status Codes (Section 3)
@@ -25,23 +28,23 @@ export const DIRECT_SEARCH_STATUS = {
  * DirectJourneyService
  *
  * Implements Section 3 & 5:
- * - Direct train search via RailRadar (sole external provider)
- * - Cluster/metro station group resolution
- * - Accurate Indian railway timetable and IST timing calculation
- * - Confirmed-seat availability validation
- * - Strictly 1 best confirmed direct train initial recommendation
- * - Excludes waitlist/RAC from confirmed initial recommendation
- * - Determines whether recovery engine should be activated
+ * - Direct train search via RailKit/RailRadar
+ * - Cluster/metro station group resolution across all pairs
+ * - Date-independent timetable data with local running-day filtering
+ * - Timetable-score ranking before availability validation
+ * - Confirmed-seat availability validation bounded to maxDirectRequests
+ * - Station difference labeling (code, name, distance)
  */
 export class DirectJourneyService {
   constructor(dependencies = {}) {
     this.railRadar = dependencies.railRadar || railRadarAdapter;
+    this.railKit = dependencies.railKit || railKitAdapter;
     this.availabilityService = dependencies.availabilityService || availabilityService;
     this.fareService = dependencies.fareService || fareService;
   }
 
   /**
-   * Searches for direct trains matching the user request and evaluates availability.
+   * Searches for direct trains matching the user request across cluster pairs and evaluates availability.
    *
    * @param {Object} searchContext
    * @param {Object} options
@@ -59,99 +62,119 @@ export class DirectJourneyService {
     const originCode = resolveStationCode(origin);
     const destCode = resolveStationCode(destination);
 
-    // 1. Query direct trains between primary stations via RailRadar
+    const fromClusters = clusterService.getClusterStationCodes(originCode);
+    const toClusters = clusterService.getClusterStationCodes(destCode);
+
+    // Build unique cluster pairs with requested pair first
+    const clusterPairs = [];
+    clusterPairs.push({ from: originCode, to: destCode, isPrimary: true });
+    for (const f of fromClusters) {
+      for (const t of toClusters) {
+        if (f === originCode && t === destCode) continue;
+        clusterPairs.push({ from: f, to: t, isPrimary: false });
+      }
+    }
+
+    logger.info(
+      `[DirectJourneyService] Searching direct trains across ${clusterPairs.length} cluster pairs: [${clusterPairs
+        .map((p) => `${p.from}->${p.to}`)
+        .join(', ')}] on ${departureDate}`
+    );
+
     const searchOpts = { ...options, departureDate, date: departureDate, isRecovery: false };
-    let searchResult = await this.railRadar.searchDirectTrains(originCode, destCode, searchOpts);
+    const seenTrainNumbers = new Map();
+    let anyProviderSucceeded = false;
+    let isRateLimited = false;
+    let isMonthlyQuota = false;
+    let lastError = null;
 
-    logger.info(`[DIAGNOSTIC - STAGE 1 (TIMETABLE FETCH)] Direct search for ${originCode} -> ${destCode} on ${departureDate}: success=${searchResult.success}, trainsCount=${searchResult.trains?.length || 0}, error=${searchResult.error || 'none'}`);
+    for (const pair of clusterPairs) {
+      const { from: f, to: t } = pair;
+      let pairTrains = [];
 
-    // Handle provider complete failure (e.g. timeout, 429 quota exceeded, disabled, connection error)
-    if (!searchResult.success) {
-      const isDisabled = searchResult.reason === 'PROVIDER_DISABLED';
-      const isRateLimited =
-        !isDisabled &&
-        (searchResult.statusCode === 429 ||
-          /rate limit|quota exceeded|429/i.test(String(searchResult.error)));
-      const isMonthlyQuota = Boolean(
-        searchResult.isMonthlyQuota ||
-        /monthly quota/i.test(String(searchResult.error))
-      );
-
-      // When provider fails (timeout, 5xx, rate-limited, network failure), do NOT silently mask error with static schedules
-      // unless explicitly opted in via options.allowTimetableFallback === true
-      if (options.allowTimetableFallback === true) {
-        const fromClusters = getClusterStationCodes(origin, originCode);
-        const toClusters = getClusterStationCodes(destination, destCode);
-        const verifiedFallback = [];
-        for (const f of fromClusters.slice(0, 3)) {
-          for (const t of toClusters.slice(0, 3)) {
-            const v = findVerifiedDirectTrains(f, t, departureDate);
-            if (v.length > 0) verifiedFallback.push(...v);
-          }
+      try {
+        // Query RailKit date-independent timetable (cached with 24h TTL)
+        const rkRes = await this.railKit.searchTrainBetweenStations(f, t);
+        if (rkRes && rkRes.success && Array.isArray(rkRes.data) && rkRes.data.length > 0) {
+          anyProviderSucceeded = true;
+          pairTrains = rkRes.data.map((item) => normalizeRailKitTrain(item, f, t));
         }
-        if (verifiedFallback.length > 0) {
-          searchResult = { success: true, trains: verifiedFallback, source: 'verified_schedule', isTimetableFallback: true };
+      } catch (err) {
+        logger.debug(`[DirectJourneyService] RailKit search failed for ${f}->${t}: ${err.message}`);
+        lastError = err.message;
+      }
+
+      // If RailKit had 0 trains or failed, try RailRadar
+      if (pairTrains.length === 0) {
+        try {
+          const rrRes = await this.railRadar.searchDirectTrains(f, t, { ...searchOpts, isRecovery: false });
+          if (rrRes && rrRes.success && Array.isArray(rrRes.trains) && rrRes.trains.length > 0) {
+            anyProviderSucceeded = true;
+            pairTrains = rrRes.trains;
+          } else if (rrRes && !rrRes.success) {
+            if (rrRes.isRateLimited) isRateLimited = true;
+            if (rrRes.isMonthlyQuota) isMonthlyQuota = true;
+          }
+        } catch (err) {
+          logger.debug(`[DirectJourneyService] RailRadar search failed for ${f}->${t}: ${err.message}`);
         }
       }
 
-      if (!searchResult.success) {
+      // If still 0, check static verified fallback
+      if (pairTrains.length === 0 && options.allowTimetableFallback === true) {
+        const verified = findVerifiedDirectTrains(f, t, departureDate);
+        if (verified.length > 0) {
+          anyProviderSucceeded = true;
+          pairTrains = verified;
+        }
+      }
+
+      // Deduplicate into seenTrainNumbers, preferring the pair closest to requested origin & dest
+      for (const train of pairTrains) {
+        const trainNum = String(train.train?.number || train.trainNumber || train.number || '');
+        if (!trainNum) continue;
+
+        const currentOriginDist = clusterService.calculateStationDistanceKm(originCode, f);
+        const currentDestDist = clusterService.calculateStationDistanceKm(destCode, t);
+        const currentTotalDist = currentOriginDist + currentDestDist;
+
+        if (!seenTrainNumbers.has(trainNum)) {
+          seenTrainNumbers.set(trainNum, { train, pair, totalDist: currentTotalDist, fromCode: f, toCode: t });
+        } else {
+          const existing = seenTrainNumbers.get(trainNum);
+          if (currentTotalDist < existing.totalDist) {
+            seenTrainNumbers.set(trainNum, { train, pair, totalDist: currentTotalDist, fromCode: f, toCode: t });
+          }
+        }
+      }
+    }
+
+    if (!anyProviderSucceeded && seenTrainNumbers.size === 0) {
+      if (isRateLimited || isMonthlyQuota) {
         return {
           status: isRateLimited ? 'RATE_LIMITED' : DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED,
           isRateLimited,
           isMonthlyQuota,
-          statusCode: searchResult.statusCode || (isRateLimited ? 429 : 500),
+          statusCode: isRateLimited ? 429 : 500,
           directJourneys: [],
           failureReason: isMonthlyQuota
             ? 'Railway API monthly quota exceeded (100 requests limit). Real-time search is currently paused.'
-            : (isRateLimited
-                ? 'Railway search is temporarily rate-limited. Please try again shortly.'
-                : isDisabled
-                  ? 'Railway provider is currently disabled. Please configure a valid API key.'
-                  : (searchResult.error || 'Direct train search provider failed to respond or quota exhausted.')),
-          shouldTriggerRecovery: false, // Provider failure must not be treated as proof no direct train exists
+            : 'Railway search is temporarily rate-limited. Please try again shortly.',
+          shouldTriggerRecovery: false,
         };
       }
+      return {
+        status: DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED,
+        isRateLimited: false,
+        isMonthlyQuota: false,
+        statusCode: 500,
+        directJourneys: [],
+        failureReason: lastError || 'Direct train search provider failed to respond.',
+        shouldTriggerRecovery: false,
+      };
     }
 
-    // If primary stations returned 0, try cluster station pairs (e.g. NDLS/DLI/NZM to PNBE/DNR/PPTA)
-    let trainItems = searchResult.trains || [];
-    if (trainItems.length === 0) {
-      const fromClusters = getClusterStationCodes(origin, originCode);
-      const toClusters = getClusterStationCodes(destination, destCode);
-
-      if (fromClusters.length > 1 || toClusters.length > 1) {
-        // 1. Check verified schedules first across cluster pairs (0 external API cost)
-        for (const f of fromClusters.slice(0, 3)) {
-          for (const t of toClusters.slice(0, 3)) {
-            const verified = findVerifiedDirectTrains(f, t, departureDate);
-            if (verified.length > 0) {
-              trainItems.push(...verified);
-            }
-          }
-        }
-
-        // 2. If still 0 and searchResult was success, query at most 1 primary cluster pair
-        if (trainItems.length === 0 && searchResult.success) {
-          const clusterPairs = [];
-          for (const f of fromClusters.slice(0, 2)) {
-            for (const t of toClusters.slice(0, 2)) {
-              if (f === originCode && t === destCode) continue;
-              clusterPairs.push({ f, t });
-            }
-          }
-          for (const { f, t } of clusterPairs.slice(0, 1)) {
-            const clusterRes = await this.railRadar.searchDirectTrains(f, t, searchOpts);
-            if (clusterRes.trains && clusterRes.trains.length > 0) {
-              trainItems.push(...clusterRes.trains);
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    // Handle no direct trains found
-    if (trainItems.length === 0) {
+    if (seenTrainNumbers.size === 0) {
       return {
         status: DIRECT_SEARCH_STATUS.DIRECT_NOT_FOUND,
         directJourneys: [],
@@ -160,18 +183,30 @@ export class DirectJourneyService {
       };
     }
 
-    // 2. Format candidate trains and check running day and suitability
+    // 2. Format candidate trains and check running day with boarding-day offset
     const formattedCandidates = [];
     const dateObj = departureDate instanceof Date ? departureDate : new Date(departureDate);
-    const dayOfWeek = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][dateObj.getUTCDay()];
+    const istEpoch = dateObj.getTime() + 5.5 * 60 * 60 * 1000;
+    const istDate = new Date(istEpoch);
+    const dayOfWeek = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][istDate.getUTCDay()];
 
-    for (const item of trainItems) {
+    for (const { train: item, fromCode: actualFrom, toCode: actualTo } of seenTrainNumbers.values()) {
       const trainNum = String(item.train?.number || item.trainNumber || item.number || '');
       const trainName = item.train?.name || item.trainName || item.name || 'Express';
       const runDays = item.train?.runDays || item.runDays || [];
 
-      // Check running day
-      const isRunningOnDate = runDays.length === 0 || runDays.map((d) => d.toLowerCase()).includes(dayOfWeek);
+      // Boarding day offset
+      let boardingOffset = 0;
+      if (item.from?.day && item.from.day > 1) {
+        boardingOffset = item.from.day - 1;
+      }
+      const sourceDayIndex = (istDate.getUTCDay() - boardingOffset + 7) % 7;
+      const sourceDayOfWeek = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][sourceDayIndex];
+
+      const isRunningOnDate =
+        runDays.length === 0 ||
+        runDays.map((d) => d.toLowerCase().slice(0, 3)).includes(sourceDayOfWeek) ||
+        runDays.map((d) => d.toLowerCase().slice(0, 3)).includes(dayOfWeek);
 
       const depStr = item.from?.departure || item.departureTime || '06:00';
       const arrStr = item.to?.arrival || item.arrivalTime || '18:00';
@@ -191,13 +226,26 @@ export class DirectJourneyService {
 
       const distanceKm = Math.round(Number(item.distance) || 750);
 
+      // Station differences
+      const originDiff = clusterService.getStationDifference(originCode, actualFrom, 'origin');
+      const destDiff = clusterService.getStationDifference(destCode, actualTo, 'destination');
+      const originPenalty = (originDiff?.distanceKm || 0) * 1.5;
+      const destPenalty = (destDiff?.distanceKm || 0) * 1.5;
+      const effectiveDuration = (timing.durationMinutes || 600) + originPenalty + destPenalty;
+      const timetableScore = Math.round(100000 / (effectiveDuration + 60));
+
+      const fromStnDetails = clusterService.getStationDetails(actualFrom);
+      const toStnDetails = clusterService.getStationDetails(actualTo);
+
       formattedCandidates.push({
         trainNumber: trainNum,
         trainName,
-        fromCode: item.from?.code || originCode,
-        toCode: item.to?.code || destCode,
-        fromStationName: item.from?.name || origin.name || originCode,
-        toStationName: item.to?.name || destination.name || destCode,
+        fromCode: actualFrom,
+        toCode: actualTo,
+        fromStationName: item.from?.name || fromStnDetails?.name || origin.name || actualFrom,
+        toStationName: item.to?.name || toStnDetails?.name || destination.name || actualTo,
+        fromStationDetails: fromStnDetails,
+        toStationDetails: toStnDetails,
         departureTime: timing.departureTime,
         arrivalTime: timing.arrivalTime,
         departureTimeFormatted: timing.departureLocalTime,
@@ -208,19 +256,19 @@ export class DirectJourneyService {
         duration: timing.durationMinutes,
         distance: distanceKm,
         isRunningOnDate,
+        timetableScore,
+        originDiff,
+        destDiff,
         raw: item,
       });
     }
 
-    // Filter trains running on the travel date
-    logger.info(`[DIAGNOSTIC - STAGE 2 (DATE/RUNNING-DAY FILTER)] Formatted candidate trains in=${formattedCandidates.length}, target dayOfWeek=${dayOfWeek}`);
-    for (const c of formattedCandidates) {
-      logger.info(`  [CANDIDATE] Train ${c.trainNumber} (${c.trainName}): runDays=[${c.raw.train?.runDays || c.raw.runDays || ''}], isRunningOnDate=${c.isRunningOnDate}`);
-    }
     const runningCandidates = formattedCandidates.filter((c) => c.isRunningOnDate);
-    logger.info(`[DIAGNOSTIC - STAGE 2 (DATE/RUNNING-DAY FILTER)] Output running trains count=${runningCandidates.length}`);
+    logger.info(
+      `[DirectJourneyService] Direct candidates across clusters: formatted=${formattedCandidates.length}, runningOnDate=${runningCandidates.length}`
+    );
+
     if (runningCandidates.length === 0) {
-      logger.info(`[DIAGNOSTIC - DROPPED TO ZERO AT STAGE 2] All ${formattedCandidates.length} trains dropped because none operate on ${dayOfWeek} (${departureDate})`);
       return {
         status: DIRECT_SEARCH_STATUS.DIRECT_NOT_RUNNING,
         directJourneys: [],
@@ -229,19 +277,41 @@ export class DirectJourneyService {
       };
     }
 
-    // 3. Concurrently validate availability and fares for running candidates (pre-ranked by duration, bounded to top 5)
-    const sortedCandidates = [...runningCandidates].sort((a, b) => (a.duration || 9999) - (b.duration || 9999));
-    const maxDirectCandidates = Math.min(5, sortedCandidates.length);
+    // 3. Rank running candidates by timetable score
+    const sortedCandidates = [...runningCandidates].sort((a, b) => b.timetableScore - a.timetableScore);
+    const maxDirectCandidates = Math.min(
+      Number(config.railRecovery?.maxDirectRequests || 4),
+      sortedCandidates.length
+    );
     const candidatesToValidate = sortedCandidates.slice(0, maxDirectCandidates);
-    logger.info(`[DIAGNOSTIC - STAGE 4 & 5 (ENRICHMENT START)] Validating availability & fare for top ${candidatesToValidate.length} pre-ranked direct candidates`);
-    const enrichedJourneys = await Promise.all(
-      candidatesToValidate.map(async (cand) => {
-        if (options.budgetTracker && !options.budgetTracker.canMakeDirectRequest()) {
-          logger.info(`[DirectJourneyService] Direct budget limit reached. Skipping enrichment for train ${cand.trainNumber}.`);
-          return null;
-        }
+    const unvalidatedCandidates = sortedCandidates.slice(maxDirectCandidates);
+    logger.info(
+      `[DirectJourneyService] Validating availability for top ${candidatesToValidate.length} candidates by timetable score`
+    );
 
-        const avail = await this.availabilityService.checkLegAvailability({
+    const enrichedJourneys = [];
+    for (const cand of candidatesToValidate) {
+      let avail;
+      if (options.budgetTracker && !options.budgetTracker.canMakeDirectRequest()) {
+        logger.info(`[DirectJourneyService] Direct budget limit reached. Marking train ${cand.trainNumber} as UNCHECKED.`);
+        avail = {
+          success: false,
+          provider: 'RailKit',
+          trainNumber: cand.trainNumber,
+          travelClass,
+          quota,
+          normalizedStatus: 'UNCHECKED',
+          originalStatus: 'UNCHECKED',
+          seatsAvailable: null,
+          isAvailable: false,
+          lastUpdated: new Date().toISOString(),
+          isLive: false,
+          isBudgetExhausted: true,
+          isUnchecked: true,
+          reason: 'BUDGET_EXHAUSTED',
+        };
+      } else {
+        avail = await this.availabilityService.checkLegAvailability({
           trainNumber: cand.trainNumber,
           fromCode: cand.fromCode,
           toCode: cand.toCode,
@@ -251,62 +321,79 @@ export class DirectJourneyService {
           budgetTracker: options.budgetTracker,
           isRecovery: false,
         });
+      }
 
-        const fare = await this.fareService.getLegFare({
+      const fare = await this.fareService.getLegFare({
+        trainNumber: cand.trainNumber,
+        fromCode: cand.fromCode,
+        toCode: cand.toCode,
+        date: cand.departureTime,
+        travelClass,
+        quota,
+        distanceKm: cand.distance,
+        passengers,
+        budgetTracker: options.budgetTracker,
+        isRecovery: false,
+        availability: avail,
+        isSearchEnrichment: true,
+      });
+
+      const isShift = Boolean(cand.originDiff || cand.destDiff);
+      const shiftLabels = [cand.originDiff?.label, cand.destDiff?.label].filter(Boolean);
+      const shiftSummary = shiftLabels.join('. ');
+      const stationDifference = {
+        hasDifference: isShift,
+        originShift: cand.originDiff,
+        destinationShift: cand.destDiff,
+        summaryLabel: shiftSummary,
+      };
+
+      enrichedJourneys.push({
+        origin: origin._id || origin.id || origin,
+        destination: destination._id || destination.id || destination,
+        departureTime: cand.departureTime,
+        arrivalTime: cand.arrivalTime,
+        departureTimeFormatted: cand.departureTimeFormatted,
+        arrivalTimeFormatted: cand.arrivalTimeFormatted,
+        departureDateFormatted: cand.departureDateFormatted,
+        arrivalDateFormatted: cand.arrivalDateFormatted,
+        dayOffset: cand.dayOffset,
+        duration: cand.duration,
+        totalDistance: cand.distance,
+        totalPrice: fare.totalFare,
+        currency: fare.currency || 'INR',
+        numberOfTransfers: 0,
+        transportModes: ['rail'],
+        status: 'scheduled',
+        source: 'rail',
+        isDirectTrain: true,
+        isClusterShift: isShift,
+        clusterNote: shiftSummary,
+        stationDifference,
+        availability: avail,
+        availabilityStatus:
+          avail.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE
+            ? 'AVAILABILITY_VERIFIED'
+            : (avail.normalizedStatus === AVAILABILITY_STATUS.RAC ? 'RAC_AVAILABLE' : (avail.isUnchecked ? 'UNCHECKED' : 'WAITLIST_ONLY')),
+        isBookable: avail.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE || avail.normalizedStatus === AVAILABILITY_STATUS.RAC,
+        pricing: fare,
+        metadata: {
+          isDirect: true,
+          provider: 'Indian Railways (RailKit)',
           trainNumber: cand.trainNumber,
-          fromCode: cand.fromCode,
-          toCode: cand.toCode,
-          date: cand.departureTime,
-          travelClass,
-          quota,
-          distanceKm: cand.distance,
-          passengers,
-          budgetTracker: options.budgetTracker,
-          isRecovery: false,
-          availability: avail,
-          isSearchEnrichment: true,
-        });
-
-        return {
-          origin: origin._id || origin.id || origin,
-          destination: destination._id || destination.id || destination,
-          departureTime: cand.departureTime,
-          arrivalTime: cand.arrivalTime,
-          departureTimeFormatted: cand.departureTimeFormatted,
-          arrivalTimeFormatted: cand.arrivalTimeFormatted,
-          departureDateFormatted: cand.departureDateFormatted,
-          arrivalDateFormatted: cand.arrivalDateFormatted,
-          dayOffset: cand.dayOffset,
-          duration: cand.duration,
-          totalDistance: cand.distance,
-          totalPrice: fare.totalFare,
-          currency: fare.currency || 'INR',
-          numberOfTransfers: 0,
-          transportModes: ['rail'],
-          status: 'scheduled',
-          source: 'rail',
-          isDirectTrain: true,
-          availability: avail,
-          availabilityStatus:
-            avail.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE
-              ? 'AVAILABILITY_VERIFIED'
-              : (avail.normalizedStatus === AVAILABILITY_STATUS.RAC ? 'RAC_AVAILABLE' : 'WAITLIST_ONLY'),
-          isBookable: avail.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE || avail.normalizedStatus === AVAILABILITY_STATUS.RAC,
-          pricing: fare,
-          metadata: {
-            isDirect: true,
-            provider: 'Indian Railways (RailRadar)',
-            trainNumber: cand.trainNumber,
-            trainName: cand.trainName,
-            fromStation: cand.fromStationName,
-            toStation: cand.toStationName,
-            fromStationCode: cand.fromCode,
-            toStationCode: cand.toCode,
-            isEstimatedPrice: fare.isEstimated,
-            isFareAvailable: Boolean(fare.totalFare !== null && fare.totalFare > 0),
-            fareUnavailable: Boolean(!fare.totalFare || fare.fareUnavailable),
-            availabilityStatus: avail.normalizedStatus,
-          },
+          trainName: cand.trainName,
+          fromStation: cand.fromStationName,
+          toStation: cand.toStationName,
+          fromStationCode: cand.fromCode,
+          toStationCode: cand.toCode,
+          isEstimatedPrice: fare.isEstimated,
+          isFareAvailable: Boolean(fare.totalFare !== null && fare.totalFare > 0),
+          fareUnavailable: Boolean(!fare.totalFare || fare.fareUnavailable),
+          availabilityStatus: avail.normalizedStatus,
+          isClusterShift: isShift,
+          clusterNote: shiftSummary,
+          stationDifference,
+        },
           legs: [
             {
               sequence: 1,
@@ -361,9 +448,124 @@ export class DirectJourneyService {
               },
             },
           ],
-        };
-      })
-    );
+        });
+    }
+
+    // Retain remaining direct candidates as UNCHECKED timetable journeys (saved API budget)
+    for (const uCand of unvalidatedCandidates) {
+      const isShift = Boolean(uCand.originDiff || uCand.destDiff);
+      const shiftLabels = [uCand.originDiff?.label, uCand.destDiff?.label].filter(Boolean);
+      const shiftSummary = shiftLabels.join('. ');
+      const stationDifference = {
+        hasDifference: isShift,
+        originShift: uCand.originDiff,
+        destinationShift: uCand.destDiff,
+        summaryLabel: shiftSummary,
+      };
+      const unavail = {
+        success: false,
+        provider: 'RailKit',
+        trainNumber: uCand.trainNumber,
+        travelClass,
+        quota,
+        normalizedStatus: 'UNCHECKED',
+        originalStatus: 'UNCHECKED',
+        seatsAvailable: null,
+        isAvailable: false,
+        lastUpdated: new Date().toISOString(),
+        isLive: false,
+        isBudgetExhausted: true,
+        isUnchecked: true,
+        reason: 'TIMETABLE_ONLY',
+      };
+      const estPrice = Math.round((uCand.distance || 750) * 1.6);
+      enrichedJourneys.push({
+        origin: origin._id || origin.id || origin,
+        destination: destination._id || destination.id || destination,
+        departureTime: uCand.departureTime,
+        arrivalTime: uCand.arrivalTime,
+        departureTimeFormatted: uCand.departureTimeFormatted,
+        arrivalTimeFormatted: uCand.arrivalTimeFormatted,
+        departureDateFormatted: uCand.departureDateFormatted,
+        arrivalDateFormatted: uCand.arrivalDateFormatted,
+        dayOffset: uCand.dayOffset,
+        duration: uCand.duration,
+        totalDistance: uCand.distance,
+        totalPrice: estPrice,
+        currency: 'INR',
+        numberOfTransfers: 0,
+        transportModes: ['rail'],
+        status: 'scheduled',
+        source: 'rail',
+        isDirectTrain: true,
+        isClusterShift: isShift,
+        clusterNote: shiftSummary,
+        stationDifference,
+        availability: unavail,
+        availabilityStatus: 'UNCHECKED',
+        isBookable: false,
+        pricing: { totalFare: estPrice, currency: 'INR', isEstimated: true },
+        metadata: {
+          isDirect: true,
+          provider: 'Indian Railways (RailKit)',
+          trainNumber: uCand.trainNumber,
+          trainName: uCand.trainName,
+          fromStation: uCand.fromStationName,
+          toStation: uCand.toStationName,
+          fromStationCode: uCand.fromCode,
+          toStationCode: uCand.toCode,
+          isEstimatedPrice: true,
+          isFareAvailable: false,
+          fareUnavailable: false,
+          availabilityStatus: 'UNCHECKED',
+          isClusterShift: isShift,
+          clusterNote: shiftSummary,
+          stationDifference,
+        },
+        legs: [
+          {
+            sequence: 1,
+            origin: origin?._id || origin?.id || uCand.fromCode,
+            destination: destination?._id || destination?.id || uCand.toCode,
+            originStation: {
+              name: uCand.fromStationName || uCand.fromCode,
+              stationCode: uCand.fromCode,
+              code: uCand.fromCode,
+              city: uCand.fromStationName || uCand.fromCode,
+            },
+            destinationStation: {
+              name: uCand.toStationName || uCand.toCode,
+              stationCode: uCand.toCode,
+              code: uCand.toCode,
+              city: uCand.toStationName || uCand.toCode,
+            },
+            mode: 'rail',
+            providerCode: 'IRCTC',
+            departureTime: uCand.departureTime,
+            arrivalTime: uCand.arrivalTime,
+            departureTimeFormatted: uCand.departureTimeFormatted,
+            arrivalTimeFormatted: uCand.arrivalTimeFormatted,
+            departureDateFormatted: uCand.departureDateFormatted,
+            arrivalDateFormatted: uCand.arrivalDateFormatted,
+            dayOffset: uCand.dayOffset,
+            duration: uCand.duration,
+            distance: uCand.distance,
+            price: estPrice,
+            currency: 'INR',
+            isEstimated: true,
+            vehicle: { type: 'Train', identifier: uCand.trainNumber },
+            service: {
+              name: uCand.trainName,
+              operator: 'Indian Railways',
+              class: travelClass,
+              number: uCand.trainNumber,
+            },
+            booking: { status: 'unchecked', isBookable: false },
+            availability: unavail,
+          },
+        ],
+      });
+    }
 
     const validEnrichedJourneys = enrichedJourneys.filter(Boolean);
 
