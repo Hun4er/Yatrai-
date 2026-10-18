@@ -38,7 +38,9 @@ export const DIRECT_SEARCH_STATUS = {
 export class DirectJourneyService {
   constructor(dependencies = {}) {
     this.railRadar = dependencies.railRadar || railRadarAdapter;
-    this.railKit = dependencies.railKit || railKitAdapter;
+    this.railKit = dependencies.railKit !== undefined
+      ? dependencies.railKit
+      : (dependencies.railRadar ? null : railKitAdapter);
     this.availabilityService = dependencies.availabilityService || availabilityService;
     this.fareService = dependencies.fareService || fareService;
   }
@@ -92,31 +94,43 @@ export class DirectJourneyService {
       const { from: f, to: t } = pair;
       let pairTrains = [];
 
-      try {
-        // Query RailKit date-independent timetable (cached with 24h TTL)
-        const rkRes = await this.railKit.searchTrainBetweenStations(f, t);
-        if (rkRes && rkRes.success && Array.isArray(rkRes.data) && rkRes.data.length > 0) {
-          anyProviderSucceeded = true;
-          pairTrains = rkRes.data.map((item) => normalizeRailKitTrain(item, f, t));
+      if (this.railKit) {
+        try {
+          // Query RailKit date-independent timetable (cached with 24h TTL)
+          const rkRes = await this.railKit.searchTrainBetweenStations(f, t);
+          if (rkRes && rkRes.success) {
+            anyProviderSucceeded = true;
+            if (Array.isArray(rkRes.data) && rkRes.data.length > 0) {
+              pairTrains = rkRes.data.map((item) => normalizeRailKitTrain(item, f, t));
+            }
+          }
+        } catch (err) {
+          logger.debug(`[DirectJourneyService] RailKit search failed for ${f}->${t}: ${err.message}`);
+          lastError = err.message;
         }
-      } catch (err) {
-        logger.debug(`[DirectJourneyService] RailKit search failed for ${f}->${t}: ${err.message}`);
-        lastError = err.message;
       }
 
       // If RailKit had 0 trains or failed, try RailRadar
-      if (pairTrains.length === 0) {
+      if (pairTrains.length === 0 && this.railRadar) {
         try {
           const rrRes = await this.railRadar.searchDirectTrains(f, t, { ...searchOpts, isRecovery: false });
-          if (rrRes && rrRes.success && Array.isArray(rrRes.trains) && rrRes.trains.length > 0) {
+          if (rrRes && rrRes.success) {
             anyProviderSucceeded = true;
-            pairTrains = rrRes.trains;
+            if (Array.isArray(rrRes.trains) && rrRes.trains.length > 0) {
+              pairTrains = rrRes.trains;
+            }
           } else if (rrRes && !rrRes.success) {
-            if (rrRes.isRateLimited) isRateLimited = true;
-            if (rrRes.isMonthlyQuota) isMonthlyQuota = true;
+            const isRateLimit =
+              rrRes.isRateLimited ||
+              rrRes.statusCode === 429 ||
+              /rate limit|quota exceeded|429/i.test(String(rrRes.error));
+            if (isRateLimit) isRateLimited = true;
+            if (rrRes.isMonthlyQuota || /monthly quota/i.test(String(rrRes.error))) isMonthlyQuota = true;
+            if (rrRes.error) lastError = rrRes.error;
           }
         } catch (err) {
           logger.debug(`[DirectJourneyService] RailRadar search failed for ${f}->${t}: ${err.message}`);
+          lastError = err.message;
         }
       }
 
