@@ -21,6 +21,20 @@ const server = app.listen(config.port, async () => {
   }
 });
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    logger.error(
+      `[Server Startup Error] Port ${config.port} is already in use by another process. Please terminate the existing process or choose a different PORT.`
+    );
+    process.exit(1);
+  } else {
+    logger.error(`[Server Startup Error] Failed to start HTTP server: ${err.message}`, {
+      stack: err.stack,
+    });
+    process.exit(1);
+  }
+});
+
 /**
  * Graceful Shutdown Handler
  */

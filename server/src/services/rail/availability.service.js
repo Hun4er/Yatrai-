@@ -85,6 +85,7 @@ export class AvailabilityService {
         lastUpdated: new Date().toISOString(),
         isLive: false,
         isBudgetExhausted: true,
+        isUnchecked: true,
         reason: 'BUDGET_EXHAUSTED',
       };
     }
@@ -93,7 +94,10 @@ export class AvailabilityService {
 
     // 1. Primary provider: RailKit
     try {
-      result = await this.railKit.getAvailability(num, from, to, dateStr, travelClass, quota);
+      result = await this.railKit.getAvailability(num, from, to, dateStr, travelClass, quota, {
+        budgetTracker,
+        isRecovery,
+      });
     } catch (err) {
       logger.debug(`[AvailabilityService] RailKit availability check failed: ${err.message}`);
     }

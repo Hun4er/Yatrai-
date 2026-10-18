@@ -102,7 +102,9 @@ class PersistentCacheService {
     if (mongoose.connection.readyState === 1) {
       try {
         await PersistentCache.deleteOne({ key });
-      } catch {}
+      } catch {
+        // Fallback silently if cache deletion fails
+      }
     }
   }
 

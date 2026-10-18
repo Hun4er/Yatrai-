@@ -82,9 +82,9 @@ export class RailRadarAdapter {
     this.name = 'RailRadar';
     this.code = 'RAILRADAR';
     this.apiKey = options.apiKey || config.providers.railradar?.apiKey || config.providers.rail?.apiKey || null;
-    this.apiUrl = (options.apiUrl || config.providers.railradar?.apiUrl || config.providers.rail?.apiUrl || 'https://api.railradar.in/v1').replace(/\/$/, '');
-    this.timeoutMs = options.timeoutMs || config.providers.railradar?.timeoutMs || 5000;
+    this.apiUrl = (options.apiUrl || config.providers.railradar?.apiUrl || 'https://api.railradar.in/v1').replace(/\/$/, '');
     this.enabled = options.enabled ?? (config.providers.railradar?.enabled ?? true);
+    this.enableAvailabilityEndpoint = options.enableAvailabilityEndpoint ?? (config.providers.railradar?.enableAvailabilityEndpoint ?? true);
 
     // In-memory cache: key -> { data, expiresAt }
     this.cache = new Map();

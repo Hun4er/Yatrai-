@@ -5,6 +5,7 @@ import logger from '../../utils/logger.js';
 import config from '../../config/index.js';
 import persistentCacheService, { CACHE_TTL_CONFIG } from '../../services/rail/persistentCache.service.js';
 import apiUsageService from '../../services/rail/apiUsage.service.js';
+import { getCurrentBudgetTracker } from '../../services/rail/requestBudget.js';
 
 /**
  * RailKit Provider Adapter
@@ -94,14 +95,17 @@ class RailKitAdapter {
   }
 
   /**
-   * Cached + deduplicated fetch with MongoDB persistence and in-flight coalescing.
+   * Cached + deduplicated fetch with MongoDB persistence, in-flight coalescing,
+   * and atomic budget reservation for outbound availability calls.
    */
-  async _cachedFetch(cacheKey, ttlMs, requestFn, category = 'availability') {
+  async _cachedFetch(cacheKey, ttlMs, requestFn, category = 'availability', options = {}) {
     const now = Date.now();
+    const tracker = options?.budgetTracker || getCurrentBudgetTracker();
 
     // 1. Check L1 Memory cache
     const cached = this._cache.get(cacheKey);
     if (cached && cached.expiresAt > now) {
+      if (tracker) tracker.recordCacheHit();
       return cached.data;
     }
 
@@ -109,24 +113,44 @@ class RailKitAdapter {
     const persistent = await persistentCacheService.get(cacheKey);
     if (persistent !== null && persistent !== undefined) {
       this._cache.set(cacheKey, { data: persistent, expiresAt: now + ttlMs });
+      if (tracker) tracker.recordCacheHit();
       return persistent;
     }
 
     // 3. In-flight promise coalescing
     if (this._inFlight.has(cacheKey)) {
+      if (tracker) tracker.deduplicatedCount++;
       return this._inFlight.get(cacheKey);
+    }
+
+    // 4. Budget check & Atomic Reservation (Availability / Recovery / Direct)
+    let reservation = null;
+    if (category === 'availability') {
+      if (!tracker) {
+        logger.warn(`[RailKitAdapter] Outbound availability call rejected: No BudgetTracker in context for ${cacheKey}`);
+        return null;
+      }
+      const budgetCategory = options?.isRecovery !== false ? 'recovery' : 'direct';
+      reservation = tracker.reserve(budgetCategory);
+      if (!reservation) {
+        logger.info(`[RailKitAdapter] Budget limit reached for ${budgetCategory}. Outbound call skipped for ${cacheKey}`);
+        return null;
+      }
     }
 
     const promise = (async () => {
       await this._acquireSlot();
       try {
         const usage = await this._recordRequest();
-        if (usage.shouldBlockNonEssential && category !== 'availability') {
+        if (usage?.shouldBlockNonEssential && category !== 'availability') {
           logger.warn(`[RailKitAdapter] Halting non-essential ${category} request due to 95% quota cap`);
+          reservation?.release();
           return null;
         }
 
         const data = await requestFn();
+        reservation?.commit();
+
         if (data !== null && data !== undefined) {
           this._cache.set(cacheKey, { data, expiresAt: Date.now() + ttlMs });
           await persistentCacheService.set(cacheKey, data, category, ttlMs);
@@ -135,6 +159,7 @@ class RailKitAdapter {
         }
         return data;
       } catch (err) {
+        reservation?.commit();
         if (err.status === 404 || err.status === 400) {
           await persistentCacheService.setNegative(cacheKey, { error: err.message, status: err.status });
         }
@@ -192,7 +217,9 @@ class RailKitAdapter {
     };
     try {
       fs.appendFileSync('railkit_audit.log', JSON.stringify(auditRecord) + '\n');
-    } catch (_) {}
+    } catch {
+      // Ignore audit logging file write errors
+    }
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -234,34 +261,7 @@ class RailKitAdapter {
     }
   }
 
-  /**
-   * Cached + deduplicated fetch.
-   */
-  async _cachedFetch(cacheKey, ttlMs, requestFn) {
-    const now = Date.now();
-    const cached = this._cache.get(cacheKey);
-    if (cached && cached.expiresAt > now) return cached.data;
 
-    if (this._inFlight.has(cacheKey)) return this._inFlight.get(cacheKey);
-
-    const promise = (async () => {
-      await this._acquireSlot();
-      try {
-        this._recordRequest();
-        const data = await requestFn();
-        if (data !== null && data !== undefined) {
-          this._cache.set(cacheKey, { data, expiresAt: Date.now() + ttlMs });
-        }
-        return data;
-      } finally {
-        this._releaseSlot();
-        this._inFlight.delete(cacheKey);
-      }
-    })();
-
-    this._inFlight.set(cacheKey, promise);
-    return promise;
-  }
 
   /**
    * Validate station code format. Format check only (saves budget).
@@ -295,9 +295,10 @@ class RailKitAdapter {
    * @param {string} coach - 1A, 2A, 3A, 3E, CC, EC, EA, FC, SL, 2S, etc.
    * @param {string} quota - GN, TQ, PT, LD, DF, FT, LB, etc.
    */
-  async getAvailability(trainNo, fromStnCode, toStnCode, date, coach = '3A', quota = 'GN') {
+  async getAvailability(trainNo, fromStnCode, toStnCode, date, coach = '3A', quota = 'GN', options = {}) {
     // Support object argument if passed
     if (typeof trainNo === 'object' && trainNo !== null) {
+      options = trainNo.options || trainNo;
       ({
         trainNo,
         fromStnCode = trainNo.from || trainNo.fromCode,
@@ -327,11 +328,38 @@ class RailKitAdapter {
       return this._unknownAvailability(num, fromCode, toCode, internalDate, coach, quota, 'Invalid date');
     }
 
+    const tracker = options?.budgetTracker || getCurrentBudgetTracker();
+    if (!tracker) {
+      logger.warn(`[RailKitAdapter] Refusing availability call without BudgetTracker: ${num} ${fromCode}->${toCode}`);
+      return {
+        ...this._unknownAvailability(num, fromCode, toCode, internalDate, coach, quota, 'NO_BUDGET_TRACKER'),
+        isBudgetExhausted: true,
+        isUnchecked: true,
+        normalizedStatus: 'UNCHECKED',
+      };
+    }
+
     const cacheKey = `avail:rk:${num}:${fromCode}:${toCode}:${internalDate}:${coach}:${quota}`;
     const url = `${BASE_URL}/api/v1/seats/${num}/${fromCode}/${toCode}/${rkDate}/${coach}/${quota}`;
 
     try {
-      const json = await this._cachedFetch(cacheKey, CACHE_TTL_CONFIG.availability, () => this._fetch(url), 'availability');
+      const json = await this._cachedFetch(
+        cacheKey,
+        CACHE_TTL_CONFIG.availability,
+        () => this._fetch(url),
+        'availability',
+        { ...options, budgetTracker: tracker }
+      );
+
+      if (json === null) {
+        logger.debug(`[RailKitAdapter] getAvailability: budget exhausted or blocked for ${num} ${fromCode}->${toCode}`);
+        return {
+          ...this._unknownAvailability(num, fromCode, toCode, internalDate, coach, quota, 'BUDGET_EXHAUSTED'),
+          isBudgetExhausted: true,
+          isUnchecked: true,
+          normalizedStatus: 'UNCHECKED',
+        };
+      }
 
       if (!json || !json.data) {
         logger.debug(`[RailKitAdapter] getAvailability: empty response for ${num} ${fromCode}->${toCode}`);

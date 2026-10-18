@@ -85,12 +85,20 @@ export class LiveStatusService {
 
     const scheduledBuffer = Math.round((scheduledNextStart - scheduledEnd) / 60000);
 
-    // Retrieve live delay of incoming train if running today
+    // Retrieve live delay of incoming train ONLY if running today (IST)
     let incomingDelay = 0;
     let liveAvailable = false;
 
+    const isTodayIST = (dateInput) => {
+      if (!dateInput) return false;
+      const d = new Date(dateInput);
+      if (isNaN(d.getTime())) return false;
+      const istFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' });
+      return istFormatter.format(d) === istFormatter.format(new Date());
+    };
+
     const trainNum = arrivalLeg.vehicle?.identifier || arrivalLeg.service?.number;
-    if (trainNum) {
+    if (trainNum && isTodayIST(arrivalLeg.departureTime)) {
       const status = await this.getTrainStatus(trainNum, arrivalLeg.departureTime);
       if (status && status.isLive) {
         incomingDelay = status.delayMinutes || 0;

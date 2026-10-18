@@ -56,6 +56,7 @@ export async function connectDatabase(customUri) {
     return mongoose;
   } catch (error) {
     logger.warn(`Primary MongoDB connection failed: ${error.message}`);
+    await mongoose.disconnect().catch(() => {});
 
     // In development or test environments, automatically spin up in-memory MongoDB
     if (config.isDevelopment || config.isTest) {
@@ -108,11 +109,16 @@ export async function disconnectDatabase() {
 
 // Connection event handlers
 mongoose.connection.on('error', (err) => {
-  logger.error(`MongoDB runtime connection error: ${err.message}`);
+  // Only log runtime errors for established connections to avoid spurious noise during failed handshakes
+  if (mongoose.connection.readyState === 1) {
+    logger.error(`MongoDB runtime connection error: ${err.message}`);
+  }
 });
 
 mongoose.connection.on('disconnected', () => {
-  logger.warn('MongoDB connection lost/disconnected.');
+  if (mongoose.connection.readyState === 1) {
+    logger.warn('MongoDB connection lost/disconnected.');
+  }
 });
 
 export default {

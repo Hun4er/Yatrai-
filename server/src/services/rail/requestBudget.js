@@ -1,14 +1,30 @@
+import { AsyncLocalStorage } from 'async_hooks';
 import config from '../../config/index.js';
 import logger from '../../utils/logger.js';
 
 /**
+ * AsyncLocalStorage for per-search budget context propagation.
+ * Every asynchronous operation within a search automatically inherits its tracker.
+ */
+export const budgetStorage = new AsyncLocalStorage();
+
+export function runWithBudget(tracker, fn) {
+  return budgetStorage.run(tracker, fn);
+}
+
+export function getCurrentBudgetTracker() {
+  return budgetStorage.getStore() || null;
+}
+
+/**
  * RequestBudgetTracker
  *
- * Enforces Section 6: Low-API-Request Strategy
+ * Enforces Phase 2:
  * - Strictly bounds external provider requests per search session
- * - Tracks direct and recovery requests separately while capping total combined requests
- * - Tracks cache hits and deduplicated calls
- * - Stops graph expansion gracefully when the recovery budget is exhausted
+ * - Propagates tracker via AsyncLocalStorage and explicit options
+ * - Atomically reserves budget before network dispatch and releases on cache hit/failure
+ * - Enforces default recovery cap of 8 calls and direct cap of 4 calls
+ * - Stops graph expansion and validation gracefully when budget is exhausted
  */
 export class RequestBudgetTracker {
   constructor(options = {}) {
@@ -18,61 +34,76 @@ export class RequestBudgetTracker {
       options.maxRecoveryRequests ??
         options.recoveryBudget ??
         recoveryConfig.maxRecoveryRequests ??
-        10
+        8
     );
     this.maxDirectRequests = Number(
       options.maxDirectRequests ??
         options.directBudget ??
-        6
+        recoveryConfig.maxDirectRequests ??
+        4
     );
     this.maxTotalRequests = Number(
       options.maxTotalRequests ??
         options.totalBudget ??
         recoveryConfig.maxRailKitRequestsPerSearch ??
         recoveryConfig.maxTotalRequests ??
-        15
+        14
     );
 
     this.directRequestsUsed = 0;
     this.recoveryRequestsUsed = 0;
+    this.directReserved = 0;
+    this.recoveryReserved = 0;
     this.cacheHits = 0;
     this.deduplicatedCount = 0;
     this.seenQueryKeys = new Set();
     this.terminationReason = null;
-    this.searchCorrelationId = options.correlationId || `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    this.searchCorrelationId =
+      options.correlationId || `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   }
 
-  hasBudgetRemaining() {
-    return this.totalRequestsUsed < this.maxTotalRequests;
+  get totalReserved() {
+    return this.directReserved + this.recoveryReserved;
   }
 
-  /**
-   * Total outbound provider calls used across direct and recovery phases.
-   */
   get totalRequestsUsed() {
     return this.directRequestsUsed + this.recoveryRequestsUsed;
   }
 
-  /**
-   * Remaining recovery request budget.
-   */
+  get totalCommittedAndReserved() {
+    return this.totalRequestsUsed + this.totalReserved;
+  }
+
+  hasBudgetRemaining() {
+    return this.totalCommittedAndReserved < this.maxTotalRequests;
+  }
+
   get remainingRecoveryRequests() {
-    const recoveryRemaining = Math.max(0, this.maxRecoveryRequests - this.recoveryRequestsUsed);
-    const totalRemaining = Math.max(0, this.maxTotalRequests - this.totalRequestsUsed);
+    const recoveryRemaining = Math.max(
+      0,
+      this.maxRecoveryRequests - (this.recoveryRequestsUsed + this.recoveryReserved)
+    );
+    const totalRemaining = Math.max(0, this.maxTotalRequests - this.totalCommittedAndReserved);
     return Math.min(recoveryRemaining, totalRemaining);
   }
 
-  /**
-   * Checks whether another recovery request is allowed within the budget.
-   */
+  get remainingDirectRequests() {
+    const directRemaining = Math.max(
+      0,
+      this.maxDirectRequests - (this.directRequestsUsed + this.directReserved)
+    );
+    const totalRemaining = Math.max(0, this.maxTotalRequests - this.totalCommittedAndReserved);
+    return Math.min(directRemaining, totalRemaining);
+  }
+
   canMakeRecoveryRequest() {
-    if (this.recoveryRequestsUsed >= this.maxRecoveryRequests) {
+    if (this.recoveryRequestsUsed + this.recoveryReserved >= this.maxRecoveryRequests) {
       if (!this.terminationReason) {
         this.terminationReason = 'RECOVERY_BUDGET_EXHAUSTED';
       }
       return false;
     }
-    if (this.totalRequestsUsed >= this.maxTotalRequests) {
+    if (this.totalCommittedAndReserved >= this.maxTotalRequests) {
       if (!this.terminationReason) {
         this.terminationReason = 'TOTAL_BUDGET_EXHAUSTED';
       }
@@ -81,24 +112,73 @@ export class RequestBudgetTracker {
     return true;
   }
 
-  /**
-   * Checks whether another direct request is allowed.
-   */
   canMakeDirectRequest() {
-    return (
-      this.directRequestsUsed < this.maxDirectRequests &&
-      this.totalRequestsUsed < this.maxTotalRequests
-    );
+    if (this.directRequestsUsed + this.directReserved >= this.maxDirectRequests) {
+      return false;
+    }
+    if (this.totalCommittedAndReserved >= this.maxTotalRequests) {
+      return false;
+    }
+    return true;
   }
 
   /**
-   * Records an outbound provider request.
+   * Atomically reserves a budget unit BEFORE dispatching an outbound request.
+   * If budget is exhausted, returns null.
+   * On cache hit or pre-network failure, caller MUST call release().
+   * On network completion, caller MUST call commit().
    *
-   * @param {Object} [details={}]
-   * @param {boolean} [details.isRecovery=true]
-   * @param {string} [details.endpoint='']
-   * @param {string} [details.queryKey='']
-   * @returns {boolean} Whether request was permitted within budget
+   * @param {'recovery'|'direct'} [category='recovery']
+   * @returns {{ commit: Function, release: Function }|null}
+   */
+  reserve(category = 'recovery') {
+    const isRecovery = category !== 'direct';
+
+    if (isRecovery) {
+      if (!this.canMakeRecoveryRequest()) {
+        logger.debug(
+          `[RequestBudgetTracker] Recovery budget limit reached (${this.recoveryRequestsUsed + this.recoveryReserved}/${this.maxRecoveryRequests}). Reservation rejected.`
+        );
+        return null;
+      }
+      this.recoveryReserved++;
+    } else {
+      if (!this.canMakeDirectRequest()) {
+        logger.debug(
+          `[RequestBudgetTracker] Direct budget limit reached (${this.directRequestsUsed + this.directReserved}/${this.maxDirectRequests}). Reservation rejected.`
+        );
+        return null;
+      }
+      this.directReserved++;
+    }
+
+    let finalized = false;
+    return {
+      commit: () => {
+        if (finalized) return;
+        finalized = true;
+        if (isRecovery) {
+          this.recoveryReserved = Math.max(0, this.recoveryReserved - 1);
+          this.recoveryRequestsUsed++;
+        } else {
+          this.directReserved = Math.max(0, this.directReserved - 1);
+          this.directRequestsUsed++;
+        }
+      },
+      release: () => {
+        if (finalized) return;
+        finalized = true;
+        if (isRecovery) {
+          this.recoveryReserved = Math.max(0, this.recoveryReserved - 1);
+        } else {
+          this.directReserved = Math.max(0, this.directReserved - 1);
+        }
+      },
+    };
+  }
+
+  /**
+   * Records an outbound provider request synchronously (legacy support).
    */
   recordOutboundRequest(details = {}) {
     const isRecovery = details.isRecovery !== false;
@@ -125,12 +205,6 @@ export class RequestBudgetTracker {
     return true;
   }
 
-  /**
-   * Checks and records a deduplication check.
-   *
-   * @param {string} queryKey
-   * @returns {boolean} True if query was already issued in this session
-   */
   isDuplicateQuery(queryKey) {
     if (!queryKey) return false;
     if (this.seenQueryKeys.has(queryKey)) {
@@ -140,25 +214,16 @@ export class RequestBudgetTracker {
     return false;
   }
 
-  /**
-   * Records a cache hit.
-   */
   recordCacheHit() {
     this.cacheHits++;
   }
 
-  /**
-   * Records an explicit termination reason.
-   */
   setTerminationReason(reason) {
     if (!this.terminationReason) {
       this.terminationReason = reason;
     }
   }
 
-  /**
-   * Diagnostic summary for observability and response metadata.
-   */
   getSummary() {
     const summary = {
       correlationId: this.searchCorrelationId,
@@ -168,13 +233,19 @@ export class RequestBudgetTracker {
       directRequestsUsed: this.directRequestsUsed,
       recoveryRequestsUsed: this.recoveryRequestsUsed,
       totalRequestsUsed: this.totalRequestsUsed,
+      directReserved: this.directReserved,
+      recoveryReserved: this.recoveryReserved,
+      totalReserved: this.totalReserved,
       remainingRecoveryRequests: this.remainingRecoveryRequests,
+      remainingDirectRequests: this.remainingDirectRequests,
       cacheHits: this.cacheHits,
       deduplicatedCount: this.deduplicatedCount,
       isBudgetExhausted: !this.canMakeRecoveryRequest(),
       terminationReason: this.terminationReason || 'COMPLETED',
     };
-    logger.info(`[RequestBudgetTracker] Per-Search Request Summary: totalUsed=${summary.totalRequestsUsed}/${summary.maxTotalRequests} (direct=${summary.directRequestsUsed}, recovery=${summary.recoveryRequestsUsed}, cacheHits=${summary.cacheHits}, deduplicated=${summary.deduplicatedCount})`);
+    logger.info(
+      `[RequestBudgetTracker] Per-Search Request Summary: totalUsed=${summary.totalRequestsUsed}/${summary.maxTotalRequests} (direct=${summary.directRequestsUsed}, recovery=${summary.recoveryRequestsUsed}, cacheHits=${summary.cacheHits}, deduplicated=${summary.deduplicatedCount})`
+    );
     return summary;
   }
 }

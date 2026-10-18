@@ -17,7 +17,7 @@ import resultAssembler from './resultAssembler.js';
 import multiModalEngine from '../multimodal/index.js';
 import directJourneyService, { DIRECT_SEARCH_STATUS } from '../services/rail/directJourney.service.js';
 import journeyRecoveryService from '../services/rail/journeyRecovery.service.js';
-import RequestBudgetTracker from '../services/rail/requestBudget.js';
+import RequestBudgetTracker, { runWithBudget } from '../services/rail/requestBudget.js';
 import { AVAILABILITY_STATUS } from '../services/rail/availabilityNorm.js';
 import { matchesTimeWindow } from '../services/naturalLanguage/timeWindowResolver.js';
 import { isValidCalendarDate, isPastDate } from '../middleware/validate.middleware.js';
@@ -1193,129 +1193,137 @@ export class JourneyOrchestrator {
 
       if (shouldRunRailPipeline) {
         try {
+          const isCheckMore = Boolean(options.checkMore || searchContext.checkMore);
           const budgetTracker =
             options.budgetTracker ||
             new RequestBudgetTracker({
               correlationId: searchContext.searchId || searchContext.correlationId,
+              maxRecoveryRequests: isCheckMore
+                ? (config.railRecovery?.checkMoreAllowance || 6)
+                : (options.maxRecoveryRequests ?? config.railRecovery?.maxRecoveryRequests ?? 8),
+              ...options,
             });
-          const searchOpts = { ...options, budgetTracker };
+          const searchOpts = { ...options, budgetTracker, isCheckMore };
 
-          const directResult = await this.directJourneyService.searchDirectTrains(
-            searchContext,
-            searchOpts
-          );
-
-          if (directResult.isRateLimited) {
-            recoveryMeta = {
-              recoveryTriggered: false,
-              isRateLimited: true,
-              directStatus: 'RATE_LIMITED',
-              failureReason: directResult.failureReason || 'Railway search is temporarily rate-limited. Please try again shortly.',
-              message: directResult.failureReason || 'Railway search is temporarily rate-limited. Please try again shortly.',
-              directCount: 0,
-              additionalDirectCount: 0,
-              hasMoreDirect: false,
-              budgetStats: budgetTracker.getSummary(),
-            };
-            railwayCandidates = [];
-          } else if (directResult.status === DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED) {
-            recoveryMeta = {
-              recoveryTriggered: false,
-              isProviderFailure: true,
-              directStatus: directResult.status,
-              failureReason: directResult.failureReason || 'Direct train search provider failed to respond.',
-              message: directResult.failureReason || 'Direct train search provider failed to respond.',
-              directCount: 0,
-              additionalDirectCount: 0,
-              hasMoreDirect: false,
-              budgetStats: budgetTracker.getSummary(),
-            };
-            railwayCandidates = [];
-          } else if (
-            !directResult.shouldTriggerRecovery &&
-            (directResult.status === DIRECT_SEARCH_STATUS.DIRECT_AVAILABLE ||
-             directResult.status === DIRECT_SEARCH_STATUS.DIRECT_RAC_ONLY) &&
-            directResult.directJourneys?.length > 0
-          ) {
-            recoveryMeta = {
-              recoveryTriggered: false,
-              directStatus: directResult.status,
-              failureReason: null,
-              directCount: directResult.directJourneys.length,
-              bestDirectJourney: directResult.bestDirectJourney || directResult.directJourneys[0],
-              additionalDirectCount: Math.max(0, directResult.directJourneys.length - 1),
-              hasMoreDirect: directResult.directJourneys.length > 1,
-              message: directResult.status === DIRECT_SEARCH_STATUS.DIRECT_RAC_ONLY
-                ? 'Suitable direct train available with RAC booking.'
-                : 'Suitable direct train available with verified confirmed-seat availability.',
-              budgetStats: budgetTracker.getSummary(),
-            };
-            railwayCandidates = directResult.directJourneys;
-          } else if (
-            !directResult.shouldTriggerRecovery &&
-            directResult.status === DIRECT_SEARCH_STATUS.TIMETABLE_ONLY &&
-            (directResult.directJourneys?.length > 0 || directResult.timetableJourneys?.length > 0)
-          ) {
-            const trains = directResult.directJourneys?.length > 0 ? directResult.directJourneys : directResult.timetableJourneys;
-            recoveryMeta = {
-              recoveryTriggered: false,
-              directStatus: directResult.status,
-              failureReason: null,
-              directCount: trains.length,
-              bestDirectJourney: directResult.bestDirectJourney || trains[0],
-              additionalDirectCount: Math.max(0, trains.length - 1),
-              hasMoreDirect: trains.length > 1,
-              message: directResult.message || 'Direct trains found from static timetable (seat availability unverified).',
-              budgetStats: budgetTracker.getSummary(),
-              isTimetableOnly: true,
-            };
-            railwayCandidates = options.confirmedOnly === true ? [] : trains;
-          } else if (directResult.shouldTriggerRecovery) {
-            const recoveryResult = await this.journeyRecoveryService.recoverJourneys(
+          let directResult = null;
+          await runWithBudget(budgetTracker, async () => {
+            directResult = await this.directJourneyService.searchDirectTrains(
               searchContext,
               searchOpts
             );
 
-            recoveryMeta = {
-              recoveryTriggered: true,
-              directStatus: directResult.status,
-              failureReason: directResult.failureReason,
-              message: recoveryResult.recoveredJourneys?.length > 0
-                ? 'No confirmed direct train seats found. Yatrai is finding alternative routes.'
-                : (directResult.failureReason || 'No confirmed direct train seats found. No alternative connecting routes could be found.'),
-              reason: directResult.failureReason || 'Direct trains have no confirmed seats available.',
-              originHops: recoveryResult.originExpansionHops || 5,
-              destinationHops: recoveryResult.destinationExpansionHops || 5,
-              alternativesCount: recoveryResult.recoveredJourneys?.length || 0,
-              bestAlternative: recoveryResult.bestAlternative || recoveryResult.recoveredJourneys?.[0],
-              additionalAlternativesCount: Math.max(0, (recoveryResult.recoveredJourneys?.length || 0) - 1),
-              hasMoreAlternatives: (recoveryResult.recoveredJourneys?.length || 0) > 1,
-              budgetStats: recoveryResult.budgetStats || budgetTracker.getSummary(),
-            };
+            if (directResult.isRateLimited) {
+              recoveryMeta = {
+                recoveryTriggered: false,
+                isRateLimited: true,
+                directStatus: 'RATE_LIMITED',
+                failureReason: directResult.failureReason || 'Railway search is temporarily rate-limited. Please try again shortly.',
+                message: directResult.failureReason || 'Railway search is temporarily rate-limited. Please try again shortly.',
+                directCount: 0,
+                additionalDirectCount: 0,
+                hasMoreDirect: false,
+                budgetStats: budgetTracker.getSummary(),
+              };
+              railwayCandidates = [];
+            } else if (directResult.status === DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED) {
+              recoveryMeta = {
+                recoveryTriggered: false,
+                isProviderFailure: true,
+                directStatus: directResult.status,
+                failureReason: directResult.failureReason || 'Direct train search provider failed to respond.',
+                message: directResult.failureReason || 'Direct train search provider failed to respond.',
+                directCount: 0,
+                additionalDirectCount: 0,
+                hasMoreDirect: false,
+                budgetStats: budgetTracker.getSummary(),
+              };
+              railwayCandidates = [];
+            } else if (
+              !directResult.shouldTriggerRecovery &&
+              (directResult.status === DIRECT_SEARCH_STATUS.DIRECT_AVAILABLE ||
+               directResult.status === DIRECT_SEARCH_STATUS.DIRECT_RAC_ONLY) &&
+              directResult.directJourneys?.length > 0
+            ) {
+              recoveryMeta = {
+                recoveryTriggered: false,
+                directStatus: directResult.status,
+                failureReason: null,
+                directCount: directResult.directJourneys.length,
+                bestDirectJourney: directResult.bestDirectJourney || directResult.directJourneys[0],
+                additionalDirectCount: Math.max(0, directResult.directJourneys.length - 1),
+                hasMoreDirect: directResult.directJourneys.length > 1,
+                message: directResult.status === DIRECT_SEARCH_STATUS.DIRECT_RAC_ONLY
+                  ? 'Suitable direct train available with RAC booking.'
+                  : 'Suitable direct train available with verified confirmed-seat availability.',
+                budgetStats: budgetTracker.getSummary(),
+              };
+              railwayCandidates = directResult.directJourneys;
+            } else if (
+              !directResult.shouldTriggerRecovery &&
+              directResult.status === DIRECT_SEARCH_STATUS.TIMETABLE_ONLY &&
+              (directResult.directJourneys?.length > 0 || directResult.timetableJourneys?.length > 0)
+            ) {
+              const trains = directResult.directJourneys?.length > 0 ? directResult.directJourneys : directResult.timetableJourneys;
+              recoveryMeta = {
+                recoveryTriggered: false,
+                directStatus: directResult.status,
+                failureReason: null,
+                directCount: trains.length,
+                bestDirectJourney: directResult.bestDirectJourney || trains[0],
+                additionalDirectCount: Math.max(0, trains.length - 1),
+                hasMoreDirect: trains.length > 1,
+                message: directResult.message || 'Direct trains found from static timetable (seat availability unverified).',
+                budgetStats: budgetTracker.getSummary(),
+                isTimetableOnly: true,
+              };
+              railwayCandidates = options.confirmedOnly === true ? [] : trains;
+            } else if (directResult.shouldTriggerRecovery) {
+              const recoveryResult = await this.journeyRecoveryService.recoverJourneys(
+                searchContext,
+                searchOpts
+              );
 
-            const directFallback = directResult.directJourneys?.length > 0
-              ? directResult.directJourneys
-              : (directResult.timetableJourneys || []);
+              recoveryMeta = {
+                recoveryTriggered: true,
+                directStatus: directResult.status,
+                failureReason: directResult.failureReason,
+                message: recoveryResult.recoveredJourneys?.length > 0
+                  ? 'No confirmed direct train seats found. Yatrai is finding alternative routes.'
+                  : (directResult.failureReason || 'No confirmed direct train seats found. No alternative connecting routes could be found.'),
+                reason: directResult.failureReason || 'Direct trains have no confirmed seats available.',
+                originHops: recoveryResult.originExpansionHops || 5,
+                destinationHops: recoveryResult.destinationExpansionHops || 5,
+                alternativesCount: recoveryResult.recoveredJourneys?.length || 0,
+                bestAlternative: recoveryResult.bestAlternative || recoveryResult.recoveredJourneys?.[0],
+                additionalAlternativesCount: Math.max(0, (recoveryResult.recoveredJourneys?.length || 0) - 1),
+                hasMoreAlternatives: (recoveryResult.recoveredJourneys?.length || 0) > 1,
+                budgetStats: recoveryResult.budgetStats || budgetTracker.getSummary(),
+              };
 
-            if (recoveryResult.recoveredJourneys?.length > 0) {
-              railwayCandidates = recoveryResult.recoveredJourneys;
-            } else if (directFallback.length > 0 && options.confirmedOnly !== true) {
-              railwayCandidates = directFallback;
+              const directFallback = directResult.directJourneys?.length > 0
+                ? directResult.directJourneys
+                : (directResult.timetableJourneys || []);
+
+              if (recoveryResult.recoveredJourneys?.length > 0) {
+                railwayCandidates = recoveryResult.recoveredJourneys;
+              } else if (directFallback.length > 0 && options.confirmedOnly !== true) {
+                railwayCandidates = directFallback;
+              }
+            } else {
+              const directFallback = directResult.directJourneys?.length > 0
+                ? directResult.directJourneys
+                : (directResult.timetableJourneys || []);
+              recoveryMeta = {
+                recoveryTriggered: false,
+                directStatus: directResult.status,
+                failureReason: directResult.failureReason || 'Seat availability unverified.',
+                message: directResult.failureReason || 'Direct trains found but seat availability could not be verified.',
+                directCount: directFallback.length,
+                budgetStats: budgetTracker.getSummary(),
+              };
+              railwayCandidates = options.confirmedOnly === true ? [] : directFallback;
             }
-          } else {
-            const directFallback = directResult.directJourneys?.length > 0
-              ? directResult.directJourneys
-              : (directResult.timetableJourneys || []);
-            recoveryMeta = {
-              recoveryTriggered: false,
-              directStatus: directResult.status,
-              failureReason: directResult.failureReason || 'Seat availability unverified.',
-              message: directResult.failureReason || 'Direct trains found but seat availability could not be verified.',
-              directCount: directFallback.length,
-              budgetStats: budgetTracker.getSummary(),
-            };
-            railwayCandidates = options.confirmedOnly === true ? [] : directFallback;
-          }
+          });
 
           if (shouldRunRailPipeline) {
             const hasRailEnvelope = executionSummary.envelopes.some(
@@ -1325,15 +1333,15 @@ export class JourneyOrchestrator {
               executionSummary.envelopes.push({
                 provider: 'rail',
                 mode: 'rail',
-                status: (directResult.status === DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED || recoveryMeta?.isRateLimited) && railwayCandidates.length === 0
+                status: (directResult?.status === DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED || recoveryMeta?.isRateLimited) && railwayCandidates.length === 0
                   ? 'failed'
                   : 'success',
                 resultCount: railwayCandidates.length,
                 candidates: railwayCandidates,
-                error: (directResult.status === DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED || recoveryMeta?.isRateLimited) && railwayCandidates.length === 0
+                error: (directResult?.status === DIRECT_SEARCH_STATUS.DIRECT_SEARCH_FAILED || recoveryMeta?.isRateLimited) && railwayCandidates.length === 0
                   ? (recoveryMeta?.isRateLimited
                     ? { code: 'PROVIDER_RATE_LIMITED', message: recoveryMeta.failureReason }
-                    : { code: 'PROVIDER_ERROR', message: directResult.failureReason })
+                    : { code: 'PROVIDER_ERROR', message: directResult?.failureReason })
                   : null,
               });
             }

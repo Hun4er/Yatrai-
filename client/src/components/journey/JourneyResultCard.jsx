@@ -257,6 +257,13 @@ export function JourneyResultCard({
             </span>
           )}
 
+          {/* Station Shift Badge */}
+          {(journey.isClusterShift || journey.stationDifference?.hasDifference || journey.metadata?.isClusterShift) && (
+            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 shrink-0">
+              Nearby Station
+            </span>
+          )}
+
           {/* Seat Availability Status Badge */}
           {((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'AVAILABILITY_VERIFIED' ||
             ((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'AVAILABLE' && journey.isBookable)) && (
@@ -465,6 +472,22 @@ export function JourneyResultCard({
           </div>
         </div>
       </div>
+
+      {/* Station Cluster Shift Label */}
+      {(journey.isClusterShift || journey.stationDifference?.hasDifference || journey.metadata?.isClusterShift) && (
+        <div className="mt-3.5 flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-xs text-amber-200">
+          <AlertCircle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" aria-hidden="true" />
+          <div className="leading-relaxed">
+            <span className="font-bold text-amber-300">Station cluster adjustment: </span>
+            <span>
+              {journey.stationDifference?.summaryLabel ||
+                journey.clusterNote ||
+                journey.metadata?.clusterNote ||
+                'Departing or arriving at a nearby alternative station in the same metropolitan cluster.'}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* 4. Multi-Modal Collapsed Route Preview (when collapsed and >1 segment) */}
       {isMultiModal && !isExpanded && legs.length > 1 && (

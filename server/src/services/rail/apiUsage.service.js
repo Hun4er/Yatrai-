@@ -77,7 +77,9 @@ class ApiUsageService {
       try {
         const doc = await ApiUsage.findOne({ provider, month });
         if (doc) count = doc.count;
-      } catch {}
+      } catch {
+        // Fallback to in-memory count if database query fails
+      }
     }
 
     const percentage = Math.round((count / limit) * 100);
