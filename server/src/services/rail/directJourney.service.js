@@ -130,16 +130,23 @@ export class DirectJourneyService {
         const trainNum = String(train.train?.number || train.trainNumber || train.number || '');
         if (!trainNum) continue;
 
-        const currentOriginDist = clusterService.calculateStationDistanceKm(originCode, f);
-        const currentDestDist = clusterService.calculateStationDistanceKm(destCode, t);
+        // Use the train's actual station stops if available, falling back to queried pair f, t
+        const actualFrom = train.from?.code || train.from_stn_code || f;
+        const actualTo = train.to?.code || train.to_stn_code || t;
+
+        const currentOriginDist = clusterService.calculateStationDistanceKm(originCode, actualFrom);
+        const currentDestDist = clusterService.calculateStationDistanceKm(destCode, actualTo);
         const currentTotalDist = currentOriginDist + currentDestDist;
 
+        // A candidate is genuine tier1 only if actualFrom === originCode && actualTo === destCode
+        const effectiveTier = (actualFrom === originCode && actualTo === destCode) ? 'tier1' : 'tier2';
+
         if (!seenTrainNumbers.has(trainNum)) {
-          seenTrainNumbers.set(trainNum, { train, pair, totalDist: currentTotalDist, fromCode: f, toCode: t, tier });
+          seenTrainNumbers.set(trainNum, { train, pair, totalDist: currentTotalDist, fromCode: actualFrom, toCode: actualTo, tier: effectiveTier });
         } else {
           const existing = seenTrainNumbers.get(trainNum);
           if (currentTotalDist < existing.totalDist) {
-            seenTrainNumbers.set(trainNum, { train, pair, totalDist: currentTotalDist, fromCode: f, toCode: t, tier });
+            seenTrainNumbers.set(trainNum, { train, pair, totalDist: currentTotalDist, fromCode: actualFrom, toCode: actualTo, tier: effectiveTier });
           }
         }
       }
@@ -345,6 +352,7 @@ export class DirectJourneyService {
         status: 'scheduled',
         source: 'rail',
         isDirectTrain: true,
+        tier: cand.tier || 'tier1',
         isClusterShift: isShift,
         clusterNote: shiftSummary,
         stationDifference,
@@ -357,6 +365,7 @@ export class DirectJourneyService {
         pricing: fare,
         metadata: {
           isDirect: true,
+          tier: cand.tier || 'tier1',
           provider: 'Indian Railways (RailKit)',
           trainNumber: cand.trainNumber,
           trainName: cand.trainName,
@@ -476,6 +485,7 @@ export class DirectJourneyService {
         status: 'scheduled',
         source: 'rail',
         isDirectTrain: true,
+        tier: uCand.tier || 'tier1',
         isClusterShift: isShift,
         clusterNote: shiftSummary,
         stationDifference,
@@ -485,6 +495,7 @@ export class DirectJourneyService {
         pricing: { totalFare: estPrice, currency: 'INR', isEstimated: true },
         metadata: {
           isDirect: true,
+          tier: uCand.tier || 'tier1',
           provider: 'Indian Railways (RailKit)',
           trainNumber: uCand.trainNumber,
           trainName: uCand.trainName,
@@ -538,7 +549,7 @@ export class DirectJourneyService {
               class: travelClass,
               number: uCand.trainNumber,
             },
-            booking: { status: 'unchecked', isBookable: false },
+            booking: { status: 'unknown', isBookable: false },
             availability: unavail,
           },
         ],
@@ -598,13 +609,14 @@ export class DirectJourneyService {
       destination
     );
 
-    t1Running.sort((a, b) => b.timetableScore - a.timetableScore);
+    const t1DirectRunning = t1Running.filter((c) => c.tier === 'tier1');
+    t1DirectRunning.sort((a, b) => b.timetableScore - a.timetableScore);
     const maxDirectBudget = searchOpts.budgetTracker?.maxDirectRequests || maxDirectCandidates;
     const tier1Cap = Math.max(1, Math.floor(maxDirectBudget * 0.5));
-    const t1ToValidate = t1Running.slice(0, tier1Cap);
+    const t1ToValidate = t1DirectRunning.slice(0, tier1Cap);
 
     logger.info(
-      `[DirectJourneyService] Tier 1: ${seenTrainNumbers.size} trains found, ${t1Running.length} running, validating top ${t1ToValidate.length} (50% direct cap: ${tier1Cap})`
+      `[DirectJourneyService] Tier 1: ${seenTrainNumbers.size} trains found, ${t1DirectRunning.length} running, validating top ${t1ToValidate.length} (50% direct cap: ${tier1Cap})`
     );
 
     const validatedTrainNumbers = new Set(t1ToValidate.map((c) => c.trainNumber));
@@ -661,8 +673,12 @@ export class DirectJourneyService {
         destination
       );
 
-      const t2New = allRunningSoFar.filter((c) => !validatedTrainNumbers.has(c.trainNumber));
-      t2New.sort((a, b) => b.timetableScore - a.timetableScore);
+      // Prioritize genuine Tier 2 cluster candidates over unvalidated Tier 1 overflow
+      const t2ClusterCands = allRunningSoFar.filter((c) => !validatedTrainNumbers.has(c.trainNumber) && c.tier === 'tier2');
+      const t1RemainingCands = allRunningSoFar.filter((c) => !validatedTrainNumbers.has(c.trainNumber) && c.tier !== 'tier2');
+      t2ClusterCands.sort((a, b) => b.timetableScore - a.timetableScore);
+      t1RemainingCands.sort((a, b) => b.timetableScore - a.timetableScore);
+      const t2New = [...t2ClusterCands, ...t1RemainingCands];
 
       const remainingSlots = Math.max(0, maxDirectBudget - validatedTrainNumbers.size);
       const t2ToValidate = t2New.slice(0, remainingSlots);

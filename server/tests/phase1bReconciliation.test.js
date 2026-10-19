@@ -63,7 +63,7 @@ describe('Phase 1b-i Reconciliation & Enforcement Tests', () => {
       assert.equal(attempts, 2, 'Must have made 2 HTTP attempts');
 
       const stats = adapter.getStats();
-      assert.equal(stats.totalOutboundRequests, 2, 'Usage counter must record exactly 2 outbound requests (attempt 1 + retry)');
+      assert.equal(stats.rawOutboundRequests, 2, 'Usage counter must record exactly 2 outbound requests (attempt 1 + retry)');
     });
 
     it('Counts trackTrain and checkPNR at the single outbound counting point', async () => {
