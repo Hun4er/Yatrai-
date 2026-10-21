@@ -18,6 +18,7 @@ import locationService from '../services/locationService.js';
 import { successResponse, errorResponse } from '../utils/apiResponse.js';
 import logger from '../utils/logger.js';
 import config from '../config/index.js';
+import persistentCacheService from '../services/rail/persistentCache.service.js';
 import { formatJourneyDate, formatInIST } from '../utils/railwayTime.js';
 import { getAdvanceBookingWindow } from '../utils/bookingWindow.js';
 
