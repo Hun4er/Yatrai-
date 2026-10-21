@@ -46,15 +46,31 @@ router.post('/recover', optionalAuthenticate, validateJourneySearch, journeyCont
 
 /**
  * GET /api/journeys/:id/availability
- * Refresh real-time seat availability for a journey.
+ * Legacy endpoint retired in P0 v2 (HTTP 410 Gone).
  */
-router.get('/:id/availability', optionalAuthenticate, journeyController.getAvailability);
+router.get('/:id/availability', (req, res) => {
+  return res.status(410).json({
+    success: false,
+    error: {
+      code: 'ENDPOINT_RETIRED',
+      message: 'This endpoint is retired (HTTP 410 Gone). Seat availability is now bundled in /api/v2/journeys/search and check-class responses.',
+    },
+  });
+});
 
 /**
  * GET /api/journeys/:id/fare
- * Refresh real-time fare calculation for a journey.
+ * Legacy endpoint retired in P0 v2 (HTTP 410 Gone).
  */
-router.get('/:id/fare', optionalAuthenticate, journeyController.getFare);
+router.get('/:id/fare', (req, res) => {
+  return res.status(410).json({
+    success: false,
+    error: {
+      code: 'ENDPOINT_RETIRED',
+      message: 'This endpoint is retired (HTTP 410 Gone). Fares are now bundled in /api/v2/journeys/search and check-class responses.',
+    },
+  });
+});
 
 /**
  * GET /api/journeys/:id

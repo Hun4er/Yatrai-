@@ -751,30 +751,12 @@ export function ResultsPage({
       {/* Main Content Area */}
       {isLoading && <LoadingState />}
 
-      {/* IRCTC Maintenance Window State (23:45 - 00:15 IST) */}
+      {/* IRCTC Maintenance Window Banner (23:45 - 00:15 IST) - Banner only, never block searches */}
       {!isLoading && isMaintenanceWindow && (
-        <div className="rounded-2xl border border-blue-500/30 bg-graphite-900 p-6 sm:p-8 text-center space-y-4 shadow-xl">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10 text-blue-400">
-            <AlertTriangle className="h-6 w-6" aria-hidden="true" />
-          </div>
-
-          <div className="space-y-1.5">
-            <h3 className="text-lg font-bold text-text-primary">
-              IRCTC Maintenance Window (23:45 – 00:15 IST)
-            </h3>
-            <p className="text-sm text-text-secondary max-w-lg mx-auto leading-relaxed">
-              IRCTC ticketing servers undergo nightly maintenance between 23:45 and 00:15 IST. Live seat availability and booking are unavailable during this period and will reopen at 00:15 IST.
-            </p>
-          </div>
-
-          <div className="flex items-center justify-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onNavigateHome}
-              className="inline-flex items-center gap-2 rounded-xl border border-graphite-800 bg-graphite-850 px-4 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-graphite-800 hover:border-graphite-700 transition-colors cursor-pointer"
-            >
-              <span>Modify criteria</span>
-            </button>
+        <div className="flex items-center gap-2.5 rounded-2xl border border-blue-500/40 bg-blue-500/10 px-4 py-3 text-xs text-blue-200 shadow-md">
+          <Info className="h-4 w-4 text-blue-400 shrink-0" />
+          <div className="flex-1">
+            <span className="font-bold">IRCTC Maintenance Window (23:45 – 00:15 IST):</span> Ticketing servers undergo nightly maintenance. Searches continue using verified schedules, while live booking reopens at 00:15 IST.
           </div>
         </div>
       )}
