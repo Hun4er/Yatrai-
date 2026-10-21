@@ -154,7 +154,161 @@ export function rankJourneys(journeys = [], strategy = 'overall') {
   }
 }
 
+/**
+ * Phase 5 Selector: hasConfirmedDirect
+ * Returns true if any direct train has at least one CONFIRMED (AVAILABLE) class.
+ */
+export function hasConfirmedDirect(directTrains = []) {
+  if (!Array.isArray(directTrains)) return false;
+  return directTrains.some((t) =>
+    (t.classes || []).some((c) => {
+      const isChecked = c.state === 'CHECKED' || c.checked;
+      const tier = String(c.tier || c.normalizedStatus || '').toUpperCase();
+      const txt = String(c.availabilityText || '').toUpperCase();
+      const isAvailable =
+        tier === 'AVAILABLE' ||
+        tier === 'CONFIRMED' ||
+        txt.startsWith('AVL') ||
+        txt.startsWith('AVAILABLE') ||
+        txt.startsWith('CURR_AVBL');
+      const isUnavailable =
+        tier === 'UNAVAILABLE' ||
+        txt.includes('NOT AVAILABLE') ||
+        txt.includes('REGRET') ||
+        txt.includes('TRAIN DEPARTED');
+      return (isChecked || isAvailable) && isAvailable && !isUnavailable;
+    })
+  );
+}
+
+/**
+ * Phase 5 Ordering Selector for all four cases:
+ * 1. 'confirmed direct' -> Direct trains first, alternatives behind button/below
+ * 2. 'no confirmed direct with alternatives' -> Alternatives first, then direct trains
+ * 3. 'nothing confirmed' -> Empty state / closest risky alternatives
+ * 4. 'loading' -> Skeleton shown in alternatives section
+ */
+export function determineDisplayOrder({
+  hasConfirmed = null,
+  hasConfirmedDirect: hasConfirmedDirectArg = null,
+  direct = [],
+  alternatives = [],
+  isLoadingAlternatives = false,
+} = {}) {
+  const confirmedDirect =
+    hasConfirmedDirectArg !== null
+      ? Boolean(hasConfirmedDirectArg)
+      : (hasConfirmed !== null ? Boolean(hasConfirmed) : hasConfirmedDirect(direct));
+
+  if (confirmedDirect) {
+    return 'confirmed direct';
+  }
+  if (isLoadingAlternatives) {
+    return 'loading';
+  }
+  if (Array.isArray(alternatives) && alternatives.length > 0) {
+    return 'no confirmed direct with alternatives';
+  }
+  return 'nothing confirmed';
+}
+
+/**
+ * Extended display order object for rendering logic
+ */
+export function selectDisplayOrder(params = {}) {
+  const mode = determineDisplayOrder(params);
+  return {
+    mode,
+    isConfirmedDirect: mode === 'confirmed direct',
+    isAlternativesFirst: mode === 'no confirmed direct with alternatives' || mode === 'loading' || mode === 'nothing confirmed',
+    isLoading: mode === 'loading',
+    isNothingConfirmed: mode === 'nothing confirmed',
+    primarySection: mode === 'confirmed direct' ? 'direct' : 'alternatives',
+    secondarySection: mode === 'confirmed direct' ? 'alternatives' : 'direct',
+  };
+}
+
+/**
+ * Phase 5 Empty State Facts:
+ * Computes exact factual counts across checked direct trains:
+ * "Checked X segments on Y trains. Z waitlisted, W unavailable, E could not be checked. Closest: <train> <from>-><to> <class> WL 4 (91%)."
+ */
+export function computeEmptyStateFacts({ direct = [] } = {}) {
+  let totalSegments = 0;
+  let trainsCount = Array.isArray(direct) ? direct.length : 0;
+  let waitlistedCount = 0;
+  let unavailableCount = 0;
+  let errorCount = 0;
+  let closestCandidate = null;
+
+  if (Array.isArray(direct)) {
+    for (const train of direct) {
+      const classes = Array.isArray(train.classes) ? train.classes : [];
+      for (const cls of classes) {
+        if (cls.state !== 'CHECKED' && !cls.checked) continue;
+        totalSegments++;
+        const tier = String(cls.tier || cls.normalizedStatus || '').toUpperCase();
+        const txt = String(cls.availabilityText || '').toUpperCase();
+
+        if (tier === 'ERROR' || txt.includes("COULDN'T CHECK")) {
+          errorCount++;
+        } else if (tier === 'UNAVAILABLE' || txt.includes('NOT AVAILABLE') || txt.includes('REGRET')) {
+          unavailableCount++;
+        } else if (tier === 'WAITLIST' || tier === 'RAC' || txt.includes('WL') || txt.includes('RAC')) {
+          waitlistedCount++;
+          const predPct = typeof cls.predictionPercentage === 'number' ? cls.predictionPercentage : 0;
+          const wlPos = typeof cls.waitlistPosition === 'number' ? cls.waitlistPosition : 999;
+
+          // Closest candidate: highest predictionPercentage or lowest waitlist position
+          if (
+            !closestCandidate ||
+            predPct > closestCandidate.predictionPercentage ||
+            (predPct === closestCandidate.predictionPercentage && wlPos < closestCandidate.waitlistPosition)
+          ) {
+            closestCandidate = {
+              trainNumber: train.trainNumber || train.train_number,
+              trainName: train.trainName,
+              from: train.from,
+              to: train.to,
+              class: cls.class,
+              availabilityText: cls.availabilityText || `WL ${wlPos}`,
+              predictionPercentage: predPct,
+              waitlistPosition: wlPos,
+            };
+          }
+        }
+      }
+    }
+  }
+
+  const allInError = totalSegments > 0 && errorCount === totalSegments;
+
+  let closestText = '';
+  if (closestCandidate) {
+    const pctStr = closestCandidate.predictionPercentage > 0 ? ` (${closestCandidate.predictionPercentage}%)` : '';
+    closestText = `Closest: ${closestCandidate.trainNumber} ${closestCandidate.from}->${closestCandidate.to} ${closestCandidate.class} ${closestCandidate.availabilityText}${pctStr}.`;
+  }
+
+  const summaryText = `Checked ${totalSegments} segments on ${trainsCount} trains. ${waitlistedCount} waitlisted, ${unavailableCount} unavailable, ${errorCount} could not be checked.${closestText ? ' ' + closestText : ''}`;
+
+  return {
+    totalSegments,
+    trainsCount,
+    waitlistedCount,
+    unavailableCount,
+    errorCount,
+    allInError,
+    closestCandidate,
+    summaryText,
+  };
+}
+
 export default {
   toJourneyViewModel,
   rankJourneys,
+  hasConfirmedDirect,
+  determineDisplayOrder,
+  selectDisplayOrder,
+  computeEmptyStateFacts,
 };
+

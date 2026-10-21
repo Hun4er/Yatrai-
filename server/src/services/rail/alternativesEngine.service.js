@@ -170,10 +170,38 @@ export class AlternativesEngineService {
           if (budget.isAtCap(actionId)) break;
 
           const plans = await this._crossTrainSearch({
-            originCode, destCode, hubCode: hub.code, laneClass, dateStr, quota, actionId, budget, directDistanceKm, isDeep,
+            originCode, destCode, hubCode: hub.code, laneClass, dateStr, quota, actionId, budget, directDistanceKm, isDeep, allowRisky: false,
           });
           allPlans.push(...plans);
           if (allPlans.length >= earlyStop) break;
+        }
+
+        // ── Step 5: Second pass for risky plans if strict search found nothing ─────
+        if (allPlans.length === 0 && !budget.isAtCap(actionId)) {
+          logger.info(`[AltEngine] Strict search found 0 plans. Running second pass for risky/waitlist alternatives.`);
+          const riskyPlans = [];
+          for (const hub of hubsForCross) {
+            if (riskyPlans.length >= 3) break;
+            if (budget.isAtCap(actionId)) break;
+
+            const rPlans = await this._crossTrainSearch({
+              originCode, destCode, hubCode: hub.code, laneClass, dateStr, quota, actionId, budget, directDistanceKm, isDeep, allowRisky: true,
+            });
+            riskyPlans.push(...rPlans);
+            if (riskyPlans.length >= 3) break;
+          }
+
+          // Sort by tier (RAC before WAITLIST), then predictionPercentage desc, then fewer legs/duration
+          riskyPlans.sort((a, b) => {
+            const tierScore = (p) => (p.weakestTier === 'RAC' ? 2 : 1);
+            const scoreDiff = tierScore(b) - tierScore(a);
+            if (scoreDiff !== 0) return scoreDiff;
+            const predDiff = (b.predictionPercentage || 0) - (a.predictionPercentage || 0);
+            if (predDiff !== 0) return predDiff;
+            return (a.legs?.length || 0) - (b.legs?.length || 0);
+          });
+
+          allPlans.push(...riskyPlans.slice(0, 3));
         }
       }
     }
@@ -396,6 +424,9 @@ export class AlternativesEngineService {
         ],
         hubCode: Ha.code,
         laneClass,
+        tier: 'CONFIRMED',
+        weakestTier: 'CONFIRMED',
+        isRisky: false,
         badge: `Stay on this train — two tickets, berth may change at ${Ha.code}`,
         notice: 'Separate tickets. A missed connection is not protected.',
       };
@@ -432,6 +463,9 @@ export class AlternativesEngineService {
             ],
             hubCodes: [Ha.code, Hb.code],
             laneClass,
+            tier: 'CONFIRMED',
+            weakestTier: 'CONFIRMED',
+            isRisky: false,
             badge: `Stay on this train — three tickets`,
             notice: 'Separate tickets. A missed connection is not protected.',
           };
@@ -444,7 +478,7 @@ export class AlternativesEngineService {
 
   // ── Cross-train search ────────────────────────────────────────────────────
 
-  async _crossTrainSearch({ originCode, destCode, hubCode, laneClass, dateStr, quota, actionId, budget, directDistanceKm, isDeep }) {
+  async _crossTrainSearch({ originCode, destCode, hubCode, laneClass, dateStr, quota, actionId, budget, directDistanceKm, isDeep, allowRisky = false }) {
     const plans = [];
     const layoverMin = p0v2.layoverMinMinutes;
     const layoverMax = p0v2.layoverMaxMinutes;
@@ -520,6 +554,20 @@ export class AlternativesEngineService {
 
     if (leg1Trains.length === 0 || leg2Trains.length === 0) return plans;
 
+    // Helper to evaluate if leg is viable in second pass (CONFIRMED, RAC, or WL with >= 60% prediction or WL <= 30)
+    const isLegViable = (avail) => {
+      if (!avail) return false;
+      const st = avail.normalizedStatus;
+      if (st === AVAILABILITY_STATUS.AVAILABLE) return true;
+      if (st === AVAILABILITY_STATUS.RAC) return true;
+      if (st === AVAILABILITY_STATUS.WAITLIST) {
+        const pct = avail.predictionPercentage || 0;
+        const wl = avail.waitlistPosition ?? 999;
+        return pct >= 60 || wl <= 30;
+      }
+      return false;
+    };
+
     // Evaluate pairs
     for (const t1 of leg1Trains) {
       if (plans.length >= p0v2.earlyStopPlans) break;
@@ -568,30 +616,58 @@ export class AlternativesEngineService {
           if (totalDetour > directDistanceKm * maxDetour) continue;
         }
 
-        // Verify longer leg first; memoize; drop pair on first failure
+        // Verify longer leg first; memoize
         const leg1Dur = Number(t1.duration || t1.travel_time || 999);
         const leg2Dur = Number(t2.duration || t2.travel_time || 999);
 
         let leg1Avail = null, leg2Avail = null;
 
         if (leg1Dur >= leg2Dur) {
-          // Check leg1 first
           leg1Avail = await this._checkAvailMemo(t1No, originCode, hubA, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
-          if (leg1Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
+          if (!allowRisky && leg1Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
+          if (allowRisky && !isLegViable(leg1Avail)) continue;
 
           leg2Avail = await this._checkAvailMemo(t2No, hubB, destCode, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
-          if (leg2Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
+          if (!allowRisky && leg2Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
+          if (allowRisky && !isLegViable(leg2Avail)) continue;
         } else {
-          // Check leg2 first
           leg2Avail = await this._checkAvailMemo(t2No, hubB, destCode, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
-          if (leg2Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
+          if (!allowRisky && leg2Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
+          if (allowRisky && !isLegViable(leg2Avail)) continue;
 
           leg1Avail = await this._checkAvailMemo(t1No, originCode, hubA, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
-          if (leg1Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
+          if (!allowRisky && leg1Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
+          if (allowRisky && !isLegViable(leg1Avail)) continue;
         }
 
+        const isStrict = leg1Avail?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE &&
+          leg2Avail?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE;
+
+        // In allowRisky second pass, only collect non-strict pairs (strict was already handled)
+        if (allowRisky && isStrict) continue;
+
+        // Determine weakest leg tier
+        let weakestTier = 'CONFIRMED';
+        if (leg1Avail?.normalizedStatus === AVAILABILITY_STATUS.WAITLIST || leg2Avail?.normalizedStatus === AVAILABILITY_STATUS.WAITLIST) {
+          weakestTier = 'WAITLIST';
+        } else if (leg1Avail?.normalizedStatus === AVAILABILITY_STATUS.RAC || leg2Avail?.normalizedStatus === AVAILABILITY_STATUS.RAC) {
+          weakestTier = 'RAC';
+        }
+
+        const tier = isStrict ? 'CONFIRMED' : weakestTier;
+        const badge = isStrict
+          ? (isClusterTransfer ? `Connection: ${hubA} → ${hubB}` : `Connection via ${hubCode}`)
+          : 'Risky — waitlisted';
+        const notice = isStrict
+          ? (isClusterTransfer ? `Separate tickets. Transfer between ${hubA} and ${hubB} is not protected.` : 'Separate tickets. A missed connection is not protected.')
+          : 'Waitlisted — not guaranteed. Separate tickets.';
+
+        const leg1Fare = leg1Avail?.fare?.totalFare || leg1Avail?.totalFare || null;
+        const leg2Fare = leg2Avail?.fare?.totalFare || leg2Avail?.totalFare || null;
+        const totalFare = (leg1Fare && leg2Fare) ? (leg1Fare + leg2Fare) : null;
+
         const legs = [
-          { trainNo: t1No, from: originCode, to: hubA, class: laneClass, availability: leg1Avail },
+          { trainNo: t1No, from: originCode, to: hubA, class: laneClass, availability: leg1Avail, fare: leg1Fare, totalFare: leg1Fare },
         ];
 
         if (isClusterTransfer) {
@@ -605,7 +681,7 @@ export class AlternativesEngineService {
           });
         }
 
-        legs.push({ trainNo: t2No, from: hubB, to: destCode, class: laneClass, availability: leg2Avail });
+        legs.push({ trainNo: t2No, from: hubB, to: destCode, class: laneClass, availability: leg2Avail, fare: leg2Fare, totalFare: leg2Fare });
 
         plans.push({
           type: 'cross_train',
@@ -617,9 +693,17 @@ export class AlternativesEngineService {
           layoverMinutes: layover,
           isTight,
           tightLabel: isTight ? 'tight' : null,
-          notice: isClusterTransfer
-            ? `Separate tickets. Self-transfer required between ${hubA} and ${hubB} (minimum 120-minute buffer). A missed connection is not protected.`
-            : 'Separate tickets. A missed connection is not protected.',
+          tier,
+          weakestTier,
+          isRisky: !isStrict,
+          badge,
+          notice,
+          predictionPercentage: Math.min(leg1Avail?.predictionPercentage || 60, leg2Avail?.predictionPercentage || 60),
+          departureTime: t1.departureTime || t1.from?.departure || '06:00',
+          arrivalTime: t2.arrivalTime || t2.to?.arrival || '18:00',
+          duration: Number(t1.duration || 0) + Number(t2.duration || 0) + layover,
+          totalFare,
+          fare: totalFare,
         });
 
         if (plans.length >= p0v2.earlyStopPlans) break;

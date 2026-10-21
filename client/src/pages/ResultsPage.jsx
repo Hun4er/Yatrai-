@@ -34,7 +34,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import api from '../services/api.js';
 import P0ResultsView from '../components/journey/P0ResultsView.jsx';
 import { generateActionId } from '../services/p0SearchCache.js';
-import { toJourneyViewModel, rankJourneys } from '../utils/journeyViewModel.js';
+import { toJourneyViewModel, rankJourneys, hasConfirmedDirect } from '../utils/journeyViewModel.js';
 
 /**
  * ResultsPage Component
@@ -150,11 +150,7 @@ export function ResultsPage({
       setP0Degraded(Boolean(data.degraded));
 
       // Check if any train has a confirmed seat
-      const hasConfirmed = (data.direct || []).some((t) =>
-        (t.classes || []).some(
-          (c) => c.state === 'CHECKED' && (c.tier === 'AVAILABLE' || /AVL|AVAILABLE/i.test(c.availabilityText || ''))
-        )
-      );
+      const hasConfirmed = hasConfirmedDirect(data.direct);
 
       // Auto alternatives flow: If no train is CONFIRMED and not degraded, trigger alternatives with SAME actionId
       if (!hasConfirmed && (!data.alternatives || data.alternatives.length === 0) && !data.degraded) {
@@ -917,11 +913,7 @@ export function ResultsPage({
                 isLoadingAlternatives={isLoadingAlternatives}
                 isLoadingMoreTrains={isLoadingMoreTrains}
                 isSearchingDeeper={isSearchingDeeper}
-                hasConfirmedDirectSeat={p0Direct.some((t) =>
-                  (t.classes || []).some(
-                    (c) => c.state === 'CHECKED' && (c.tier === 'AVAILABLE' || /AVL|AVAILABLE/i.test(c.availabilityText || ''))
-                  )
-                )}
+                hasConfirmedDirectSeat={hasConfirmedDirect(p0Direct)}
                 onCheckClass={handleP0CheckClass}
                 onRefreshCard={handleP0RefreshCard}
                 onExploreAlternatives={handleP0ExploreAlternativesButton}
