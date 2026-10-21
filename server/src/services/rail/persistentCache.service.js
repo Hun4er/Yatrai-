@@ -114,6 +114,20 @@ class PersistentCacheService {
   clearMemory() {
     this._memCache.clear();
   }
+
+  /**
+   * Clears all cache (both L1 memory and L2 MongoDB).
+   */
+  async clearAll() {
+    this._memCache.clear();
+    if (mongoose.connection.readyState === 1) {
+      try {
+        await PersistentCache.deleteMany({});
+      } catch (err) {
+        logger.debug(`[PersistentCache] deleteMany failed: ${err.message}`);
+      }
+    }
+  }
 }
 
 export const persistentCacheService = new PersistentCacheService();

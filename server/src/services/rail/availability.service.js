@@ -232,6 +232,13 @@ export class AvailabilityService {
   }
 
   /**
+   * Clears in-memory availability cache.
+   */
+  clearCache() {
+    this.cache.clear();
+  }
+
+  /**
    * Normalizes raw availability string to canonical enum.
    */
   normalizeAvailabilityStatus(raw) {

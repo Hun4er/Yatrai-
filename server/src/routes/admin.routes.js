@@ -28,6 +28,13 @@ const adminAuthOrSecret = (req, res, next) => {
  */
 router.get('/usage', adminAuthOrSecret, adminController.getUsage);
 
+/**
+ * POST /api/admin/cache/clear
+ * Clears in-memory and persistent cache.
+ * Protected by existing auth OR an env secret (ADMIN_SECRET).
+ */
+router.post('/cache/clear', adminAuthOrSecret, adminController.clearCache);
+
 // Strictly enforce authentication and role-based admin authorization across ALL remaining admin endpoints
 router.use(authenticate, requireAdmin);
 

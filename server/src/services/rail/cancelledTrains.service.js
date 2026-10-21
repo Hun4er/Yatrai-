@@ -26,6 +26,20 @@ export class CancelledTrainsService {
   }
 
   /**
+   * Clears cancelled trains cache in L1 memory and L2 MongoDB.
+   */
+  async clearCache() {
+    _memCache.clear();
+    if (mongoose.connection.readyState === 1) {
+      try {
+        await CancelledTrain.deleteMany({});
+      } catch (err) {
+        logger.debug(`[CancelledTrainsService] deleteMany failed: ${err.message}`);
+      }
+    }
+  }
+
+  /**
    * Returns a Set of cancelled train numbers for the given date string "YYYY-MM-DD".
    * One RailKit call is made at most once per date per TTL window.
    *

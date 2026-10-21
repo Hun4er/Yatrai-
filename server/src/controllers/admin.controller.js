@@ -1,6 +1,9 @@
 import { adminService } from '../services/admin.service.js';
 import apiUsageService from '../services/rail/apiUsage.service.js';
 import actionBudgetService from '../services/rail/actionBudget.service.js';
+import railKitAdapter from '../providers/rail/railKit.adapter.js';
+import availabilityService from '../services/rail/availability.service.js';
+import cancelledTrainsService from '../services/rail/cancelledTrains.service.js';
 import { successResponse, errorResponse } from '../utils/apiResponse.js';
 
 /**
@@ -169,6 +172,21 @@ export const adminController = {
       };
 
       return res.status(200).json(successResponse('Usage metrics retrieved successfully', data));
+    } catch (err) {
+      return next(err);
+    }
+  },
+
+  /**
+   * POST /api/admin/cache/clear
+   * Clears in-memory and persistent cache.
+   */
+  async clearCache(req, res, next) {
+    try {
+      await railKitAdapter.clearCache();
+      availabilityService.clearCache();
+      await cancelledTrainsService.clearCache();
+      return res.status(200).json(successResponse('Cache cleared successfully'));
     } catch (err) {
       return next(err);
     }

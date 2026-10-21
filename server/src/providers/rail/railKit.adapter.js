@@ -1102,6 +1102,14 @@ export class RailKitAdapter {
       queuedRequests: this._concurrencyQueue.length,
     };
   }
+
+  async clearCache() {
+    this._cache.clear();
+    this._inFlight.clear();
+    this._stationCache.clear();
+    await persistentCacheService.clearAll();
+    logger.info('[RailKitAdapter] Cache completely cleared');
+  }
 }
 
 export const railKitAdapter = new RailKitAdapter();
@@ -1114,6 +1122,8 @@ export function configure(apiKey) {
     railKitAdapter._apiKey = apiKey;
   }
 }
+
+export const clearCache = () => railKitAdapter.clearCache();
 
 export const getAvailability = (...args) => railKitAdapter.getAvailability(...args);
 export const fareLookup = (...args) => railKitAdapter.fareLookup(...args);
