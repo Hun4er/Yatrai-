@@ -39,6 +39,9 @@ export function P0ResultsView({
   budget = { used: 0, cap: 40 },
   date,
   quota = 'GN',
+  providerNotice = null,
+  allCancelled = false,
+  message = null,
   isLoadingAlternatives = false,
   isLoadingMoreTrains = false,
   isSearchingDeeper = false,
@@ -100,6 +103,16 @@ export function P0ResultsView({
           <Info className="h-4 w-4 text-blue-400 shrink-0" />
           <div className="flex-1">
             <span className="font-bold">Degraded Mode:</span> Monthly RailKit quota under 10%. Cross-train combinations are temporarily limited to direct and same-train options.
+          </div>
+        </div>
+      )}
+
+      {/* 2b. Provider Notice Banner */}
+      {providerNotice && (
+        <div className="flex items-center gap-2.5 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200 shadow-md">
+          <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+          <div className="flex-1">
+            <span className="font-bold">Provider Notice:</span> {providerNotice}
           </div>
         </div>
       )}
@@ -168,7 +181,11 @@ export function P0ResultsView({
         {/* Direct Train Cards */}
         {filteredDirect.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-[#303640] bg-[#12151A] p-6 text-center text-xs text-[#7E8794]">
-            No direct trains found matching class {selectedClassFilter}.
+            {allCancelled
+              ? (message || 'All direct trains on this route are cancelled for the selected date.')
+              : selectedClassFilter === 'ALL'
+              ? (message || 'No direct trains found between selected stations.')
+              : `No direct trains found matching class ${selectedClassFilter}.`}
           </div>
         ) : (
           <div className="space-y-3">

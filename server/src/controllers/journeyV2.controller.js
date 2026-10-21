@@ -17,6 +17,7 @@ import locationService from '../services/locationService.js';
 import { successResponse, errorResponse } from '../utils/apiResponse.js';
 import logger from '../utils/logger.js';
 import config from '../config/index.js';
+import { formatJourneyDate, formatInIST } from '../utils/railwayTime.js';
 
 // In-process rate limiter for refresh-card: "trainNo:from:to:class:date" -> lastRefreshAt
 const _refreshRateLimit = new Map();
@@ -28,22 +29,39 @@ const _refreshRateLimit = new Map();
 async function resolveStations(inputs) {
   const codes = [];
   for (const inp of inputs) {
-    if (typeof inp === 'string' && /^[A-Z]{2,5}$/i.test(inp)) {
-      codes.push(inp.toUpperCase());
+    if (!inp) continue;
+    if (typeof inp === 'object') {
+      const codeProp = inp.code || inp.stationCode || inp.id;
+      if (codeProp && /^[A-Z]{2,5}$/i.test(String(codeProp).trim())) {
+        codes.push(String(codeProp).trim().toUpperCase());
+        continue;
+      }
+    }
+    if (typeof inp === 'string' && /^[A-Z]{2,5}$/i.test(inp.trim())) {
+      codes.push(inp.trim().toUpperCase());
       continue;
     }
     const code = resolveStationCode(inp);
-    if (code) { codes.push(code); continue; }
+    if (code && /^[A-Z]{2,5}$/.test(code) && code !== String(inp).trim().toUpperCase()) {
+      codes.push(code);
+      continue;
+    }
     // Try location service
     try {
-      const candidates = await locationService.search(String(inp), { limit: 1 });
+      const queryStr = typeof inp === 'object'
+        ? (inp.name || inp.cityName || inp.query || JSON.stringify(inp))
+        : String(inp);
+      const candidates = await locationService.search(queryStr, { limit: 1 });
       const c = candidates?.[0];
       if (c) {
-        const resolved = resolveStationCode(c);
-        if (resolved) { codes.push(resolved); continue; }
+        const resolved = resolveStationCode(c) || c.code || c.stationCode;
+        if (resolved && /^[A-Z]{2,5}$/i.test(String(resolved).trim())) {
+          codes.push(String(resolved).trim().toUpperCase());
+          continue;
+        }
       }
     } catch { /* ignore */ }
-    logger.warn(`[JourneyV2] Could not resolve station: ${inp}`);
+    logger.warn(`[JourneyV2] Could not resolve station: ${typeof inp === 'object' ? JSON.stringify(inp) : inp}`);
   }
   return [...new Set(codes.filter(Boolean))];
 }
@@ -78,6 +96,36 @@ export const journeyV2Controller = {
         return res.status(400).json(errorResponse('date is required', 'MISSING_DATE'));
       }
 
+      // ── Date Validations ───────────────────────────────────────────
+      const formattedDate = formatJourneyDate(date);
+      if (!formattedDate) {
+        return res.status(400).json(errorResponse('Invalid travel date format. Use YYYY-MM-DD.', 'INVALID_DATE_FORMAT'));
+      }
+
+      const todayIST = formatInIST(new Date()).localDate;
+      if (formattedDate < todayIST) {
+        return res.status(400).json(errorResponse('Journey date cannot be in the past.', 'PAST_DATE'));
+      }
+
+      // Indian Railways Advance Reservation Period (ARP) is 120 days
+      const maxBookingEpoch = Date.now() + 120 * 24 * 60 * 60 * 1000;
+      const maxDateIST = formatInIST(new Date(maxBookingEpoch)).localDate;
+      if (formattedDate > maxDateIST) {
+        return res.status(400).json(
+          errorResponse('Journey date exceeds the 120-day advance booking window.', 'ADVANCE_BOOKING_EXCEEDED')
+        );
+      }
+
+      // ── Station Resolution ─────────────────────────────────────────
+      const origins = await resolveStations(Array.isArray(rawOrigins) ? rawOrigins : [rawOrigins]);
+      const destinations = await resolveStations(Array.isArray(rawDestinations) ? rawDestinations : [rawDestinations]);
+
+      if (origins.length === 0 || destinations.length === 0) {
+        return res.status(400).json(
+          errorResponse('Could not resolve origin or destination station', 'STATION_NOT_FOUND')
+        );
+      }
+
       // Canonicalize mode aliases:
       // "default" / "direct" / "auto"
       // "alternatives_button" / "alternatives"
@@ -95,17 +143,6 @@ export const journeyV2Controller = {
 
       // Single-flight deduplication on duplicate clicks carrying the same actionId
       const searchResultData = await actionBudgetService.singleFlight(`search_req:${actionId}`, async () => {
-        // Resolve stations
-        const origins = await resolveStations(Array.isArray(rawOrigins) ? rawOrigins : [rawOrigins]);
-        const destinations = await resolveStations(Array.isArray(rawDestinations) ? rawDestinations : [rawDestinations]);
-
-        if (origins.length === 0 || destinations.length === 0) {
-          const err = new Error('Could not resolve origin or destination');
-          err.code = 'STATION_NOT_FOUND';
-          err.status = 400;
-          throw err;
-        }
-
         // Monthly degraded mode check (under 10% remaining quota triggers degraded mode)
         const apiUsage = await import('../services/rail/apiUsage.service.js').then((m) => m.default);
         const usageStatus = await apiUsage.getUsage('railkit');
@@ -119,7 +156,7 @@ export const journeyV2Controller = {
           directResult = await directPassService.run({
             origins,
             destinations,
-            date,
+            date: formattedDate,
             travelClass,
             quota,
             actionId,
@@ -140,7 +177,7 @@ export const journeyV2Controller = {
           alternativesResult = await alternativesEngineService.run({
             originCode,
             destCode,
-            date,
+            date: formattedDate,
             travelClass,
             quota,
             actionId,
@@ -151,7 +188,16 @@ export const journeyV2Controller = {
         }
 
         const budgetSummary = await actionBudgetService.getBudgetSummary(actionId);
-        const isPartial = budgetSummary.partial || (directResult?.partial) || (alternativesResult?.partial);
+        const isPartial = budgetSummary.partial || Boolean(directResult?.partial) || Boolean(alternativesResult?.partial);
+        const providerNotice = directResult?.providerNotice || alternativesResult?.providerNotice || null;
+
+        // Build helpful message if no direct trains
+        let message = directResult?.message || null;
+        if (directResult?.allCancelled) {
+          message = 'All direct trains on this route are cancelled for the selected date.';
+        } else if (directResult?.noTrainsFound) {
+          message = 'No direct trains found between selected stations.';
+        }
 
         // TODO[DATE_STRIP]: 4-date strip populated from availability responses where supported
         logger.debug('[JourneyV2] TODO[DATE_STRIP]: Date strip verified or defaulted to empty array');
@@ -164,6 +210,10 @@ export const journeyV2Controller = {
           dateStrip: directResult?.dateStrip || [],
           partial: isPartial,
           degraded: isDegraded,
+          providerNotice,
+          allCancelled: directResult?.allCancelled || false,
+          noTrainsFound: directResult?.noTrainsFound || false,
+          message,
           cancelledFilter: directResult?.cancelledFilter || null,
           budget: budgetSummary,
           cache: {
@@ -175,6 +225,41 @@ export const journeyV2Controller = {
 
       return res.status(200).json(successResponse('Journey search completed', searchResultData));
     } catch (err) {
+      if (err.code === 'STATION_NOT_FOUND') {
+        return res.status(400).json(errorResponse(err.message, 'STATION_NOT_FOUND'));
+      }
+      // Graceful fallback for RailKit 429 and 5xx provider disruptions
+      const isProviderErr =
+        err.status === 429 ||
+        (err.status >= 500 && err.status < 600) ||
+        err.code === 'PROVIDER_RATE_LIMITED' ||
+        err.code === 'PROVIDER_UNAVAILABLE' ||
+        err.code === 'LIVE_REQUESTS_BLOCKED' ||
+        (err.message && /429|500|502|503|504|RailKit/i.test(err.message));
+
+      if (isProviderErr) {
+        logger.warn(`[JourneyV2] Third-party provider error encountered during search: ${err.message}`);
+        const actionId = req.body?.actionId;
+        const budgetSummary = actionId
+          ? await actionBudgetService.getBudgetSummary(actionId).catch(() => ({ used: 0, cap: 40 }))
+          : { used: 0, cap: 40 };
+
+        return res.status(200).json(
+          successResponse('Journey search completed (partial)', {
+            direct: [],
+            waitingTrains: [],
+            uncheckedClasses: [],
+            alternatives: [],
+            dateStrip: [],
+            partial: true,
+            degraded: true,
+            providerNotice:
+              'Live rail data provider is experiencing high load or temporary service disruption. Results may be partial or limited.',
+            budget: budgetSummary,
+            cache: { hits: 0, misses: 0 },
+          })
+        );
+      }
       return next(err);
     }
   },

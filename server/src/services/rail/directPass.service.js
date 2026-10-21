@@ -37,8 +37,16 @@ const SEARCH_PAIRS_MAX = p0v2.searchPairsMax;    // 4
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function normalizeClasses(raw) {
+  if (!raw) return [];
+  if (typeof raw === 'string') {
+    return raw.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+  }
   if (!Array.isArray(raw)) return [];
-  return raw.map((c) => String(c).trim().toUpperCase()).filter(Boolean);
+  return raw.flatMap((c) =>
+    typeof c === 'string' && c.includes(',')
+      ? c.split(',').map((x) => x.trim().toUpperCase())
+      : String(c).trim().toUpperCase()
+  ).filter(Boolean);
 }
 
 function pickRound1Class(offeredClasses, requestedClass) {
@@ -66,7 +74,7 @@ function pickRound2Class(offeredClasses, round1Class) {
 }
 
 function getTrainNumber(t) {
-  return String(t.train?.number || t.train_number || t.trainNumber || t.number || '');
+  return String(t.train?.number || t.train_number || t.trainNumber || t.number || t.train_no || '');
 }
 
 function getTrainName(t) {
@@ -74,38 +82,62 @@ function getTrainName(t) {
 }
 
 function isRunningOnDate(train, departureDateStr) {
-  const runDays = train.runDays || train.run_days || train.runsOnDays || train.train?.runDays || train.train?.run_days || [];
-  if (!runDays.length) return true;
+  const runDays = train.runDays || train.run_days || train.runsOnDays || train.train?.runDays || train.train?.run_days || train.running_days || [];
+  if (!runDays || runDays.length === 0) return true;
   const dateObj = new Date(departureDateStr + 'T00:00:00+05:30');
-  const dayOfWeek = ['sun','mon','tue','wed','thu','fri','sat'][dateObj.getDay()];
-  return runDays.some((d) => String(d).toLowerCase().slice(0, 3) === dayOfWeek);
+  const dayIndex = dateObj.getDay();
+  if (typeof runDays === 'string') {
+    if (runDays === '1111111') return true;
+    if (/^[01]{7}$/.test(runDays)) {
+      const monIdx = (dayIndex + 6) % 7;
+      return runDays[dayIndex] === '1' || runDays[monIdx] === '1';
+    }
+    return true;
+  }
+  if (Array.isArray(runDays)) {
+    const dayOfWeek = ['sun','mon','tue','wed','thu','fri','sat'][dayIndex];
+    return runDays.some((d) => String(d).toLowerCase().slice(0, 3) === dayOfWeek);
+  }
+  return true;
 }
 
 function hasAlreadyDeparted(train, departureDateStr) {
   const now = Date.now();
   try {
-    const depTime = train.departureTime || train.departure_time || train.from?.departure || '';
+    const depTime = train.departureTime || train.departure_time || train.from?.departure || train.from_time || train.departureTimeIso || '';
     if (!depTime) return false;
-    const [hh, mm] = depTime.split(':').map(Number);
-    const trainDate = new Date(`${departureDateStr}T${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:00+05:30`);
-    return trainDate.getTime() < now;
+    if (typeof depTime === 'string' && depTime.includes('T')) {
+      const d = new Date(depTime);
+      return !isNaN(d.getTime()) && d.getTime() < now;
+    }
+    const match = /^(\d{1,2}):(\d{2})/.exec(String(depTime).trim());
+    if (!match) return false;
+    const hh = String(match[1]).padStart(2, '0');
+    const mm = String(match[2]).padStart(2, '0');
+    const trainDate = new Date(`${departureDateStr}T${hh}:${mm}:00+05:30`);
+    return !isNaN(trainDate.getTime()) && trainDate.getTime() < now;
   } catch { return false; }
 }
 
 function travelMinutes(train) {
   const dur = train.duration || train.travel_time || train.travelTime;
   if (dur && typeof dur === 'number') return dur;
-  if (typeof dur === 'string' && dur.includes(':')) {
-    const [hh, mm] = dur.split(':').map(Number);
-    return hh * 60 + (mm || 0);
+  if (typeof dur === 'string') {
+    const match = /(\d{1,2}):(\d{2})/.exec(dur);
+    if (match) {
+      return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+    }
   }
   return 9999;
 }
 
 function departureMinutes(train) {
-  const dep = train.departureTime || train.departure_time || train.from?.departure || '00:00';
-  const [hh, mm] = dep.split(':').map(Number);
-  return (hh || 0) * 60 + (mm || 0);
+  const dep = train.departureTime || train.departure_time || train.from?.departure || train.from_time || '00:00';
+  const match = /^(\d{1,2}):(\d{2})/.exec(String(dep).trim());
+  if (match) {
+    return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+  }
+  return 0;
 }
 
 /**
@@ -187,6 +219,7 @@ export class DirectPassService {
     const limitedPairs = pairs.slice(0, SEARCH_PAIRS_MAX);
     const allTrains = [];
     let searchCacheHits = 0;
+    let hadProviderError = false;
 
     for (const [from, to] of limitedPairs) {
       const isSearchCached = typeof this.railKit.hasCachedSearch === 'function' &&
@@ -231,6 +264,9 @@ export class DirectPassService {
         }
       } catch (err) {
         logger.warn(`[DirectPass] searchTrains ${from}→${to} failed: ${err.message}`);
+        if (err.status === 429 || (err.status >= 500 && err.status < 600) || /429|5\d\d/.test(err.message)) {
+          hadProviderError = true;
+        }
       }
     }
 
@@ -273,12 +309,12 @@ export class DirectPassService {
     const waitingTrains = dedupedTrains.slice(ROUND1_MAX).map((t) => ({
       trainNumber: getTrainNumber(t),
       trainName: getTrainName(t),
-      from: t._from || t.from_station_code || t.from,
-      to: t._to || t.to_station_code || t.to,
-      departureTime: t.departureTime || t.departure_time || t.from?.departure || null,
-      arrivalTime: t.arrivalTime || t.arrival_time || t.to?.arrival || null,
+      from: t._from || t.from_station_code || t.from_stn_code || t.from,
+      to: t._to || t.to_station_code || t.to_stn_code || t.to,
+      departureTime: t.departureTime || t.departure_time || t.from?.departure || t.from_time || null,
+      arrivalTime: t.arrivalTime || t.arrival_time || t.to?.arrival || t.to_time || null,
       duration: travelMinutes(t),
-      classes: normalizeClasses(t.classes || t.train?.classes || []),
+      classes: normalizeClasses(t.classes || t.train?.classes || t.classes_of_travel || []),
       checkedClasses: [],
     }));
 
@@ -290,16 +326,19 @@ export class DirectPassService {
 
     for (const train of round1Candidates) {
       const num = getTrainNumber(train);
-      const offered = normalizeClasses(train.classes || train.train?.classes || []);
+      const offered = normalizeClasses(train.classes || train.train?.classes || train.classes_of_travel || []);
       const round1Class = pickRound1Class(offered, requestedClass);
+
+      const fromStn = train._from || train.from_station_code || train.from_stn_code || train.from;
+      const toStn = train._to || train.to_station_code || train.to_stn_code || train.to;
 
       const trainResult = {
         trainNumber: num,
         trainName: getTrainName(train),
-        from: train._from || train.from_station_code || train.from,
-        to: train._to || train.to_station_code || train.to,
-        departureTime: train.departureTime || train.departure_time || train.from?.departure || null,
-        arrivalTime: train.arrivalTime || train.arrival_time || train.to?.arrival || null,
+        from: fromStn,
+        to: toStn,
+        departureTime: train.departureTime || train.departure_time || train.from?.departure || train.from_time || null,
+        arrivalTime: train.arrivalTime || train.arrival_time || train.to?.arrival || train.to_time || null,
         duration: travelMinutes(train),
         offeredClasses: offered,
         classes: [],
@@ -346,6 +385,9 @@ export class DirectPassService {
         trainResult.checkedAt = new Date().toISOString();
       } catch (err) {
         logger.warn(`[DirectPass] Availability check failed for ${num}: ${err.message}`);
+        if (err.status === 429 || (err.status >= 500 && err.status < 600) || /429|5\d\d/.test(err.message)) {
+          hadProviderError = true;
+        }
       }
 
       // Build class chips
@@ -421,6 +463,9 @@ export class DirectPassService {
           });
         } catch (err) {
           logger.warn(`[DirectPass] Round-2 availability check failed for ${trainResult.trainNumber}: ${err.message}`);
+          if (err.status === 429 || (err.status >= 500 && err.status < 600) || /429|5\d\d/.test(err.message)) {
+            hadProviderError = true;
+          }
         }
 
         // Add or update the chip for r2Class
@@ -435,8 +480,11 @@ export class DirectPassService {
       }
     }
 
+    const allCancelled = allTrains.length > 0 && filtered.length === 0 && allTrains.every((t) => cancelledSet.has(getTrainNumber(t)));
+    const noTrainsFound = allTrains.length === 0 && !hadProviderError;
+
     const budgetSummary = await budget.getBudgetSummary(actionId);
-    const partial = budget.isAtCap(actionId);
+    const partial = budget.isAtCap(actionId) || hadProviderError;
 
     logger.info(`[DirectPass] Done. Results: ${results.length}, waitingTrains: ${waitingTrains.length}, confirmed: ${confirmedFound}, partial: ${partial}, budget: ${budgetSummary.used}/${budgetSummary.cap}`);
 
@@ -448,6 +496,15 @@ export class DirectPassService {
       ),
       confirmedFound,
       partial,
+      hadProviderError,
+      providerNotice: hadProviderError
+        ? 'Live rail provider is currently experiencing high traffic or temporary delay. Some direct options or availability may be partial.'
+        : null,
+      allCancelled,
+      noTrainsFound,
+      message: allCancelled
+        ? 'All direct trains on this route are cancelled for the selected date.'
+        : (noTrainsFound ? 'No direct trains found between selected stations.' : null),
       budget: budgetSummary,
       cancelledFilter: cancelledSet.size > 0 ? { count: cancelledSet.size } : null,
     };

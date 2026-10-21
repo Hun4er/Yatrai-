@@ -594,15 +594,20 @@ export class AlternativesEngineService {
 
     if (isMemo) return this._availMemo.get(key);
 
-    const result = await this.availabilityService.checkLegAvailability({
-      trainNumber: trainNo,
-      fromCode: from,
-      toCode: to,
-      date: dateStr,
-      travelClass: cls,
-      quota,
-    });
-    this._availMemo.set(key, result);
+    let result = null;
+    try {
+      result = await this.availabilityService.checkLegAvailability({
+        trainNumber: trainNo,
+        fromCode: from,
+        toCode: to,
+        date: dateStr,
+        travelClass: cls,
+        quota,
+      });
+      this._availMemo.set(key, result);
+    } catch (err) {
+      logger.warn(`[AltEngine] Availability check failed for ${trainNo} (${from}→${to}): ${err.message}`);
+    }
     return result;
   }
 
