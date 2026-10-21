@@ -924,14 +924,20 @@ export class RailKitAdapter {
    * SDK: cancelList()
    * REST: GET /api/v1/trains/cancelled
    */
-  async cancelList() {
-    const url = `${BASE_URL}/api/v1/trains/cancelled`;
+  async cancelList(date = null) {
+    const internalDate = date ? formatJourneyDate(date) : '';
+    const rkDate = internalDate ? toRailKitDate(internalDate) : '';
+    const url = `${BASE_URL}/api/v1/trains/cancelled${rkDate ? `?date=${rkDate}` : ''}`;
     try {
-      const json = await this._cachedFetch('trains:cancelled', 30 * 60 * 1000, () => this._fetch(url));
-      return { status: 'ok', success: Boolean(json?.success), data: json?.data || [] };
+      const json = await this._cachedFetch(`trains:cancelled:${rkDate || 'all'}`, 30 * 60 * 1000, () => this._fetch(url));
+      return { status: 'ok', success: Boolean(json?.success), data: json?.data || {} };
     } catch (err) {
-      return { status: 'error', success: false, data: [], error: err.message };
+      return { status: 'error', success: false, data: {}, error: err.message };
     }
+  }
+
+  async getCancelledTrains(date) {
+    return this.cancelList(date);
   }
 
   // Error/unknown result factories

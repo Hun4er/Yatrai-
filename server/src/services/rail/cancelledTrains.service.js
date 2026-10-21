@@ -52,10 +52,19 @@ export class CancelledTrainsService {
     let trainNumbers = [];
     const adapter = railKit || (await import('../../providers/rail/railKit.adapter.js').then((m) => m.default));
     try {
-      if (typeof adapter.getCancelledTrains === 'function') {
-        const res = await adapter.getCancelledTrains(dateKey);
-        if (res && Array.isArray(res.data)) {
-          trainNumbers = res.data.map((t) => String(t.train_number || t.trainNumber || t.number || t)).filter(Boolean);
+      if (typeof adapter.getCancelledTrains === 'function' || typeof adapter.cancelList === 'function') {
+        const fetchFn = adapter.getCancelledTrains ? adapter.getCancelledTrains.bind(adapter) : adapter.cancelList.bind(adapter);
+        const res = await fetchFn(dateKey);
+        if (res && res.data) {
+          if (Array.isArray(res.data)) {
+            trainNumbers = res.data.map((t) => String(t.train_number || t.trainNumber || t.number || t)).filter(Boolean);
+          } else {
+            const fully = Array.isArray(res.data.fullyCancelledTrains) ? res.data.fullyCancelledTrains : [];
+            const partially = Array.isArray(res.data.partiallyCancelledTrains) ? res.data.partiallyCancelledTrains : [];
+            trainNumbers = [...fully, ...partially]
+              .map((t) => String(t.trainNo || t.train_number || t.trainNumber || t.number || t))
+              .filter(Boolean);
+          }
         } else if (res && Array.isArray(res.trainNumbers)) {
           trainNumbers = res.trainNumbers.map(String);
         }

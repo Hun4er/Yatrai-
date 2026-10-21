@@ -1,0 +1,4 @@
+{
+  "success": false,
+  "error": "Invalid train number. Must be a 5-digit numeric string."
+}
