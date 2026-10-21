@@ -28,6 +28,7 @@ import clusterService from './cluster.service.js';
 import actionBudgetService from './actionBudget.service.js';
 import config from '../../config/index.js';
 import logger from '../../utils/logger.js';
+import { getAdvanceBookingWindow } from '../../utils/bookingWindow.js';
 import { formatJourneyDate } from '../../utils/railwayTime.js';
 
 const p0v2 = config.p0v2;
@@ -666,8 +667,21 @@ export class AlternativesEngineService {
         const leg2Fare = leg2Avail?.fare?.totalFare || leg2Avail?.totalFare || null;
         const totalFare = (leg1Fare && leg2Fare) ? (leg1Fare + leg2Fare) : null;
 
+        const bookingWindow = getAdvanceBookingWindow();
+        const leg1Beyond = bookingWindow.isBeyondWindow(dateStr);
+        const leg2Beyond = bookingWindow.isBeyondWindow(dateStr); // boarding date at hub
+
         const legs = [
-          { trainNo: t1No, from: originCode, to: hubA, class: laneClass, availability: leg1Avail, fare: leg1Fare, totalFare: leg1Fare },
+          {
+            trainNo: t1No,
+            from: originCode,
+            to: hubA,
+            class: laneClass,
+            availability: leg1Avail,
+            fare: leg1Fare,
+            totalFare: leg1Fare,
+            notice: leg1Beyond ? 'booking may not be open for this date yet' : null,
+          },
         ];
 
         if (isClusterTransfer) {
@@ -681,7 +695,20 @@ export class AlternativesEngineService {
           });
         }
 
-        legs.push({ trainNo: t2No, from: hubB, to: destCode, class: laneClass, availability: leg2Avail, fare: leg2Fare, totalFare: leg2Fare });
+        legs.push({
+          trainNo: t2No,
+          from: hubB,
+          to: destCode,
+          class: laneClass,
+          availability: leg2Avail,
+          fare: leg2Fare,
+          totalFare: leg2Fare,
+          notice: leg2Beyond ? 'booking may not be open for this date yet' : null,
+        });
+
+        const planNotice = (leg1Beyond || leg2Beyond)
+          ? `Booking may not be open for this date yet. ${notice}`
+          : notice;
 
         plans.push({
           type: 'cross_train',
@@ -697,7 +724,7 @@ export class AlternativesEngineService {
           weakestTier,
           isRisky: !isStrict,
           badge,
-          notice,
+          notice: planNotice,
           predictionPercentage: Math.min(leg1Avail?.predictionPercentage || 60, leg2Avail?.predictionPercentage || 60),
           departureTime: t1.departureTime || t1.from?.departure || '06:00',
           arrivalTime: t2.arrivalTime || t2.to?.arrival || '18:00',

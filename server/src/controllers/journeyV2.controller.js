@@ -19,6 +19,7 @@ import { successResponse, errorResponse } from '../utils/apiResponse.js';
 import logger from '../utils/logger.js';
 import config from '../config/index.js';
 import { formatJourneyDate, formatInIST } from '../utils/railwayTime.js';
+import { getAdvanceBookingWindow } from '../utils/bookingWindow.js';
 
 // In-process rate limiter for refresh-card: "trainNo:from:to:class:date" -> lastRefreshAt
 const _refreshRateLimit = new Map();
@@ -103,19 +104,14 @@ export const journeyV2Controller = {
         return res.status(400).json(errorResponse('Invalid travel date format. Use YYYY-MM-DD.', 'INVALID_DATE_FORMAT'));
       }
 
-      const todayIST = formatInIST(new Date()).localDate;
-      if (formattedDate < todayIST) {
+      const bookingWindow = getAdvanceBookingWindow();
+      if (bookingWindow.isPast(formattedDate)) {
         return res.status(400).json(errorResponse('Journey date cannot be in the past.', 'PAST_DATE'));
       }
 
-      // Indian Railways Advance Reservation Period (ARP) is 120 days
-      const maxBookingEpoch = Date.now() + 120 * 24 * 60 * 60 * 1000;
-      const maxDateIST = formatInIST(new Date(maxBookingEpoch)).localDate;
-      if (formattedDate > maxDateIST) {
-        return res.status(400).json(
-          errorResponse('Journey date exceeds the 120-day advance booking window.', 'ADVANCE_BOOKING_EXCEEDED')
-        );
-      }
+      // 60-day advance booking window: search anyway, show notice if beyond window
+      const isBeyondAdvanceWindow = bookingWindow.isBeyondWindow(formattedDate);
+      const initialNotice = isBeyondAdvanceWindow ? 'booking may not be open for this date yet' : null;
 
       // ── Station Resolution & Cluster Expansion ────────────────────
       const origins = await resolveStations(Array.isArray(rawOrigins) ? rawOrigins : [rawOrigins]);
@@ -198,7 +194,7 @@ export const journeyV2Controller = {
 
         const budgetSummary = await actionBudgetService.getBudgetSummary(actionId);
         const isPartial = budgetSummary.partial || Boolean(directResult?.partial) || Boolean(alternativesResult?.partial);
-        const providerNotice = directResult?.providerNotice || alternativesResult?.providerNotice || null;
+        const providerNotice = initialNotice || directResult?.providerNotice || alternativesResult?.providerNotice || null;
 
         // Build helpful message if no direct trains
         let message = directResult?.message || null;
@@ -237,6 +233,35 @@ export const journeyV2Controller = {
       if (err.code === 'STATION_NOT_FOUND') {
         return res.status(400).json(errorResponse(err.message, 'STATION_NOT_FOUND'));
       }
+
+      // If beyond 60-day booking window and provider failed or returned not-bookable, return 200 with notice
+      const isBeyondWindow = getAdvanceBookingWindow().isBeyondWindow(formatJourneyDate(req.body?.date));
+      if (isBeyondWindow) {
+        logger.info(`[JourneyV2] Date beyond 60-day window and provider returned error: ${err.message}. Returning 200 with notice.`);
+        const actionId = req.body?.actionId;
+        const budgetSummary = actionId
+          ? await actionBudgetService.getBudgetSummary(actionId).catch(() => ({ used: 0, cap: 40 }))
+          : { used: 0, cap: 40 };
+
+        return res.status(200).json(
+          successResponse('Journey search completed', {
+            direct: [],
+            waitingTrains: [],
+            uncheckedClasses: [],
+            alternatives: [],
+            dateStrip: [],
+            partial: false,
+            degraded: false,
+            providerNotice: 'booking may not be open for this date yet',
+            allCancelled: false,
+            noTrainsFound: true,
+            message: 'Booking may not be open for this date yet.',
+            budget: budgetSummary,
+            cache: { hits: 0, misses: 0 },
+          })
+        );
+      }
+
       // Graceful fallback for RailKit 429 and 5xx provider disruptions
       const isProviderErr =
         err.status === 429 ||

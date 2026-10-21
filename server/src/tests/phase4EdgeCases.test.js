@@ -39,7 +39,7 @@ test('Phase 4.1: Date Validations — Past date, >120 day ARP, and invalid strin
     assert.equal(bodyPast.success, false);
     assert.equal(bodyPast.error?.code, 'PAST_DATE');
 
-    // 2. Beyond 120-day ARP limit
+    // 2. Beyond advance booking window (60 days) -> returns 200 with notice, not hard 400 error
     const resFar = await fetch(baseUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -51,9 +51,9 @@ test('Phase 4.1: Date Validations — Past date, >120 day ARP, and invalid strin
       }),
     });
     const bodyFar = await resFar.json();
-    assert.equal(resFar.status, 400, 'Date beyond 120 days must return HTTP 400');
-    assert.equal(bodyFar.success, false);
-    assert.equal(bodyFar.error?.code, 'ADVANCE_BOOKING_EXCEEDED');
+    assert.equal(resFar.status, 200, 'Date beyond advance window must return HTTP 200 with notice');
+    assert.equal(bodyFar.success, true);
+    assert.ok(bodyFar.data?.providerNotice?.includes('booking may not be open for this date yet'));
 
     // 3. Invalid date string
     const resInvalid = await fetch(baseUrl, {
