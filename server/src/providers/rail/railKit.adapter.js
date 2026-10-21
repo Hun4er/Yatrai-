@@ -752,6 +752,18 @@ export class RailKitAdapter {
         data: Array.isArray(json?.data) ? json.data : [],
       };
     } catch (err) {
+      const isNoTrains =
+        err.status === 404 ||
+        (err.status === 400 && /no trains found/i.test(err.body || err.message));
+      if (isNoTrains) {
+        logger.info(`[RailKitAdapter] searchTrainBetweenStations: 0 trains found between ${fromCode} and ${toCode}`);
+        return {
+          status: 'ok',
+          success: true,
+          provider: 'RailKit',
+          data: [],
+        };
+      }
       logger.warn(`[RailKitAdapter] searchTrainBetweenStations error: ${err.message}`);
       return { status: 'error', success: false, provider: 'RailKit', data: [], error: err.message };
     }
@@ -1065,7 +1077,8 @@ export function normalizeRailKitTrain(rkTrain, defaultFrom = '', defaultTo = '')
   const fromName = rkTrain.from_stn_name || rkTrain.source_stn_name || fromCode;
   const toName = rkTrain.to_stn_name || rkTrain.dstn_stn_name || toCode;
   const trainNum = String(rkTrain.train_no || rkTrain.trainNumber || rkTrain.number || '');
-  const trainName = rkTrain.train_name || rkTrain.trainName || rkTrain.name || 'Express';
+  let trainName = rkTrain.train_name || rkTrain.trainName || rkTrain.name || 'Express';
+  trainName = String(trainName).replace(/\bEXPRES\b/gi, 'EXPRESS').trim();
 
   let classes = [];
   if (Array.isArray(rkTrain.classes)) {

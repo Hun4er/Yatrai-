@@ -93,11 +93,20 @@ export class OverallStrategy extends BaseRankingStrategy {
       const modeScore = computeModeChangeScore(j.transportModes);
       const convenienceScore = (scheduleScore + modeScore) / 2;
 
+      const isShift = Boolean(
+        j.isClusterShift ||
+        j.metadata?.isClusterShift ||
+        j.stationDifference?.hasDifference ||
+        j.metadata?.stationDifference?.hasDifference ||
+        (j.metadata?.tier && j.metadata.tier !== 'tier1')
+      );
+      const stationFactor = isShift ? 0.9 : 1.0;
+
       const rawScore =
-        durationScore * this.weights.durationWeight +
+        (durationScore * this.weights.durationWeight +
         priceScore * this.weights.priceWeight +
         transferScore * this.weights.transferWeight +
-        convenienceScore * this.weights.convenienceWeight;
+        convenienceScore * this.weights.convenienceWeight) * stationFactor;
 
       const bq = evaluateJourneyBookingQuality(j);
       j._bookingTier = bq.tier;
@@ -108,6 +117,19 @@ export class OverallStrategy extends BaseRankingStrategy {
     const comparator = createTieBreaker([
       { extractor: (j) => j._bookingTier, direction: 'desc' },
       { extractor: (j) => j._maxWlPos, direction: 'asc', nullsLast: true },
+      {
+        extractor: (j) => {
+          const isShift = Boolean(
+            j.isClusterShift ||
+            j.metadata?.isClusterShift ||
+            j.stationDifference?.hasDifference ||
+            j.metadata?.stationDifference?.hasDifference ||
+            (j.metadata?.tier && j.metadata.tier !== 'tier1')
+          );
+          return isShift ? 0 : 1;
+        },
+        direction: 'desc',
+      },
       { extractor: (j) => j._score, direction: 'desc' },
       { extractor: (j) => j.duration, direction: 'asc', nullsLast: true },
       { extractor: (j) => j.totalPrice, direction: 'asc', nullsLast: true },

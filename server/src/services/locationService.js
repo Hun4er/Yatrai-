@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { Location } from '../models/Location.js';
 import locationProvider from '../providers/location/location.provider.js';
 import { parseTravelIntent } from '../utils/locationParser.js';
-import { searchRailwayStations } from './rail/stationRegistry.js';
+import { searchRailwayStations, findStationByCode } from './rail/stationRegistry.js';
 import railKitAdapter from '../providers/rail/railKit.adapter.js';
 import logger from '../utils/logger.js';
 
@@ -27,8 +27,10 @@ function escapeRegex(str) {
 export function scoreLocationCandidate(candidate, cleanQuery) {
   if (!candidate) return -999;
   const lowerQ = cleanQuery.toLowerCase().trim();
+  const upperQ = cleanQuery.toUpperCase().trim();
+  const isStationCode = /^[A-Z]{2,5}$/.test(upperQ) && Boolean(findStationByCode(upperQ));
   const isAirportQuery = /\b(airport|aerodrome|airfield|terminal\s*[12345])\b/i.test(lowerQ);
-  const isStationQuery = /\b(station|junction|central|cantt|railway|terminus|jn)\b/i.test(lowerQ);
+  const isStationQuery = isStationCode || /\b(station|junction|central|cantt|railway|terminus|jn)\b/i.test(lowerQ);
   const isBusQuery = /\b(bus\s*(?:stand|station|terminal)|isbt)\b/i.test(lowerQ);
   const isRoadQuery = /\b(highway|expressway|bypass|road|street|nh-\d)\b/i.test(lowerQ);
 
@@ -37,14 +39,20 @@ export function scoreLocationCandidate(candidate, cleanQuery) {
   const name = (candidate.name || '').toLowerCase();
   const city = (candidate.city || '').toLowerCase();
   const displayName = (candidate.displayName || '').toLowerCase();
+  const candCode = (candidate.stationCode || candidate.metadata?.stationCode || '').toUpperCase().trim();
+
+  // Exact station code match
+  if (isStationCode && candCode && candCode === upperQ) {
+    score += 350;
+  }
 
   if (isAirportQuery) {
     if (type === 'airport') score += 160;
     else if (type === 'city') score += 30;
     else score -= 40;
   } else if (isStationQuery) {
-    if (type === 'railway_station') score += 160;
-    else if (type === 'city') score += 40;
+    if (type === 'railway_station') score += 200;
+    else if (type === 'city') score += isStationCode ? -20 : 40;
     else score -= 40;
   } else if (isBusQuery) {
     if (type === 'bus_station') score += 160;

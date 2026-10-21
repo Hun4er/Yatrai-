@@ -64,7 +64,7 @@ export class RequestBudgetTracker {
     };
 
     this.directRequestsUsed = 0;
-    this.recoveryRequestsUsed = 0;
+    this.recoveryRequestsUsed = 0;  
     this.staticRequestsUsed = 0;
     this.directReserved = 0;
     this.recoveryReserved = 0;

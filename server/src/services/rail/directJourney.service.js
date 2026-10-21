@@ -8,6 +8,7 @@ import { calculateJourneyTiming } from '../../utils/railwayTime.js';
 import { findVerifiedDirectTrains } from './verifiedTrainData.js';
 import config from '../../config/index.js';
 import { isUnlikelyWaitlist } from '../../ranking/utils/bookingQuality.js';
+import clusterLegExpander from './clusterLegExpander.service.js';
 
 /**
  * Checks whether a candidate journey has a usable result:
@@ -58,6 +59,7 @@ export class DirectJourneyService {
     this.railKit = dependencies.railKit || dependencies.railRadar || railKitAdapter;
     this.availabilityService = dependencies.availabilityService || availabilityService;
     this.fareService = dependencies.fareService || fareService;
+    this.clusterLegExpander = dependencies.clusterLegExpander || clusterLegExpander;
   }
 
   /**
@@ -93,6 +95,14 @@ export class DirectJourneyService {
             } else if (rkRes?.reason === 'STATIC_BUDGET_EXHAUSTED') {
               logger.info(`[DirectJourneyService] Static budget exhausted for ${f}->${t} in ${tier}`);
               break;
+            } else if (rkRes && !rkRes.success) {
+              const isRateLimit =
+                rkRes.isRateLimited ||
+                rkRes.statusCode === 429 ||
+                /rate limit|quota exceeded|429/i.test(String(rkRes.error));
+              if (isRateLimit) isRateLimited = true;
+              if (rkRes.isMonthlyQuota || /monthly quota/i.test(String(rkRes.error))) isMonthlyQuota = true;
+              if (rkRes.error) lastError = rkRes.error;
             }
           } else if (typeof this.railKit.searchDirectTrains === 'function') {
             const res = await this.railKit.searchDirectTrains(f, t, { ...searchOpts, tier, isRecovery: false });
@@ -384,19 +394,19 @@ export class DirectJourneyService {
         legs: [
           {
             sequence: 1,
-            origin: origin?._id || origin?.id || cand.fromCode,
-            destination: destination?._id || destination?.id || cand.toCode,
+            origin: (cand.fromCode === originCode) ? (origin?._id || origin?.id || cand.fromCode) : (cand.fromStationDetails?._id || cand.fromCode),
+            destination: (cand.toCode === destCode) ? (destination?._id || destination?.id || cand.toCode) : (cand.toStationDetails?._id || cand.toCode),
             originStation: {
               name: cand.fromStationName || cand.fromCode,
               stationCode: cand.fromCode,
               code: cand.fromCode,
-              city: cand.fromStationName || cand.fromCode,
+              city: cand.fromStationDetails?.city || cand.fromStationName || cand.fromCode,
             },
             destinationStation: {
               name: cand.toStationName || cand.toCode,
               stationCode: cand.toCode,
               code: cand.toCode,
-              city: cand.toStationName || cand.toCode,
+              city: cand.toStationDetails?.city || cand.toStationName || cand.toCode,
             },
             mode: 'rail',
             providerCode: 'IRCTC',
@@ -514,19 +524,19 @@ export class DirectJourneyService {
         legs: [
           {
             sequence: 1,
-            origin: origin?._id || origin?.id || uCand.fromCode,
-            destination: destination?._id || destination?.id || uCand.toCode,
+            origin: (uCand.fromCode === originCode) ? (origin?._id || origin?.id || uCand.fromCode) : (uCand.fromStationDetails?._id || uCand.fromCode),
+            destination: (uCand.toCode === destCode) ? (destination?._id || destination?.id || uCand.toCode) : (uCand.toStationDetails?._id || uCand.toCode),
             originStation: {
               name: uCand.fromStationName || uCand.fromCode,
               stationCode: uCand.fromCode,
               code: uCand.fromCode,
-              city: uCand.fromStationName || uCand.fromCode,
+              city: uCand.fromStationDetails?.city || uCand.fromStationName || uCand.fromCode,
             },
             destinationStation: {
               name: uCand.toStationName || uCand.toCode,
               stationCode: uCand.toCode,
               code: uCand.toCode,
-              city: uCand.toStationName || uCand.toCode,
+              city: uCand.toStationDetails?.city || uCand.toStationName || uCand.toCode,
             },
             mode: 'rail',
             providerCode: 'IRCTC',
@@ -786,6 +796,13 @@ export class DirectJourneyService {
       destination
     );
     const remainingUnvalidated = finalAllRunning.filter((c) => !validatedTrainNumbers.has(c.trainNumber));
+    // Prioritize genuine Tier 1 trains (from requested origin to requested dest) over cluster shifts
+    remainingUnvalidated.sort((a, b) => {
+      const aT1 = a.tier === 'tier1' ? 1 : 0;
+      const bT1 = b.tier === 'tier1' ? 1 : 0;
+      if (aT1 !== bT1) return bT1 - aT1;
+      return (b.timetableScore || 0) - (a.timetableScore || 0);
+    });
     if (remainingUnvalidated.length > 0) {
       const unvalidatedJourneys = await this._enrichCandidateList(
         [],
@@ -845,6 +862,18 @@ export class DirectJourneyService {
 
     const validEnrichedJourneys = enrichedJourneys.filter(Boolean);
 
+    try {
+      await this.clusterLegExpander.expandJourneys(validEnrichedJourneys, {
+        requestedOriginCode: originCode,
+        requestedDestCode: destCode,
+        budgetTracker: searchOpts.budgetTracker,
+        travelClass,
+        passengers,
+      });
+    } catch (expErr) {
+      logger.warn(`[DirectJourneyService] Failed to expand cluster legs: ${expErr.message}`);
+    }
+
     logger.info(`[DIAGNOSTIC - STAGE 4 & 5 (ENRICHMENT END)] Enriched journeys count=${validEnrichedJourneys.length}`);
     for (const j of validEnrichedJourneys) {
       logger.info(`  [ENRICHED] Train ${j.metadata?.trainNumber} (${j.metadata?.trainName}): avail=${j.availability?.normalizedStatus} (raw: "${j.availability?.rawStatus}", seats: ${j.availability?.seatsAvailable}), fare=₹${j.pricing?.totalFare} (est: ${j.pricing?.isEstimated})`);
@@ -857,6 +886,13 @@ export class DirectJourneyService {
 
     // Filter budget suitability
     let suitableJourneys = validEnrichedJourneys;
+    // Always prioritize genuine Tier 1 direct trains (no cluster shift) over cluster shifts
+    suitableJourneys.sort((a, b) => {
+      const aT1 = (a.metadata?.tier === 'tier1' && !a.isClusterShift) ? 1 : 0;
+      const bT1 = (b.metadata?.tier === 'tier1' && !b.isClusterShift) ? 1 : 0;
+      if (aT1 !== bT1) return bT1 - aT1;
+      return (a.duration || 0) - (b.duration || 0);
+    });
     if (maxBudget && maxBudget > 0) {
       suitableJourneys = enrichedJourneys.filter((j) => Number(j.totalPrice) <= maxBudget);
       if (suitableJourneys.length === 0) {
@@ -968,7 +1004,12 @@ export class DirectJourneyService {
     // When all availability checks returned UNKNOWN (e.g. provider rate-limited or disabled),
     // strictly enforce that UNKNOWN availability does NOT qualify as confirmed available seats.
     if (allUnknown) {
-      suitableJourneys.sort((a, b) => a.duration - b.duration);
+      suitableJourneys.sort((a, b) => {
+        const aT1 = (a.metadata?.tier === 'tier1' && !a.isClusterShift) ? 1 : 0;
+        const bT1 = (b.metadata?.tier === 'tier1' && !b.isClusterShift) ? 1 : 0;
+        if (aT1 !== bT1) return bT1 - aT1;
+        return a.duration - b.duration;
+      });
       if (suitableJourneys.length > 0) {
         suitableJourneys[0].isTopPick = true;
         suitableJourneys[0].ranking = {

@@ -19,8 +19,10 @@ import directJourneyService, { DIRECT_SEARCH_STATUS } from '../services/rail/dir
 import journeyRecoveryService from '../services/rail/journeyRecovery.service.js';
 import RequestBudgetTracker, { runWithBudget } from '../services/rail/requestBudget.js';
 import { AVAILABILITY_STATUS } from '../services/rail/availabilityNorm.js';
-import { matchesTimeWindow } from '../services/naturalLanguage/timeWindowResolver.js';
 import { isValidCalendarDate, isPastDate } from '../middleware/validate.middleware.js';
+import { findStationByCode } from '../services/rail/stationRegistry.js';
+import { STATION_CODE_MAP } from '../providers/transport/rail/rail.provider.js';
+import clusterService from '../services/rail/cluster.service.js';
 
 async function ensureMongoLocation(loc) {
   if (!loc) return null;
@@ -473,25 +475,37 @@ export class JourneyOrchestrator {
   validateRailwayCandidate(candidate) {
     if (!candidate || typeof candidate !== 'object') return false;
 
-    // Reject missing, unknown, or non-rail transport modes
-    const modes = Array.isArray(candidate.transportModes) ? candidate.transportModes : [];
-    if (modes.length === 0) return false;
-    const hasNonRailMode = modes.some((m) => String(m).toLowerCase() !== 'rail');
-    if (hasNonRailMode) return false;
-
-    // Reject missing legs or non-rail legs
+    // Reject missing legs or a journey made only of transfer legs
     const legs = Array.isArray(candidate.legs) ? candidate.legs : [];
     if (legs.length === 0) return false;
+    const nonTransferLegs = legs.filter((l) => !l?.metadata?.isStationTransfer);
+    if (nonTransferLegs.length === 0) return false;
+
+    // Reject missing, unknown, or non-rail transport modes (allow road if station transfer leg is present)
+    const modes = Array.isArray(candidate.transportModes) ? candidate.transportModes : [];
+    if (modes.length === 0) return false;
+    const hasStationTransfer = legs.some((l) => l?.metadata?.isStationTransfer === true);
+    const hasNonRailMode = modes.some((m) => {
+      const mode = String(m).toLowerCase();
+      if (hasStationTransfer && (mode === 'road' || mode === 'metro')) return false;
+      return mode !== 'rail';
+    });
+    if (hasNonRailMode) return false;
+
+    // Reject missing legs or non-rail legs (legs with metadata.isStationTransfer === true are allowed)
     const hasNonRailLeg = legs.some((leg) => {
+      if (leg?.metadata?.isStationTransfer === true) return false;
       const mode = String(leg?.mode || '').toLowerCase();
       return mode !== 'rail';
     });
     if (hasNonRailLeg) return false;
 
     // Reject road/driving/OSRM/bus/flight sources or providers
+    // vehicleType check is computed from the first NON-transfer leg
     const source = String(candidate.source || candidate.metadata?.source || '').toLowerCase();
     const providerCode = String(candidate.metadata?.provider || candidate.provider || candidate.providerCode || '').toLowerCase();
-    const vehicleType = String(candidate.legs?.[0]?.vehicle?.type || '').toLowerCase();
+    const firstNonTransferLeg = nonTransferLegs[0];
+    const vehicleType = String(firstNonTransferLeg?.vehicle?.type || '').toLowerCase();
     if (
       ['osrm', 'road', 'bus', 'flight', 'car', 'cab', 'driving'].some(
         (s) => source.includes(s) || providerCode.includes(s) || vehicleType.includes(s)
@@ -920,7 +934,30 @@ export class JourneyOrchestrator {
 
     const formatLocation = (loc) => {
       if (!loc) return null;
-      const stnCode = loc.metadata?.stationCode || loc.stationCode || (loc.aliases && loc.aliases.find((a) => /^[A-Z]{2,5}$/.test(a))) || '';
+      let stnCode = loc.metadata?.stationCode || loc.stationCode || '';
+      if (!stnCode && loc.name) {
+        const byName = findStationByCode(loc.name) || STATION_CODE_MAP[loc.name.toLowerCase().trim()];
+        if (byName) {
+          stnCode = typeof byName === 'string' ? byName : byName.stationCode;
+        }
+      }
+      if (!stnCode && Array.isArray(loc.aliases)) {
+        const validAlias = loc.aliases.find((a) => {
+          const clean = String(a).toUpperCase().trim();
+          return findStationByCode(clean) || STATION_CODE_MAP[clean.toLowerCase()];
+        });
+        if (validAlias) {
+          const matched = findStationByCode(validAlias) || STATION_CODE_MAP[validAlias.toLowerCase().trim()];
+          stnCode = typeof matched === 'string' ? matched : (matched?.stationCode || validAlias.toUpperCase().trim());
+        }
+      }
+      if (!stnCode && loc.name) {
+        const cluster = clusterService.getClusterForStation(loc.name);
+        if (cluster?.primaryCode) {
+          stnCode = cluster.primaryCode;
+        }
+      }
+
       return {
         id: loc._id ? loc._id.toString() : loc.id || null,
         name: loc.name || '',
@@ -947,8 +984,17 @@ export class JourneyOrchestrator {
       numberOfTransfers: raw.numberOfTransfers || 0,
       transportModes: raw.transportModes || [],
       status: raw.status || 'scheduled',
+      isDirectTrain: raw.isDirectTrain ?? (raw.numberOfTransfers === 0 && legs.filter((l) => l.mode === 'rail').length <= 1),
+      isClusterShift: raw.isClusterShift ?? raw.metadata?.isClusterShift ?? false,
+      clusterNote: raw.clusterNote || raw.metadata?.clusterNote || null,
+      stationDifference: raw.stationDifference || raw.metadata?.stationDifference || null,
       availabilityStatus: raw.availabilityStatus || raw.metadata?.availabilityStatus || null,
       isBookable: raw.isBookable ?? (raw.availabilityStatus === 'AVAILABILITY_VERIFIED' || raw.availabilityStatus === 'RAC_AVAILABLE'),
+      pricing: raw.pricing || {
+        totalFare: raw.totalPrice,
+        isEstimated: Boolean(raw.metadata?.isEstimatedPrice),
+        currency: raw.currency || 'INR',
+      },
       legs: legs.map((leg) => {
         const legRaw = typeof leg.toJSON === 'function' ? leg.toJSON() : leg;
         const originFormatted = formatLocation(legRaw.origin) || {
@@ -989,6 +1035,7 @@ export class JourneyOrchestrator {
             number: legRaw.service?.number || legRaw.vehicle?.identifier || '',
           },
           booking: legRaw.booking || {},
+          metadata: legRaw.metadata || {},
         };
       }),
       metadata: raw.metadata || {},
@@ -1396,8 +1443,14 @@ export class JourneyOrchestrator {
             return j.isConfirmedAvailable === true;
           }
           if (Array.isArray(j.legs) && j.legs.length > 0) {
-            return j.legs.every(
-              (l) => l.availability?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE
+            const relevantLegs = j.legs.filter(
+              (l) => !l.metadata?.isStationTransfer && !l.metadata?.isFeeder
+            );
+            return (
+              relevantLegs.length > 0 &&
+              relevantLegs.every(
+                (l) => l.availability?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE
+              )
             );
           }
           return j.availability?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE;
@@ -1433,8 +1486,14 @@ export class JourneyOrchestrator {
             return j.isConfirmedAvailable === true;
           }
           if (Array.isArray(j.legs) && j.legs.length > 0) {
-            return j.legs.every(
-              (l) => l.availability?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE
+            const relevantLegs = j.legs.filter(
+              (l) => !l.metadata?.isStationTransfer && !l.metadata?.isFeeder
+            );
+            return (
+              relevantLegs.length > 0 &&
+              relevantLegs.every(
+                (l) => l.availability?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE
+              )
             );
           }
           return j.availability?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE;

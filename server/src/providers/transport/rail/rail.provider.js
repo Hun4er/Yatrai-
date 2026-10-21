@@ -5,6 +5,7 @@ import { ProviderError } from '../errors.js';
 import { calculateJourneyTiming } from '../../../utils/railwayTime.js';
 import railKitAdapter, { normalizeRailKitTrain } from '../../rail/railKit.adapter.js';
 import { findVerifiedDirectTrains } from '../../../services/rail/verifiedTrainData.js';
+import { findStationByCode } from '../../../services/rail/stationRegistry.js';
 
 /**
  * Built-in Station Code Mapping for major Indian cities and railway hubs.
@@ -81,32 +82,56 @@ export const STATION_CODE_MAP = {
   kolkata: 'HWH',
   howrah: 'HWH',
   'howrah junction': 'HWH',
+  'howrah jn': 'HWH',
+  hwh: 'HWH',
   sealdah: 'SDAH',
+  sdah: 'SDAH',
   shalimar: 'SHM',
+  shm: 'SHM',
   'kolkata chitpur': 'KOAA',
+  koaa: 'KOAA',
   asansol: 'ASN',
+  asn: 'ASN',
   siliguri: 'NJP',
   'new jalpaiguri': 'NJP',
+  njp: 'NJP',
   guwahati: 'GHY',
+  ghy: 'GHY',
   kamakhya: 'KYQ',
+  kyq: 'KYQ',
 
   // Uttar Pradesh & Uttarakhand
   lucknow: 'LKO',
   'lucknow charbagh': 'LKO',
   'lucknow junction': 'LJN',
+  'lucknow jn': 'LJN',
+  lko: 'LKO',
+  ljn: 'LJN',
   kanpur: 'CNB',
   'kanpur central': 'CNB',
+  cnb: 'CNB',
   varanasi: 'BSB',
   'varanasi junction': 'BSB',
+  'varanasi jn': 'BSB',
+  bsb: 'BSB',
   banaras: 'BSBS',
+  bsbs: 'BSBS',
   'pt deen dayal upadhyaya': 'DDU',
+  'pt deen dayal upadhyaya jn': 'DDU',
+  'deen dayal upadhyaya': 'DDU',
   mughalsarai: 'DDU',
+  ddu: 'DDU',
   prayagraj: 'PRYJ',
   'prayagraj junction': 'PRYJ',
+  'prayagraj jn': 'PRYJ',
+  pryj: 'PRYJ',
   allahabad: 'PRYJ',
   gorakhpur: 'GKP',
+  'gorakhpur jn': 'GKP',
+  gkp: 'GKP',
   agra: 'AGC',
   'agra cantt': 'AGC',
+  agc: 'AGC',
   'agra fort': 'AF',
   mathura: 'MTJ',
   aligarh: 'ALJN',
@@ -301,9 +326,31 @@ export function resolveStationCode(location) {
 
   if (typeof location === 'string') {
     const trimmed = location.trim();
+    if (!trimmed) return 'NDLS';
+    if (/^[A-Za-z]{2,5}$/.test(trimmed)) {
+      return trimmed.toUpperCase();
+    }
     const lower = trimmed.toLowerCase();
     if (STATION_CODE_MAP[lower]) {
       return STATION_CODE_MAP[lower];
+    }
+    const cleaned = lower.replace(/\s+(jn|junction|cantt|terminal|central)$/i, '').trim();
+    if (STATION_CODE_MAP[cleaned]) {
+      return STATION_CODE_MAP[cleaned];
+    }
+    const parenMatch = trimmed.match(/\(([A-Za-z]{2,5})\)/) || trimmed.match(/-\s*([A-Za-z]{2,5})$/);
+    if (parenMatch && /^[A-Za-z]{2,5}$/.test(parenMatch[1])) {
+      return parenMatch[1].toUpperCase();
+    }
+    for (const [key, code] of Object.entries(STATION_CODE_MAP)) {
+      if (lower === key || lower.startsWith(key + ' ') || lower.endsWith(' ' + key)) {
+        return code;
+      }
+    }
+    for (const [key, code] of Object.entries(STATION_CODE_MAP)) {
+      if (lower.includes(key)) {
+        return code;
+      }
     }
     return trimmed.toUpperCase();
   }
@@ -320,23 +367,45 @@ export function resolveStationCode(location) {
     return metaCode.trim().toUpperCase();
   }
 
-  // 3. Aliases containing an uppercase station code
-  if (Array.isArray(location.aliases)) {
-    const aliasCode = location.aliases.find(
-      (a) => typeof a === 'string' && /^[A-Za-z]{2,5}$/.test(a.trim())
-    );
-    if (aliasCode) return aliasCode.trim().toUpperCase();
-  }
-
-  // 4. Parentheses in displayName or name (e.g. "New Delhi (NDLS)")
-  const parenMatch = (location.displayName || location.name || '').match(/\b([A-Za-z]{2,5})\b/);
-
-  // 5. Clean name & city match against STATION_CODE_MAP
+  // 3. Clean name & city match against STATION_CODE_MAP
   const nameClean = (location.name || '').toLowerCase().trim();
   const cityClean = (location.city || '').toLowerCase().trim();
 
   if (STATION_CODE_MAP[nameClean]) return STATION_CODE_MAP[nameClean];
   if (STATION_CODE_MAP[cityClean]) return STATION_CODE_MAP[cityClean];
+
+  const stnByName = findStationByCode(location.name);
+  if (stnByName) return stnByName.stationCode;
+
+  // 4. Aliases containing a verified station code (do not pick non-station abbreviations like 'NCR')
+  if (Array.isArray(location.aliases)) {
+    const verifiedAlias = location.aliases.find((a) => {
+      if (typeof a !== 'string') return false;
+      const cleanA = a.trim();
+      return findStationByCode(cleanA) || STATION_CODE_MAP[cleanA.toLowerCase()];
+    });
+    if (verifiedAlias) {
+      const match = findStationByCode(verifiedAlias) || STATION_CODE_MAP[verifiedAlias.toLowerCase().trim()];
+      return typeof match === 'string' ? match : match.stationCode;
+    }
+  }
+
+  // 5. Parentheses in displayName or name (e.g. "New Delhi (NDLS)")
+  const parenMatch =
+    (location.displayName || location.name || '').match(/\(([A-Za-z]{2,5})\)/) ||
+    (location.displayName || location.name || '').match(/-\s*([A-Za-z]{2,5})$/);
+  if (parenMatch && /^[A-Za-z]{2,5}$/.test(parenMatch[1])) {
+    const candidateCode = parenMatch[1].toUpperCase();
+    if (findStationByCode(candidateCode) || STATION_CODE_MAP[candidateCode.toLowerCase()]) {
+      return candidateCode;
+    }
+  }
+
+  for (const [key, code] of Object.entries(STATION_CODE_MAP)) {
+    if (nameClean === key || nameClean.startsWith(key + ' ') || nameClean.endsWith(' ' + key)) {
+      return code;
+    }
+  }
 
   for (const [key, code] of Object.entries(STATION_CODE_MAP)) {
     if (nameClean.includes(key) || cityClean.includes(key)) {
@@ -346,7 +415,10 @@ export function resolveStationCode(location) {
 
   // 6. Name directly matches 2-5 capital letters
   if (/^[A-Za-z]{2,5}$/.test(nameClean)) {
-    return nameClean.toUpperCase();
+    const candidate = nameClean.toUpperCase();
+    if (findStationByCode(candidate) || STATION_CODE_MAP[nameClean]) {
+      return candidate;
+    }
   }
 
   if (parenMatch && /^[A-Z]{2,5}$/.test(parenMatch[1])) {

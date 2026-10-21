@@ -59,31 +59,42 @@ export async function connectDatabase(customUri) {
     logger.warn(`[Database] Primary MongoDB connection to ${maskedUri} failed: ${error.message}`);
     await mongoose.disconnect().catch(() => {});
 
-    // In unit test environments ONLY, allow in-memory MongoDB fallback
-    if (config.isTest) {
+    // In unit test and development environments, allow in-memory MongoDB fallback
+    if (config.isTest || config.isDevelopment) {
       try {
-        logger.info('[Database] Test environment active: spinning up in-memory MongoDB instance via mongodb-memory-server...');
+        logger.info('[Database] Falling back to in-memory MongoDB instance via mongodb-memory-server...');
         const { MongoMemoryServer } = await import('mongodb-memory-server');
         if (!memoryServerInstance) {
           memoryServerInstance = await MongoMemoryServer.create();
         }
         const memUri = memoryServerInstance.getUri();
-        logger.info(`[Database] Connecting to in-memory test MongoDB at ${memUri}...`);
+        logger.info(`[Database] Connecting to in-memory MongoDB at ${memUri}...`);
 
         await mongoose.connect(memUri, {
           serverSelectionTimeoutMS: 3000,
         });
 
-        logger.info('[Database] In-memory test MongoDB connected successfully.');
+        logger.info('[Database] In-memory MongoDB connected successfully.');
+
+        if (config.isDevelopment) {
+          try {
+            const { seedDatabase } = await import('../database/seed/seed.js');
+            await seedDatabase({ shouldReset: false, disconnectOnFinish: false });
+            logger.info('[Database] In-memory database seeded with default development data.');
+          } catch (seedErr) {
+            logger.warn(`[Database] Auto-seeding in-memory database skipped: ${seedErr.message}`);
+          }
+        }
+
         return mongoose;
       } catch (memError) {
-        logger.error(`[Database] Failed to initialize in-memory test database: ${memError.message}`);
+        logger.error(`[Database] Failed to initialize in-memory database: ${memError.message}`);
         throw memError;
       }
     }
 
-    // In development and production, fail loudly with a clear actionable message
-    const fatalMsg = `[Database] FATAL: Real MongoDB is required in development (via MONGODB_URI) so that persistent cache and API usage counters survive server restarts. Failed to connect to ${maskedUri}: ${error.message}. Please start local MongoDB (mongodb://127.0.0.1:27017/yatrai_dev) or configure a reachable MongoDB Atlas connection string in server/.env.`;
+    // In production, fail loudly with a clear actionable message
+    const fatalMsg = `[Database] FATAL: Real MongoDB is required in production (via MONGODB_URI). Failed to connect to ${maskedUri}: ${error.message}. Please configure a reachable MongoDB connection string.`;
     logger.error(fatalMsg);
     throw new Error(fatalMsg);
   } finally {

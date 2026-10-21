@@ -174,10 +174,10 @@ export function ResultsPage({
   const isRailwayValid = (j) => {
     if (!j) return false;
     const modes = Array.isArray(j.transportModes) ? j.transportModes : [];
-    if (modes.length === 0 || modes.some((m) => String(m).toLowerCase() !== 'rail')) return false;
     const legs = Array.isArray(j.legs) ? j.legs : [];
-    if (legs.length === 0 || legs.some((l) => String(l.mode || '').toLowerCase() !== 'rail')) return false;
-    return true;
+    const hasRailLeg = legs.some((l) => String(l.mode || '').toLowerCase() === 'rail');
+    const hasRailMode = modes.some((m) => String(m).toLowerCase() === 'rail');
+    return hasRailLeg || hasRailMode || Boolean(j.isDirectTrain);
   };
 
   const validatedJourneys = useMemo(() => {

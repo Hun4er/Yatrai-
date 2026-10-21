@@ -108,9 +108,15 @@ export function matchesDepartureTime(departureTime, bucket) {
   if (!departureTime) return false;
 
   try {
-    const d = new Date(departureTime);
-    if (isNaN(d.getTime())) return false;
-    const hour = d.getHours();
+    let hour;
+    if (typeof departureTime === 'string' && /^\d{1,2}:\d{2}/.test(departureTime.trim())) {
+      hour = parseInt(departureTime.trim().split(':')[0], 10);
+    } else {
+      const d = new Date(departureTime);
+      if (isNaN(d.getTime())) return false;
+      // Indian Railways operates in IST (UTC+5:30). Evaluate in IST so local client timezone doesn't distort time buckets.
+      hour = new Date(d.getTime() + 5.5 * 3600000).getUTCHours();
+    }
 
     switch (bucket) {
       case 'early_morning':

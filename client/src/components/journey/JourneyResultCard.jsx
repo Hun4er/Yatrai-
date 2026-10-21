@@ -13,6 +13,7 @@ import {
   AlertCircle,
   X,
   Loader2,
+  MapPin,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../services/api.js';
@@ -27,21 +28,23 @@ import {
   getPriceLabel,
   getRecommendationExplanation,
 } from '../../utils/formatters.js';
-import { JourneyLeg, getModeIcon } from './JourneyLeg.jsx';
+import { getModeIcon } from './JourneyLeg.jsx';
+import { parseJourneyStages, CompleteJourneyTimeline, resolveStation } from './CompleteJourneyTimeline.jsx';
 
 /**
  * JourneyResultCard Component
  *
- * Implements Sections 8, 9, 10, 11, 12, 13, 14, 15, 18:
- * - Scannable 4-point hierarchy: Departure, Arrival, Duration, Cost
- * - Explicit arrival date and +1 day offset calculation
- * - Transparent "Why Yatrai recommends this" explanation for Best Overall
- * - Reduced badge density with semantic coloring
- * - Vertical multi-modal timeline without fabricating stops
- * - Clear distinction between "Total fare" vs "Estimated driving cost"
- * - Replaces "Legs" with "[ View itinerary ↓ ]" or "[ 2 segments · 1 transfer ↓ ]"
- * - Replaces "View Journey" with "View itinerary"
- * - Comparison selection support
+ * Implements Graphite & Amber Complete Journey Design System:
+ * - Collapsed Journey Card (Section 3):
+ *   - Clear distinction between Requested Journey (Origin -> Destination)
+ *     and Actual Train Route (Boarding Station -> Arrival Station).
+ *   - Scannable 4-point metrics: Departure, Arrival, Duration, Cost.
+ *   - Primary CTA: [View Complete Itinerary] in Accent Amber (#E8B04A).
+ * - Expanded Complete Journey (Sections 4, 5, 6, 7):
+ *   - End-to-end continuous vertical timeline (Access -> Train -> Onward).
+ *   - Visually prominent train segment.
+ *   - Honest handling of unarranged connections without fabricating fake transit.
+ *   - Transparent Cost Breakdown & Timing Buffer analysis.
  */
 export function JourneyResultCard({
   journey,
@@ -67,7 +70,6 @@ export function JourneyResultCard({
     setBookingError(null);
     try {
       const journeyId = journey.id || journey._id;
-      // Preserve current booking context in sessionStorage
       sessionStorage.setItem(
         'yatrai_pending_booking',
         JSON.stringify({
@@ -80,7 +82,6 @@ export function JourneyResultCard({
       setBookingModalOpen(false);
 
       if (!isAuthenticated) {
-        // Case A: Redirect to login page
         if (onBookJourney) {
           onBookJourney(journey, false);
         } else {
@@ -88,7 +89,6 @@ export function JourneyResultCard({
           window.dispatchEvent(new PopStateEvent('popstate'));
         }
       } else {
-        // Case B: Logged in - proceed to booking page
         if (onBookJourney) {
           onBookJourney(journey, true);
         } else {
@@ -144,52 +144,50 @@ export function JourneyResultCard({
 
   if (!journey) return null;
 
-  const originName = journey.origin?.name || journey.origin?.city || 'Origin';
-  const destinationName = journey.destination?.name || journey.destination?.city || 'Destination';
-  const originCity = journey.origin?.city && journey.origin?.name !== journey.origin?.city ? journey.origin.city : null;
-  const destinationCity = journey.destination?.city && journey.destination?.name !== journey.destination?.city ? journey.destination.city : null;
+  // Parse structured end-to-end journey stages
+  const parsed = parseJourneyStages(journey);
 
-  const depTime = journey.departureTimeFormatted || formatTime(journey.departureTime);
-  const arrTime = journey.arrivalTimeFormatted || formatTime(journey.arrivalTime);
-  const depDate = journey.departureDateFormatted
-    ? formatDateDisplay(journey.departureDateFormatted)
-    : formatDateDisplay(journey.departureTime);
-  const arrDate = journey.arrivalDateFormatted
-    ? formatDateDisplay(journey.arrivalDateFormatted)
-    : formatDateDisplay(journey.arrivalTime);
+  const originName = parsed?.reqOriginName || journey.origin?.name || journey.origin?.city || 'Origin';
+  const destinationName = parsed?.reqDestName || journey.destination?.name || journey.destination?.city || 'Destination';
+  const originCode = parsed?.reqOriginCode || '';
+  const destinationCode = parsed?.reqDestCode || '';
 
-  // Mandatory Section 10: explicit arrival day offset
-  const dayOffset =
-    journey.dayOffset !== undefined
-      ? journey.dayOffset
-      : getDayOffset(journey.departureTime, journey.arrivalTime);
+  const trainFromName = parsed?.trainFromName || originName;
+  const trainFromCode = parsed?.trainFromCode || originCode;
+  const trainToName = parsed?.trainToName || destinationName;
+  const trainToCode = parsed?.trainToCode || destinationCode;
+  const hasStationDifference = Boolean(parsed?.hasStationDifference);
+
+  // Train and timetable details
+  const trainStage = parsed?.trainStage;
+  const depTime = trainStage?.departureTime || journey.departureTimeFormatted || formatTime(journey.departureTime);
+  const arrTime = trainStage?.arrivalTime || journey.arrivalTimeFormatted || formatTime(journey.arrivalTime);
+  const depDate = trainStage?.departureDate || (journey.departureDateFormatted ? formatDateDisplay(journey.departureDateFormatted) : formatDateDisplay(journey.departureTime));
+  const arrDate = trainStage?.arrivalDate || (journey.arrivalDateFormatted ? formatDateDisplay(journey.arrivalDateFormatted) : formatDateDisplay(journey.arrivalTime));
+
+  const dayOffset = trainStage?.dayOffset ?? (journey.dayOffset !== undefined ? journey.dayOffset : getDayOffset(journey.departureTime, journey.arrivalTime));
   const dayOffsetBadge = formatDayOffsetBadge(dayOffset);
 
   const durationText = formatDuration(journey.duration);
   const isEstimated = Boolean(journey.pricing?.isEstimated || journey.metadata?.isEstimatedPrice || journey.isEstimated);
   const fareSource = journey.pricing?.fareSource || journey.metadata?.fareSource || (isEstimated ? 'estimate' : null);
   const priceText = formatPrice(journey.totalPrice, journey.currency, { isEstimated, fareSource });
-  const priceLabel = getPriceLabel(journey);
+  const priceLabel = parsed?.costs?.hasMissingCosts
+    ? 'Total Estimated Cost (Partial)'
+    : getPriceLabel(journey);
 
-  const transfers = journey.numberOfTransfers ?? 0;
-  const isDirect = transfers === 0;
+  const legs = Array.isArray(journey.legs) ? journey.legs : [];
+  const transfers = parsed?.totalTransfers !== undefined
+    ? parsed.totalTransfers
+    : (journey.numberOfTransfers ?? (journey.isDirectTrain ? 0 : 0));
+  const isPureDirect = transfers === 0 && !hasStationDifference;
 
   const transportModes = Array.isArray(journey.transportModes) && journey.transportModes.length > 0
     ? journey.transportModes
     : ['rail'];
 
-  const legs = Array.isArray(journey.legs) ? journey.legs : [];
-  const isMultiModal = transfers > 0 || legs.length > 1;
-
-  // Primary mode icon
   const PrimaryModeIcon = getModeIcon(transportModes[0] || 'rail');
-
-  // Service / Provider name
-  const providerName =
-    legs[0]?.service?.name ||
-    journey.metadata?.provider ||
-    legs[0]?.service?.operator ||
-    (transportModes[0] === 'road' ? 'Road Transit' : null);
+  const actualTrainName = trainStage?.trainName || journey.metadata?.trainName || legs[0]?.service?.name || 'Express';
 
   const isBestOverall = Boolean(isTopPick);
   const rankingLabel = isTopPick ? 'Best Overall' : (journey.ranking?.label !== 'Best Overall' ? journey.ranking?.label : null);
@@ -205,26 +203,21 @@ export function JourneyResultCard({
     /passenger|memu|demu|emu/i.test(journey.service?.name || '')
   );
 
-  // Section 8: Explainable recommendation reasons
   const recommendationReasons = isBestOverall
     ? getRecommendationExplanation(journey, allJourneys)
     : [];
-
-  const segmentSummaryLabel = isDirect
-    ? 'Direct · 1 segment'
-    : `${formatTransfers(transfers)} · ${legs.length} segments`;
 
   return (
     <article
       className={`rounded-2xl border bg-[#12151A] p-5 sm:p-6 transition-all shadow-xl ${
         isBestOverall
-          ? 'border-[#E8B04A]/40 shadow-lg shadow-[#E8B04A]/5 ring-1 ring-[#E8B04A]/20'
-          : 'border-[#303640] hover:border-[#3A414C] hover:bg-[#15191F]/30'
+          ? 'border-[#E8B04A]/50 shadow-lg shadow-[#E8B04A]/5 ring-1 ring-[#E8B04A]/20'
+          : 'border-[#232830] hover:border-[#3A414C]'
       }`}
       aria-label={`Journey from ${originName} to ${destinationName}, ${durationText}, ${priceLabel} ${priceText}`}
     >
-      {/* 1. Header: Reorganized hierarchy with clear alignment */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#303640]/80 pb-3 sm:pb-3.5">
+      {/* 1. Header: Status & Classification Badges */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#232830] pb-3 sm:pb-3.5">
         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 min-w-0">
           {/* Best Overall Badge */}
           {isBestOverall && (
@@ -234,48 +227,36 @@ export function JourneyResultCard({
             </span>
           )}
 
-          {/* Other Ranking Badge */}
+          {/* Ranking Badge */}
           {!isBestOverall && rankingLabel && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#15191F] px-2.5 py-0.5 text-[11px] font-semibold text-[#A7AFBA] border border-[#303640] shrink-0">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#181C22] px-2.5 py-0.5 text-[11px] font-semibold text-[#9AA3AF] border border-[#232830] shrink-0">
               <span>{rankingLabel}</span>
             </span>
           )}
 
-          {/* Transport Mode & Service / Operator */}
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-[#F0F1F3] min-w-0">
+          {/* Transport Mode & Service / Train */}
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-[#EDEFF2] min-w-0">
             <PrimaryModeIcon className="h-3.5 w-3.5 text-[#E8B04A] shrink-0" aria-hidden="true" />
-            <span className="capitalize">{transportModes.join(' + ')}</span>
-            {providerName && (
-              <span className="text-[#A7AFBA] truncate max-w-[220px] sm:max-w-[340px]" title={providerName}>
-                · {providerName}
+            <span className="uppercase">{transportModes.join(' + ')}</span>
+            {actualTrainName && (
+              <span className="text-[#9AA3AF] truncate max-w-[200px] sm:max-w-[320px]" title={actualTrainName}>
+                · {actualTrainName}
               </span>
             )}
           </div>
 
-          {/* Direct (Green) or Transfer status Badge */}
+          {/* Direct or Multi-Stage Connection Status */}
           <span
             className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold shrink-0 ${
-              isDirect
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                : 'bg-[#15191F] text-[#A7AFBA] border border-[#303640]'
+              transfers === 0
+                ? 'bg-[#4CC38A]/10 text-[#4CC38A] border border-[#4CC38A]/20'
+                : 'bg-[#181C22] text-[#E8B04A] border border-[#E8B04A]/30'
             }`}
           >
-            {isDirect ? 'Direct' : formatTransfers(transfers)}
+            {transfers === 0
+              ? (hasStationDifference ? `DIRECT · VIA ${trainFromCode || 'NEARBY'}` : 'DIRECT')
+              : `${formatTransfers(transfers)}`}
           </span>
-
-          {/* Recovery Route Badge */}
-          {journey.isRecoveredAlternative && (
-            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
-              Recovered Route
-            </span>
-          )}
-
-          {/* Station Shift Badge */}
-          {(journey.isClusterShift || journey.stationDifference?.hasDifference || journey.metadata?.isClusterShift) && (
-            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 shrink-0">
-              Nearby Station
-            </span>
-          )}
 
           {/* Seat Availability Status Badge */}
           {isUnreserved ? (
@@ -286,20 +267,20 @@ export function JourneyResultCard({
             <>
               {((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'AVAILABILITY_VERIFIED' ||
                 ((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'AVAILABLE' && journey.isBookable)) && (
-                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-[#4CC38A]/10 text-[#4CC38A] border border-[#4CC38A]/20 shrink-0">
                   Seats Verified
                 </span>
               )}
               {((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'RAC_AVAILABLE' ||
                 (journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'RAC' ||
                 (journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'RAC_ONLY') && (
-                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-[#E8B04A]/10 text-[#E8B04A] border border-[#E8B04A]/20 shrink-0">
                   RAC
                 </span>
               )}
               {((journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'WAITLIST_ONLY' ||
                 (journey.availabilityStatus || journey.metadata?.availabilityStatus) === 'WAITLIST') && (
-                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+                <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold bg-[#E07B39]/10 text-[#E07B39] border border-[#E07B39]/20 shrink-0">
                   Waitlist
                 </span>
               )}
@@ -320,8 +301,8 @@ export function JourneyResultCard({
               onClick={() => onToggleCompare(journey)}
               className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition-colors cursor-pointer ${
                 isCompared
-                  ? 'bg-[#E8B04A] text-[#0B0D10] font-semibold'
-                  : 'bg-[#15191F] text-[#A7AFBA] hover:text-[#F0F1F3] border border-[#303640] hover:border-[#3A414C]'
+                  ? 'bg-[#E8B04A] text-[#0B0D10] font-bold'
+                  : 'bg-[#181C22] text-[#9AA3AF] hover:text-[#EDEFF2] border border-[#232830] hover:border-[#3A414C]'
               }`}
               title="Add to comparison"
               aria-label={isCompared ? 'Remove from comparison' : 'Compare journey'}
@@ -339,7 +320,7 @@ export function JourneyResultCard({
               className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-colors cursor-pointer ${
                 saved
                   ? 'text-[#E8B04A] bg-[#E8B04A]/10'
-                  : 'text-[#7E8794] hover:text-[#F0F1F3]'
+                  : 'text-[#6B7480] hover:text-[#EDEFF2]'
               }`}
               title={saved ? 'Remove saved journey' : 'Save for later'}
               aria-label={saved ? 'Remove saved journey' : 'Save journey'}
@@ -357,10 +338,10 @@ export function JourneyResultCard({
             <Sparkles className="h-3 w-3 shrink-0" />
             <span>Why Yatrai recommends this</span>
           </div>
-          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-1.5 sm:gap-x-4 text-[#A7AFBA]">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-1.5 sm:gap-x-4 text-[#9AA3AF]">
             {recommendationReasons.map((reason, idx) => (
               <div key={idx} className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" aria-hidden="true" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-[#4CC38A] shrink-0" aria-hidden="true" />
                 <span>{reason}</span>
               </div>
             ))}
@@ -368,54 +349,87 @@ export function JourneyResultCard({
         </div>
       )}
 
-      {/* 3. Journey Summary & Fare Column */}
+      {/* 3. Section 3: Collapsed Journey Card Structure */}
+      {/* Route Context Banner: Requested Journey vs Actual Train Route */}
+      {hasStationDifference && (
+        <div className="mt-3.5 rounded-xl border border-[#232830] bg-[#181C22] p-3 sm:p-3.5 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Requested Journey */}
+            <div className="space-y-0.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#6B7480]">
+                REQUESTED JOURNEY
+              </div>
+              <div className="font-bold text-sm text-[#EDEFF2] flex items-center gap-1.5 flex-wrap">
+                <span>{originName}</span>
+                {originCode && <span className="font-mono text-xs text-[#6B7480]">({originCode})</span>}
+                <ArrowRight className="h-3 w-3 text-[#6B7480] shrink-0" />
+                <span>{destinationName}</span>
+                {destinationCode && <span className="font-mono text-xs text-[#6B7480]">({destinationCode})</span>}
+              </div>
+            </div>
+
+            {/* Actual Train Route */}
+            <div className="space-y-0.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#E8B04A]">
+                ACTUAL TRAIN ROUTE
+              </div>
+              <div className="font-bold text-sm text-[#EDEFF2] flex items-center gap-1.5 flex-wrap">
+                <span>{trainFromName}</span>
+                {trainFromCode && <span className="font-mono text-xs text-[#E8B04A]">({trainFromCode})</span>}
+                <ArrowRight className="h-3 w-3 text-[#E8B04A] shrink-0" />
+                <span>{trainToName}</span>
+                {trainToCode && <span className="font-mono text-xs text-[#E8B04A]">({trainToCode})</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Scannable 4-point Metrics & Action CTAs */}
       <div className="mt-4 grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
         {/* Departure, Duration Line, Arrival */}
         <div className="sm:col-span-8 flex items-start justify-between gap-3 sm:gap-4">
           {/* Departure */}
           <div className="flex-1 min-w-0">
-            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#F0F1F3] font-mono tabular-nums">
+            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#EDEFF2] font-mono tabular-nums">
               {depTime}
             </div>
-            <div
-              className="mt-1 text-sm font-semibold text-[#F0F1F3] leading-snug break-words"
-              title={originName}
-            >
-              {originName}
+            <div className="mt-1 text-sm font-semibold text-[#EDEFF2] leading-snug break-words">
+              {trainFromName}
+              {trainFromCode && <span className="text-[#6B7480] font-mono text-xs ml-1">({trainFromCode})</span>}
             </div>
-            {originCity && (
-              <div className="text-xs text-[#7E8794] mt-0.5">{originCity}</div>
-            )}
-            {depDate && (
-              <div className="text-xs text-[#7E8794] mt-0.5">{depDate}</div>
+            {depDate && <div className="text-xs text-[#6B7480] mt-0.5">{depDate}</div>}
+            {parsed?.hasOriginShift && (
+              <div className="text-[10px] font-bold text-[#E8B04A] uppercase tracking-wider mt-1">
+                Actual Boarding
+              </div>
             )}
           </div>
 
           {/* Route path line & Duration */}
           <div className="flex flex-col items-center px-1 sm:px-2 flex-1 max-w-[140px] sm:max-w-[190px] shrink-0 pt-1">
-            <div className="flex items-center gap-1 text-xs font-bold text-[#F0F1F3]">
+            <div className="flex items-center gap-1 text-xs font-bold text-[#EDEFF2] font-mono">
               <Clock className="h-3 w-3 text-[#E8B04A] shrink-0" aria-hidden="true" />
               <span>{durationText}</span>
             </div>
 
             <div className="relative mt-2 w-full flex items-center justify-center">
-              <div className="h-px w-full bg-[#303640]" />
+              <div className="h-px w-full bg-[#232830]" />
               <div className="absolute flex h-2 w-2 rounded-full bg-[#E8B04A] ring-4 ring-[#12151A]" />
-              <ArrowRight
-                className="absolute right-0 h-3 w-3 text-[#7E8794] translate-x-0.5"
-                aria-hidden="true"
-              />
+              <ArrowRight className="absolute right-0 h-3 w-3 text-[#6B7480] translate-x-0.5" aria-hidden="true" />
             </div>
 
-            <div className="mt-1 text-[11px] text-[#7E8794] text-center">
-              {isDirect ? 'Direct' : formatTransfers(transfers)}
+            <div className="mt-1 text-[11px] text-[#6B7480] text-center">
+              {transfers === 0
+                ? (hasStationDifference ? `Direct (${trainFromCode || 'Nearby'})` : 'Direct')
+                : formatTransfers(transfers)}
               {journey.totalDistance ? ` · ${journey.totalDistance} km` : ''}
             </div>
           </div>
 
           {/* Arrival with Mandatory Day Offset */}
           <div className="flex-1 min-w-0 text-right">
-            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#F0F1F3] font-mono tabular-nums flex items-baseline justify-end gap-1.5">
+            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#EDEFF2] font-mono tabular-nums flex items-baseline justify-end gap-1.5">
               <span>{arrTime}</span>
               {dayOffsetBadge && (
                 <span className="rounded-md bg-[#E8B04A]/10 px-1.5 py-0.5 text-[11px] font-bold text-[#E8B04A] border border-[#E8B04A]/30">
@@ -423,151 +437,89 @@ export function JourneyResultCard({
                 </span>
               )}
             </div>
-            <div
-              className="mt-1 text-sm font-semibold text-[#F0F1F3] leading-snug break-words"
-              title={destinationName}
-            >
-              {destinationName}
+            <div className="mt-1 text-sm font-semibold text-[#EDEFF2] leading-snug break-words">
+              {trainToName}
+              {trainToCode && <span className="text-[#6B7480] font-mono text-xs ml-1">({trainToCode})</span>}
             </div>
-            {destinationCity && (
-              <div className="text-xs text-[#7E8794] mt-0.5">{destinationCity}</div>
-            )}
-            {arrDate && (
-              <div className="text-xs text-[#7E8794] mt-0.5">{arrDate}</div>
+            {arrDate && <div className="text-xs text-[#6B7480] mt-0.5">{arrDate}</div>}
+            {parsed?.hasDestShift && (
+              <div className="text-[10px] font-bold text-[#E8B04A] uppercase tracking-wider mt-1">
+                Actual Arrival
+              </div>
             )}
           </div>
         </div>
 
         {/* Fare & CTAs Column */}
-        <div className="sm:col-span-4 flex flex-col sm:items-end justify-between pt-3 sm:pt-0 sm:border-l sm:border-[#303640] sm:pl-6 border-t border-[#303640] sm:border-t-0 gap-3">
+        <div className="sm:col-span-4 flex flex-col sm:items-end justify-between pt-3 sm:pt-0 sm:border-l sm:border-[#232830] sm:pl-6 border-t border-[#232830] sm:border-t-0 gap-3">
           <div className="flex sm:flex-col justify-between sm:justify-start items-baseline sm:items-end w-full">
-            <div className="text-[10px] uppercase tracking-wider text-[#7E8794] sm:text-right font-medium">
+            <div className="text-[10px] uppercase tracking-wider text-[#6B7480] sm:text-right font-medium">
               {priceLabel}
             </div>
-            <div className="text-2xl sm:text-3xl font-black tracking-tight text-[#F0F1F3] sm:text-right font-mono tabular-nums">
+            <div className="text-2xl sm:text-3xl font-black tracking-tight text-[#EDEFF2] sm:text-right font-mono tabular-nums">
               {priceText}
             </div>
+            {parsed?.costs?.hasMissingCosts && (
+              <div className="text-[10px] text-[#E07B39] sm:text-right mt-0.5">
+                Local transport fare not included
+              </div>
+            )}
           </div>
 
-          {/* Action CTAs */}
+          {/* Primary & Secondary Action CTAs */}
           <div className="flex flex-wrap sm:flex-col items-stretch sm:items-end gap-2 w-full sm:w-auto">
+            {/* Primary CTA: View Complete Itinerary (Amber #E8B04A button with dark #0B0D10 text) */}
+            <button
+              type="button"
+              onClick={() => setIsExpanded((prev) => !prev)}
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#E8B04A] hover:bg-[#F0C066] active:bg-[#D9A139] px-4 py-2.5 text-xs font-bold text-[#0B0D10] shadow-md transition-all cursor-pointer focus:outline-none"
+              aria-expanded={isExpanded}
+              aria-label={isExpanded ? 'Collapse complete itinerary' : 'View complete itinerary'}
+            >
+              <Eye className="h-4 w-4" aria-hidden="true" />
+              <span>{isExpanded ? 'Hide Complete Itinerary' : 'View Complete Itinerary'}</span>
+              {isExpanded ? (
+                <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+            </button>
+
+            {/* Route Map inspection */}
             {onViewJourney && (
               <button
                 type="button"
                 onClick={() => onViewJourney(journey)}
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#E8B04A] hover:bg-[#F2BE62] active:bg-[#D9A139] px-4 py-2.5 text-xs font-semibold text-[#0B0D10] shadow-md transition-all cursor-pointer focus:outline-none"
-                aria-label={`View itinerary for ${originName} to ${destinationName}`}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#232830] bg-[#181C22] hover:bg-[#232830] hover:border-[#3A414C] px-3.5 py-2 text-xs font-semibold text-[#9AA3AF] hover:text-[#EDEFF2] transition-all cursor-pointer"
+                aria-label={`View map for ${originName} to ${destinationName}`}
               >
-                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>View itinerary</span>
+                <MapPin className="h-3.5 w-3.5 text-[#E8B04A]" aria-hidden="true" />
+                <span>Route map</span>
               </button>
             )}
 
-            {legs.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setIsExpanded((prev) => !prev)}
-                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1 rounded-xl border border-[#303640] bg-[#15191F] hover:bg-[#181C22] hover:border-[#3A414C] px-3 py-1.5 text-xs font-medium text-[#A7AFBA] hover:text-[#F0F1F3] transition-all cursor-pointer"
-                aria-expanded={isExpanded}
-                aria-label={isExpanded ? 'Collapse itinerary' : 'Expand itinerary'}
-              >
-                <span>{isExpanded ? 'Collapse' : (legs.length > 1 ? `${legs.length} segments` : 'Expand')}</span>
-                {isExpanded ? (
-                  <ChevronUp className="h-3 w-3" aria-hidden="true" />
-                ) : (
-                  <ChevronDown className="h-3 w-3" aria-hidden="true" />
-                )}
-              </button>
-            )}
-
-            {/* Railway Journey Details Action */}
+            {/* Railway Journey Guidelines Action */}
             <button
               type="button"
               onClick={() => setBookingModalOpen(true)}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#303640] bg-[#15191F] hover:bg-[#181C22] hover:border-[#3A414C] px-3.5 py-2 text-xs font-medium text-[#A7AFBA] hover:text-[#F0F1F3] transition-all cursor-pointer"
-              aria-label="View railway booking guidelines and leg details"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#232830] bg-[#181C22] hover:bg-[#232830] hover:border-[#3A414C] px-3.5 py-2 text-xs font-semibold text-[#9AA3AF] hover:text-[#EDEFF2] transition-all cursor-pointer"
+              aria-label="View railway booking guidelines"
             >
               <Ticket className="h-3.5 w-3.5 text-[#E8B04A]" aria-hidden="true" />
-              <span>Journey details</span>
+              <span>Booking guidelines</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Station Cluster Shift Label */}
-      {(journey.isClusterShift || journey.stationDifference?.hasDifference || journey.metadata?.isClusterShift) && (
-        <div className="mt-3.5 flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-xs text-amber-200">
-          <AlertCircle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" aria-hidden="true" />
-          <div className="leading-relaxed">
-            <span className="font-bold text-amber-300">Station cluster adjustment: </span>
-            <span>
-              {journey.stationDifference?.summaryLabel ||
-                journey.clusterNote ||
-                journey.metadata?.clusterNote ||
-                'Departing or arriving at a nearby alternative station in the same metropolitan cluster.'}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* 4. Multi-Modal Collapsed Route Preview (when collapsed and >1 segment) */}
-      {isMultiModal && !isExpanded && legs.length > 1 && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-graphite-800 bg-graphite-850/60 px-3 py-2 text-xs text-text-secondary">
-          <span className="font-semibold text-text-tertiary">Route:</span>
-          {legs.map((leg, idx) => {
-            const LegIcon = getModeIcon(leg.mode);
-            const oCode = leg.origin?.stationCode || leg.origin?.code || leg.metadata?.fromStationCode || '';
-            const dCode = leg.destination?.stationCode || leg.destination?.code || leg.metadata?.toStationCode || '';
-            const oName = leg.origin?.name || leg.metadata?.fromStationName || oCode || 'Origin';
-            const dName = leg.destination?.name || leg.metadata?.toStationName || dCode || 'Destination';
-            const lOrigin = oCode && !oName.includes(oCode) ? `${oName} (${oCode})` : oName;
-            const lDest = dCode && !dName.includes(dCode) ? `${dName} (${dCode})` : dName;
-            return (
-              <span key={leg.id || idx} className="inline-flex items-center gap-1.5">
-                {idx > 0 && <span className="text-text-tertiary">·</span>}
-                <LegIcon className="h-3 w-3 text-brand-primary" aria-hidden="true" />
-                <span className="truncate max-w-[150px]" title={`${lOrigin} → ${lDest}`}>
-                  {lOrigin} → {lDest}
-                </span>
-              </span>
-            );
-          })}
-        </div>
-      )}
-
-      {/* 5. Expanded Vertical Timeline Itinerary */}
-      {isExpanded && legs.length > 0 && (
-        <div className="mt-4 border-t border-graphite-800 pt-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-text-primary">
-                YOUR ITINERARY
-              </h4>
-              <p className="text-xs text-text-tertiary font-medium mt-0.5">
-                {segmentSummaryLabel}
-              </p>
-            </div>
-            {onViewJourney && (
-              <button
-                type="button"
-                onClick={() => onViewJourney(journey)}
-                className="text-xs font-semibold text-brand-primary hover:text-brand-hover hover:underline cursor-pointer transition-colors"
-              >
-                View route map →
-              </button>
-            )}
-          </div>
-
-          <div className="space-y-3 rounded-xl border border-graphite-800 bg-graphite-850/50 p-3 sm:p-4">
-            {legs.map((leg, index) => (
-              <JourneyLeg
-                key={leg.id || index}
-                leg={leg}
-                isLast={index === legs.length - 1}
-                nextLeg={legs[index + 1] || null}
-              />
-            ))}
-          </div>
+      {/* 5. Section 4 & 5: Expanded Complete Journey Timeline */}
+      {isExpanded && (
+        <div className="mt-5 border-t border-[#232830] pt-5 animate-in fade-in">
+          <CompleteJourneyTimeline
+            journey={journey}
+            onViewMap={onViewJourney ? () => onViewJourney(journey) : null}
+            onOpenBooking={() => setBookingModalOpen(true)}
+          />
         </div>
       )}
 
@@ -580,81 +532,111 @@ export function JourneyResultCard({
           onClick={() => setBookingModalOpen(false)}
         >
           <div
-            className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-surface-primary p-6 shadow-2xl space-y-4 text-left"
+            className="relative w-full max-w-lg rounded-2xl border border-[#232830] bg-[#181C22] p-6 shadow-2xl space-y-4 text-left"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+            <div className="flex items-center justify-between border-b border-[#232830] pb-3">
               <div className="flex items-center gap-2">
-                <Ticket className="h-5 w-5 text-brand-primary" />
-                <h3 className="text-base font-bold text-text-primary">Railway Booking Guidelines</h3>
+                <Ticket className="h-5 w-5 text-[#E8B04A]" />
+                <h3 className="text-base font-bold text-[#EDEFF2]">Railway Booking Guidelines</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setBookingModalOpen(false)}
-                className="rounded-lg p-1 text-text-tertiary hover:text-text-primary cursor-pointer"
+                className="rounded-lg p-1 text-[#6B7480] hover:text-[#EDEFF2] cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="text-xs text-text-secondary space-y-2">
-              <p className="font-semibold text-text-primary">
-                {isDirect
+            <div className="text-xs text-[#9AA3AF] space-y-2">
+              <p className="font-semibold text-[#EDEFF2]">
+                {isPureDirect
                   ? 'Direct Train Booking'
                   : 'Multi-Leg Alternative Journey (Legs Booked Separately)'}
               </p>
               <p>
-                {isDirect
+                {isPureDirect
                   ? 'This journey is operated as a single direct train. You can book directly using the train number below on IRCTC or an authorized booking partner.'
-                  : 'Per Indian Railways (IRCTC) booking regulations, connecting journeys cannot be issued under a single unified ticket. Each leg must be booked independently using its specific train number and boarding station. Yatrai has verified seat availability for each leg.'}
+                  : (hasStationDifference
+                      ? 'Per Indian Railways (IRCTC) booking regulations, connecting journeys cannot be issued under a single unified ticket. Each leg must be booked independently using its specific train number and boarding station. Seat availability is verified for the main train; check the connecting trains on IRCTC.'
+                      : 'Per Indian Railways (IRCTC) booking regulations, connecting journeys cannot be issued under a single unified ticket. Each leg must be booked independently using its specific train number and boarding station. Yatrai has verified seat availability for each leg.')}
               </p>
             </div>
 
             {/* Leg breakdown list */}
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {legs.map((leg, i) => {
+                const isTransfer = Boolean(leg.metadata?.isStationTransfer || leg.mode === 'road');
+                const isFeeder = Boolean(leg.metadata?.isFeeder);
                 const legFare = leg.price != null && leg.price > 0 ? leg.price : null;
-                const legAvailStatus = leg.availability?.normalizedStatus || leg.availability?.status || 'UNKNOWN';
-                const legRawStatus = leg.availability?.rawStatus || '';
+                const legAvailStatus = isFeeder
+                  ? 'Not verified — check on IRCTC'
+                  : (leg.availability?.normalizedStatus || leg.availability?.status || 'UNKNOWN');
+                const legRawStatus = isFeeder
+                  ? 'Not verified — check on IRCTC'
+                  : (leg.availability?.rawStatus || '');
+
+                const trainNum = leg.service?.number || leg.trainNumber || leg.vehicle?.identifier;
+                const trainNumLabel = trainNum ? ` (#${trainNum})` : '';
+                const legTitle = isTransfer
+                  ? 'Local transfer'
+                  : `${leg.service?.name || 'Train'}${trainNumLabel}`;
+
+                const legFrom = resolveStation(
+                  leg.originStation || leg.origin,
+                  leg.metadata?.fromStationCode || (leg.metadata?.isMainTrain || !isTransfer ? parsed?.trainFromCode : null),
+                  leg.metadata?.fromStationName
+                );
+                const legTo = resolveStation(
+                  leg.destinationStation || leg.destination,
+                  leg.metadata?.toStationCode || (leg.metadata?.isMainTrain || !isTransfer ? parsed?.trainToCode : null),
+                  leg.metadata?.toStationName
+                );
+
                 return (
-                  <div key={i} className="rounded-xl border border-white/10 bg-surface-secondary/70 p-3 text-xs space-y-1">
-                    <div className="flex items-center justify-between font-bold text-text-primary">
-                      <span>Leg {i + 1}: {leg.service?.name || 'Train'} (#{leg.service?.number || leg.trainNumber})</span>
-                      <span className={legFare ? 'text-emerald-400 font-mono' : 'text-[#7E8794] font-normal'}>
-                        {legFare
-                          ? (leg.isEstimated || leg.pricing?.isEstimated || leg.fareSource === 'estimate'
-                              ? `Est. ₹${legFare} (distance-based)`
-                              : `₹${legFare}`)
-                          : 'Fare unavailable'}
+                  <div key={i} className="rounded-xl border border-[#232830] bg-[#12151A] p-3 text-xs space-y-1">
+                    <div className="flex items-center justify-between font-bold text-[#EDEFF2]">
+                      <span>Leg {i + 1}: {legTitle}</span>
+                      <span className={legFare ? 'text-[#4CC38A] font-mono' : 'text-[#6B7480] font-normal'}>
+                        {isTransfer
+                          ? 'Local transfer · fare not included'
+                          : (legFare
+                              ? (leg.isEstimated || leg.pricing?.isEstimated || leg.fareSource === 'estimate'
+                                  ? `Est. ₹${legFare} (distance-based)`
+                                  : `₹${legFare}`)
+                              : 'Fare unavailable')}
                       </span>
                     </div>
-                    <div className="text-text-secondary">
-                      {leg.origin?.name || leg.origin?.city} → {leg.destination?.name || leg.destination?.city}
+                    <div className="text-[#9AA3AF]">
+                      {legFrom.name} {legFrom.code && <span className="font-mono text-xs text-[#6B7480]">({legFrom.code})</span>} → {legTo.name} {legTo.code && <span className="font-mono text-xs text-[#6B7480]">({legTo.code})</span>}
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-text-tertiary">
-                      <span>Class: {leg.service?.class || 'SL'}</span>
-                      <span>· Status: {legRawStatus || legAvailStatus}</span>
-                    </div>
+                    {!isTransfer && (
+                      <div className="flex items-center gap-2 text-[11px] text-[#6B7480]">
+                        <span>Class: {leg.service?.class || 'SL'}</span>
+                        <span>· Status: {legRawStatus || legAvailStatus}</span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
 
             {/* Total Fare & Compliance Warning */}
-            <div className="flex items-center justify-between border-t border-white/10 pt-2 text-xs">
-              <span className="text-text-secondary font-medium">{priceLabel}:</span>
-              <span className="text-base font-bold font-mono text-text-primary">{priceText}</span>
+            <div className="flex items-center justify-between border-t border-[#232830] pt-2 text-xs">
+              <span className="text-[#9AA3AF] font-medium">{priceLabel}:</span>
+              <span className="text-base font-bold font-mono text-[#EDEFF2]">{priceText}</span>
             </div>
 
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-300 flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+            <div className="rounded-xl border border-[#E8B04A]/20 bg-[#E8B04A]/10 p-3 text-xs text-[#E8B04A] flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-[#E8B04A] mt-0.5" />
               <span>
                 Yatrai does not store sensitive payment details or auto-book without your explicit IRCTC account authorization.
               </span>
             </div>
 
-            <div className="rounded-xl border border-[#303640] bg-[#15191F] p-3 text-[11px] text-[#7E8794] flex items-start gap-2">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-[#7E8794] mt-0.5" />
+            <div className="rounded-xl border border-[#232830] bg-[#12151A] p-3 text-[11px] text-[#6B7480] flex items-start gap-2">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-[#6B7480] mt-0.5" />
               <span>
                 Availability and fares shown are indicative and may have changed.
                 Book on{' '}
@@ -669,7 +651,7 @@ export function JourneyResultCard({
               <button
                 type="button"
                 onClick={() => setBookingModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-text-secondary hover:text-text-primary cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-[#9AA3AF] hover:text-[#EDEFF2] cursor-pointer"
               >
                 Close
               </button>
@@ -678,7 +660,7 @@ export function JourneyResultCard({
                 id="modal-book-now-btn"
                 onClick={handleBookNow}
                 disabled={bookingLoading}
-                className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-brand-hover active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#E8B04A] hover:bg-[#F0C066] active:bg-[#D9A139] px-5 py-2.5 text-xs font-bold text-[#0B0D10] shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
               >
                 {bookingLoading ? (
                   <>
@@ -694,7 +676,7 @@ export function JourneyResultCard({
               </button>
             </div>
             {bookingError && (
-              <p className="text-xs text-red-400 text-right mt-1">{bookingError}</p>
+              <p className="text-xs text-[#E5484D] text-right mt-1">{bookingError}</p>
             )}
           </div>
         </div>
