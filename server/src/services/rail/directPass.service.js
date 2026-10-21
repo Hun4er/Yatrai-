@@ -151,16 +151,29 @@ function buildClassChip(cls, state, availResult) {
     availabilityText: null,
     fare: null,
     predictionPercentage: 0,
+    waitlistPosition: null,
+    racPosition: null,
+    seatsAvailable: null,
     dates: [],
     checkedAt: null,
+    reason: null,
   };
   if (availResult) {
-    chip.tier = availResult.normalizedStatus;
-    chip.availabilityText = availResult.statusText || availResult.originalStatus || null;
+    const isErr = availResult.status === 'error' || availResult.isError || availResult.normalizedStatus === 'ERROR' || availResult.normalizedStatus === 'UNKNOWN';
+    chip.tier = isErr ? 'ERROR' : availResult.normalizedStatus;
+    chip.availabilityText = isErr && !availResult.statusText?.includes('retry')
+      ? "couldn't check — tap to retry"
+      : (availResult.statusText || availResult.availabilityText || availResult.originalStatus || null);
     chip.predictionPercentage = availResult.predictionPercentage || 0;
-    // TODO[DATE_STRIP]: RailKit multi-date field name TBD. Using availResult.dates if present.
+    chip.waitlistPosition = availResult.waitlistPosition ?? null;
+    chip.racPosition = availResult.racPosition ?? null;
+    chip.seatsAvailable = availResult.seatsAvailable ?? null;
+    chip.fare = typeof availResult.fare?.totalFare === 'number'
+      ? availResult.fare.totalFare
+      : (typeof availResult.totalFare === 'number' ? availResult.totalFare : (typeof availResult.fare === 'number' ? availResult.fare : null));
     chip.dates = availResult.dates || [];
     chip.checkedAt = new Date().toISOString();
+    chip.reason = availResult.reason || null;
   }
   return chip;
 }
@@ -398,6 +411,7 @@ export class DirectPassService {
         return buildClassChip(c, 'UNCHECKED', null);
       });
       trainResult.classes = chips;
+      trainResult.fare = chips.find((c) => c.state === 'CHECKED' && typeof c.fare === 'number')?.fare || null;
       results.push(trainResult);
 
       // Step 5: Early stop if CONFIRMED
@@ -476,6 +490,7 @@ export class DirectPassService {
         } else {
           trainResult.classes.push(newChip);
         }
+        trainResult.fare = trainResult.classes.find((c) => c.state === 'CHECKED' && typeof c.fare === 'number')?.fare || trainResult.fare;
         trainResult.checkedAt = new Date().toISOString();
       }
     }
@@ -486,7 +501,10 @@ export class DirectPassService {
     const budgetSummary = await budget.getBudgetSummary(actionId);
     const partial = budget.isAtCap(actionId) || hadProviderError;
 
-    logger.info(`[DirectPass] Done. Results: ${results.length}, waitingTrains: ${waitingTrains.length}, confirmed: ${confirmedFound}, partial: ${partial}, budget: ${budgetSummary.used}/${budgetSummary.cap}`);
+    // Extract 4-date strip from any checked class that returned dates
+    const dateStrip = results.flatMap((r) => r.classes).find((c) => Array.isArray(c.dates) && c.dates.length > 0)?.dates || [];
+
+    logger.info(`[DirectPass] Done. Results: ${results.length}, waitingTrains: ${waitingTrains.length}, confirmed: ${confirmedFound}, partial: ${partial}, dateStrip=${dateStrip.length}, budget: ${budgetSummary.used}/${budgetSummary.cap}`);
 
     return {
       direct: results,
@@ -494,6 +512,7 @@ export class DirectPassService {
       uncheckedClasses: results.flatMap((r) =>
         r.classes.filter((c) => c.state === 'UNCHECKED').map((c) => ({ trainNumber: r.trainNumber, class: c.class }))
       ),
+      dateStrip,
       confirmedFound,
       partial,
       hadProviderError,

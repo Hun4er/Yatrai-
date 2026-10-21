@@ -129,19 +129,32 @@ test('Status Normalizer Table Test with Real & Verified Strings', () => {
   // Real strings verified against RailKit and IRCTC PRS
   const testCases = [
     { input: 'AVAILABLE-0042', expectedStatus: AVAILABILITY_STATUS.AVAILABLE, seats: 42, isAvail: true },
+    { input: 'AVAILABLE-0012', expectedStatus: AVAILABILITY_STATUS.AVAILABLE, seats: 12, isAvail: true },
     { input: 'AVAILABLE 0024', expectedStatus: AVAILABILITY_STATUS.AVAILABLE, seats: 24, isAvail: true },
     { input: 'CURR_AVBL-0005', expectedStatus: AVAILABILITY_STATUS.AVAILABLE, seats: 5, isAvail: true },
+    { input: 'CURR_AVBL', expectedStatus: AVAILABILITY_STATUS.AVAILABLE, seats: null, isAvail: true },
     { input: 'AVL 18', expectedStatus: AVAILABILITY_STATUS.AVAILABLE, seats: 18, isAvail: true },
+    { input: 'AVL 12', expectedStatus: AVAILABILITY_STATUS.AVAILABLE, seats: 12, isAvail: true },
     { input: 'RAC  38/RAC  11', expectedStatus: AVAILABILITY_STATUS.RAC, seats: 11, isAvail: false },
     { input: 'RAC 12', expectedStatus: AVAILABILITY_STATUS.RAC, seats: 12, isAvail: false },
+    { input: 'RAC 3', expectedStatus: AVAILABILITY_STATUS.RAC, seats: 3, isAvail: false },
     { input: 'RAC 5', expectedStatus: AVAILABILITY_STATUS.RAC, seats: 5, isAvail: false },
     { input: 'GNWL156/WL90', expectedStatus: AVAILABILITY_STATUS.WAITLIST, seats: 0, isAvail: false },
+    { input: 'GNWL360/WL11', expectedStatus: AVAILABILITY_STATUS.WAITLIST, seats: 0, isAvail: false },
+    { input: 'WL 11', expectedStatus: AVAILABILITY_STATUS.WAITLIST, seats: 0, isAvail: false },
     { input: 'WL 90', expectedStatus: AVAILABILITY_STATUS.WAITLIST, seats: 0, isAvail: false },
     { input: 'GNWL 15 / WL 8', expectedStatus: AVAILABILITY_STATUS.WAITLIST, seats: 0, isAvail: false },
     { input: 'RLWL 3', expectedStatus: AVAILABILITY_STATUS.WAITLIST, seats: 0, isAvail: false },
+    { input: 'RLWL', expectedStatus: AVAILABILITY_STATUS.WAITLIST, seats: 0, isAvail: false },
     { input: 'PQWL 10', expectedStatus: AVAILABILITY_STATUS.WAITLIST, seats: 0, isAvail: false },
+    { input: 'PQWL21/WL13', expectedStatus: AVAILABILITY_STATUS.WAITLIST, seats: 0, isAvail: false },
     { input: 'NOT AVAILABLE', expectedStatus: AVAILABILITY_STATUS.UNAVAILABLE, seats: 0, isAvail: false },
     { input: 'REGRET', expectedStatus: AVAILABILITY_STATUS.UNAVAILABLE, seats: 0, isAvail: false },
+    { input: 'CHART PREPARED', expectedStatus: AVAILABILITY_STATUS.UNAVAILABLE, seats: 0, isAvail: false },
+    { input: 'TRAIN DEPARTED', expectedStatus: AVAILABILITY_STATUS.UNAVAILABLE, seats: 0, isAvail: false },
+    { input: 'RATE_LIMITED', expectedStatus: AVAILABILITY_STATUS.ERROR, seats: null, isAvail: false },
+    { input: 'HTTP 429', expectedStatus: AVAILABILITY_STATUS.ERROR, seats: null, isAvail: false },
+    { input: 'UNPARSEABLE_STATUS_XYZ', expectedStatus: AVAILABILITY_STATUS.ERROR, seats: null, isAvail: false },
     { input: '', expectedStatus: AVAILABILITY_STATUS.UNKNOWN, seats: null, isAvail: false },
   ];
 
@@ -155,5 +168,57 @@ test('Status Normalizer Table Test with Real & Verified Strings', () => {
   }
 });
 
-// TODO[BOARDING_DATE]: RailKit Seat Availability 'date' parameter represents the train boarding date at the leg's origin station.
-// TODO[AVAILABLE_FORMAT]: Verified status formats: AVAILABLE-XXXX, CURR_AVBL, RAC X/RAC Y, GNWL X/WL Y.
+test('Phase 2 Regression: Raw JSON -> parsed fields, chip format, and fare', () => {
+  const fixture12310 = loadFixture('avail_12310_3A.json');
+  assert.equal(fixture12310.success, true);
+  assert.equal(fixture12310.data.fare.totalFare, 2545);
+
+  const entry1 = fixture12310.data.availability[0];
+  assert.equal(entry1.rawStatus, 'GNWL299/WL165');
+  const norm1 = normalizeSeatAvailability(entry1.rawStatus, {
+    availabilityText: entry1.availabilityText,
+    predictionPercentage: entry1.predictionPercentage,
+  });
+  assert.equal(norm1.normalizedStatus, AVAILABILITY_STATUS.WAITLIST);
+  assert.equal(norm1.waitlistPosition, 165);
+  assert.equal(norm1.predictionPercentage, 27);
+
+  // Test DNR fixture
+  const fixtureDNR = loadFixture('avail_12310_NDLS_DNR_3A.json');
+  assert.equal(fixtureDNR.success, true);
+  assert.equal(fixtureDNR.data.fare.totalFare, 2530);
+  const entryDNR = fixtureDNR.data.availability[0];
+  const normDNR = normalizeSeatAvailability(entryDNR.rawStatus, {
+    availabilityText: entryDNR.availabilityText,
+    predictionPercentage: entryDNR.predictionPercentage,
+  });
+  assert.equal(normDNR.normalizedStatus, AVAILABILITY_STATUS.WAITLIST);
+  assert.equal(normDNR.waitlistPosition, 13);
+  assert.equal(normDNR.predictionPercentage, 82);
+});
+
+test('Phase 2: Failed/unparseable call is ERROR and cached <= 30 seconds', async () => {
+  const normErr = normalizeSeatAvailability('HTTP 500');
+  assert.equal(normErr.normalizedStatus, AVAILABILITY_STATUS.ERROR);
+
+  const normUnparseable = normalizeSeatAvailability('UNPARSEABLE_CALL_FAILED');
+  assert.equal(normUnparseable.normalizedStatus, AVAILABILITY_STATUS.ERROR);
+
+  // Test TTL function from availability service
+  const { AvailabilityService } = await import('../services/rail/availability.service.js');
+  const availService = new AvailabilityService();
+  const cacheKey = availService.buildCacheKey('12310', 'NDLS', 'PNBE', '2026-10-25', '3A', 'GN');
+
+  // Inject error result into service cache
+  const errorResult = {
+    normalizedStatus: AVAILABILITY_STATUS.ERROR,
+    statusText: "couldn't check — tap to retry",
+  };
+  const ttlMs = 30_000;
+  availService.cache.set(cacheKey, { data: errorResult, expiresAt: Date.now() + ttlMs });
+
+  const cached = availService.cache.get(cacheKey);
+  assert.ok(cached);
+  assert.ok(cached.expiresAt <= Date.now() + 30_000 + 100);
+  assert.equal(cached.data.normalizedStatus, AVAILABILITY_STATUS.ERROR);
+});

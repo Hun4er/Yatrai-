@@ -146,15 +146,13 @@ export class RailKitAdapter {
     // 4. Budget check & Atomic Reservation (Availability / Recovery / Direct / Static / Timetable)
     let reservation = null;
     if (category === 'availability') {
-      if (!tracker) {
-        logger.warn(`[RailKitAdapter] Outbound availability call rejected: No BudgetTracker in context for ${cacheKey}`);
-        return null;
-      }
-      const budgetCategory = options?.isRecovery !== false ? 'recovery' : 'direct';
-      reservation = tracker.reserve(budgetCategory);
-      if (!reservation) {
-        logger.info(`[RailKitAdapter] Budget limit reached for ${budgetCategory}. Outbound call skipped for ${cacheKey}`);
-        return null;
+      if (tracker && typeof tracker.reserve === 'function') {
+        const budgetCategory = options?.isRecovery !== false ? 'recovery' : 'direct';
+        reservation = tracker.reserve(budgetCategory);
+        if (!reservation) {
+          logger.info(`[RailKitAdapter] Budget limit reached for ${budgetCategory}. Outbound call skipped for ${cacheKey}`);
+          return null;
+        }
       }
     } else if (
       category === 'timetable' ||
@@ -163,7 +161,7 @@ export class RailKitAdapter {
       category === 'station' ||
       category === 'trainInfo'
     ) {
-      if (tracker) {
+      if (tracker && typeof tracker.reserve === 'function') {
         reservation = tracker.reserve('static', options);
         if (!reservation) {
           logger.info(`[RailKitAdapter] Static allowance limit reached for ${options?.tier || 'tier1'}. Outbound call skipped for ${cacheKey}`);
@@ -179,8 +177,12 @@ export class RailKitAdapter {
         reservation?.commit();
 
         if (data !== null && data !== undefined) {
-          this._cache.set(cacheKey, { data, expiresAt: Date.now() + ttlMs });
-          await persistentCacheService.set(cacheKey, data, category, ttlMs);
+          // Rule: Error/failed availability calls cached at most 30 seconds
+          const effectiveTtl = (category === 'availability' && (data?.status === 'error' || data?.normalizedStatus === 'ERROR' || data?.success === false))
+            ? 30_000
+            : ttlMs;
+          this._cache.set(cacheKey, { data, expiresAt: Date.now() + effectiveTtl });
+          await persistentCacheService.set(cacheKey, data, category, effectiveTtl);
         } else {
           await persistentCacheService.setNegative(cacheKey);
         }
@@ -406,14 +408,9 @@ export class RailKitAdapter {
     }
 
     const tracker = options?.budgetTracker || getCurrentBudgetTracker();
-    if (!tracker) {
-      logger.warn(`[RailKitAdapter] Refusing availability call without BudgetTracker: ${num} ${fromCode}->${toCode}`);
-      return {
-        ...this._unknownAvailability(num, fromCode, toCode, internalDate, coach, quota, 'NO_BUDGET_TRACKER'),
-        isBudgetExhausted: true,
-        isUnchecked: true,
-        normalizedStatus: 'UNCHECKED',
-      };
+    if (tracker && typeof tracker.canMakeAvailabilityRequest === 'function' && !tracker.canMakeAvailabilityRequest()) {
+      logger.info(`[RailKitAdapter] Budget limit reached. Skipping availability for ${num} ${fromCode}->${toCode}`);
+      return this._errorAvailability(num, fromCode, toCode, internalDate, coach, quota, 'BUDGET_EXHAUSTED');
     }
 
     const cacheKey = `avail:rk:${num}:${fromCode}:${toCode}:${internalDate}:${coach}:${quota}`;
@@ -431,7 +428,7 @@ export class RailKitAdapter {
       if (json === null) {
         logger.debug(`[RailKitAdapter] getAvailability: budget exhausted or blocked for ${num} ${fromCode}->${toCode}`);
         return {
-          ...this._unknownAvailability(num, fromCode, toCode, internalDate, coach, quota, 'BUDGET_EXHAUSTED'),
+          ...this._errorAvailability(num, fromCode, toCode, internalDate, coach, quota, 'BUDGET_EXHAUSTED'),
           isBudgetExhausted: true,
           isUnchecked: true,
           normalizedStatus: 'UNCHECKED',
@@ -440,7 +437,7 @@ export class RailKitAdapter {
 
       if (!json || !json.data) {
         logger.debug(`[RailKitAdapter] getAvailability: empty response for ${num} ${fromCode}->${toCode}`);
-        return this._unknownAvailability(num, fromCode, toCode, internalDate, coach, quota, 'Empty response');
+        return this._errorAvailability(num, fromCode, toCode, internalDate, coach, quota, 'Empty response');
       }
 
       // Find entry for the queried date; fall back to first
@@ -448,10 +445,12 @@ export class RailKitAdapter {
       const entry = availList.find((a) => a.date === rkDate) || availList[0] || null;
 
       // Extract the most specific IRCTC raw status string from entry:
-      // RailKit puts the exact IRCTC status (e.g. "RAC  38/RAC  11", "AVAILABLE-0042", "GNWL77/WL21") in rawStatus or availabilityText,
-      // while entry.status is a high-level enum ("WAITLIST", "AVAILABLE").
       const rawStatus = entry?.rawStatus || entry?.availabilityText || entry?.status || entry?.currentStatus || '';
-      let normalized = normalizeSeatAvailability(rawStatus);
+      const predictionPercentage = entry?.predictionPercentage ?? (entry?.prediction ? parseInt(entry.prediction, 10) : null) ?? null;
+      let normalized = normalizeSeatAvailability(rawStatus, {
+        availabilityText: entry?.availabilityText,
+        predictionPercentage,
+      });
 
       // Extra safeguard: If entry explicitly specifies RAC in availabilityText or rawStatus, ensure RAC is normalized
       if (
@@ -462,6 +461,7 @@ export class RailKitAdapter {
           normalizedStatus: AVAILABILITY_STATUS.RAC,
           rawStatus: entry?.rawStatus || entry?.availabilityText || rawStatus,
           seatsAvailable: normalized.seatsAvailable,
+          racPosition: normalized.racPosition || normalized.seatsAvailable,
           isAvailable: false,
         };
       }
@@ -527,6 +527,19 @@ export class RailKitAdapter {
         await persistentCacheService.set(fareCacheKey, fareData, 'fare', CACHE_TTL_CONFIG.fare);
       }
 
+      const dateStrip = availList.map((a) => ({
+        date: a.date,
+        status: a.status,
+        availabilityText: a.availabilityText,
+        rawStatus: a.rawStatus,
+        predictionPercentage: a.predictionPercentage ?? null,
+        canBook: a.canBook ?? false,
+        normalizedStatus: normalizeSeatAvailability(a.rawStatus || a.availabilityText || a.status, {
+          availabilityText: a.availabilityText,
+          predictionPercentage: a.predictionPercentage,
+        }).normalizedStatus,
+      }));
+
       logger.debug(
         `[RailKitAdapter] Avail ${num} ${fromCode}->${toCode} ${rkDate}: raw="${rawStatus}" -> "${normalized.normalizedStatus}" (fare: ${parsedFare?.totalFare ?? 'none'})`
       );
@@ -550,28 +563,36 @@ export class RailKitAdapter {
         statusText: entry?.availabilityText || rawStatus,
         availabilityText: entry?.availabilityText || null,
         seatsAvailable: entry?.availableSeats ?? normalized.seatsAvailable,
+        waitlistPosition: normalized.waitlistPosition ?? null,
+        racPosition: normalized.racPosition ?? null,
         isAvailable: normalized.isAvailable,
         canBook: entry?.canBook ?? normalized.isAvailable,
         prediction: entry?.prediction || null,
-        predictionPercentage: entry?.predictionPercentage ?? null,
+        predictionPercentage: predictionPercentage ?? normalized.predictionPercentage ?? null,
         isLive: true,
         fare: parsedFare,
+        totalFare: parsedFare?.totalFare ?? null,
         fareBreakup: parsedFare,
+        dates: dateStrip,
         queryTimestamp: new Date().toISOString(),
       };
     } catch (err) {
       const httpStatus = err.status;
       logger.error(`[DIAGNOSTIC - RAILKIT getAvailability ERROR] Train ${num} ${fromCode}->${toCode} date=${internalDate} HTTP ${httpStatus || 'none'}: ${err.message} | body: ${err.body || 'none'}`);
+      let errRes;
       if (httpStatus === 400 || httpStatus === 404) {
         logger.debug(`[RailKitAdapter] getAvailability HTTP ${httpStatus} for ${num}: ${err.body || err.message}`);
-        return this._unknownAvailability(num, fromCode, toCode, internalDate, coach, quota, `HTTP ${httpStatus}`);
-      }
-      if (httpStatus === 429) {
+        errRes = this._errorAvailability(num, fromCode, toCode, internalDate, coach, quota, `HTTP ${httpStatus}`);
+      } else if (httpStatus === 429) {
         logger.warn(`[RailKitAdapter] Rate limited (429) for ${num} ${fromCode}->${toCode}`);
-        return this._errorAvailability(num, fromCode, toCode, internalDate, coach, quota, 'RATE_LIMITED');
+        errRes = this._errorAvailability(num, fromCode, toCode, internalDate, coach, quota, 'RATE_LIMITED');
+      } else {
+        logger.warn(`[RailKitAdapter] getAvailability error for ${num}: ${err.message}`);
+        errRes = this._errorAvailability(num, fromCode, toCode, internalDate, coach, quota, err.message);
       }
-      logger.warn(`[RailKitAdapter] getAvailability error for ${num}: ${err.message}`);
-      return this._errorAvailability(num, fromCode, toCode, internalDate, coach, quota, err.message);
+      // Cache failed calls for at most 30 seconds
+      this._cache.set(cacheKey, { data: errRes, expiresAt: Date.now() + 30_000 });
+      return errRes;
     }
   }
 
@@ -996,7 +1017,36 @@ export class RailKitAdapter {
   }
 
   _errorAvailability(num, from, to, date, travelClass, quota, reason) {
-    return { ...this._unknownAvailability(num, from, to, date, travelClass, quota, reason), status: 'error' };
+    const reasonStr = String(reason || 'ERROR');
+    return {
+      status: 'error',
+      success: false,
+      provider: 'RailKit',
+      trainNo: num,
+      trainNumber: num,
+      fromCode: from,
+      fromStnCode: from,
+      toCode: to,
+      toStnCode: to,
+      date,
+      travelClass,
+      coach: travelClass,
+      quota,
+      normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
+      isError: true,
+      rawStatus: reasonStr,
+      statusText: "couldn't check — tap to retry",
+      availabilityText: "couldn't check — tap to retry",
+      seatsAvailable: null,
+      isAvailable: false,
+      canBook: false,
+      isLive: false,
+      fare: null,
+      fareBreakup: null,
+      queryTimestamp: new Date().toISOString(),
+      reason: reasonStr,
+      errorCode: reasonStr,
+    };
   }
 
   _unknownFare(num, from, to, date, travelClass, quota, reason) {

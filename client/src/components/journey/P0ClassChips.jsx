@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
-import { Loader2, HelpCircle } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 /**
- * P0ClassChips Component (P0 v2)
+ * P0ClassChips Component (P0 v2 / Phase 2)
  *
  * Displays class chips with exact text labels per spec:
- *   "SL AVL 12"
- *   "3A RAC 3"
- *   "2A WL 11 (89%)"
- *   "1A ?"
+ *   "SL · AVL 12"
+ *   "3A · RAC 3"
+ *   "3A · WL 11 · 89%"
+ *   "2A · Not available"
+ *   "1A · ?" (tap = 1 call)
+ *   "2A · couldn't check" (tap = retry)
+ * Checked chips also show fare: e.g. "₹2,545"
  *
- * Tapping a "?" chip triggers checkClass (1 call, under its own actionId).
+ * "UNKNOWN" is completely removed from the UI vocabulary.
  */
 export function P0ClassChips({
   trainNo,
@@ -26,8 +29,11 @@ export function P0ClassChips({
   const [loadingClass, setLoadingClass] = useState(null);
 
   const handleChipClick = async (chip) => {
-    // If chip is not checked yet (state === 'UNCHECKED' or 'UNVERIFIED' or no availabilityText)
-    if (chip.state === 'UNCHECKED' || chip.state === 'UNVERIFIED' || !chip.availabilityText) {
+    const isError = chip.tier === 'ERROR' || chip.tier === 'UNKNOWN';
+    const isUnchecked = chip.state === 'UNCHECKED' || chip.state === 'UNVERIFIED' || !chip.tier;
+
+    // Tapping a "?" or "couldn't check" chip triggers checkClass (1 call, under its own actionId)
+    if (isUnchecked || isError) {
       if (!onCheckClass) return;
       setLoadingClass(chip.class);
       try {
@@ -48,8 +54,8 @@ export function P0ClassChips({
   };
 
   /**
-   * Formats the label text:
-   * e.g., "SL AVL 12", "3A RAC 3", "2A WL 11 (89%)", "1A ?"
+   * Formats the label text per spec:
+   * "SL · AVL 12", "3A · RAC 3", "3A · WL 11 · 89%", "2A · Not available", "1A · ?", "2A · couldn't check"
    */
   const renderChipContent = (chip) => {
     const cls = chip.class;
@@ -64,40 +70,113 @@ export function P0ClassChips({
       );
     }
 
-    if (chip.state === 'UNCHECKED' || chip.state === 'UNVERIFIED' || !chip.availabilityText) {
+    if (chip.state === 'UNCHECKED' || chip.state === 'UNVERIFIED' || !chip.tier) {
       return (
-        <span className="flex items-center gap-0.5">
+        <span className="flex items-center gap-1">
           <span>{cls}</span>
+          <span>·</span>
           <span className="font-bold text-[#E8B04A]">?</span>
         </span>
       );
     }
 
-    const text = chip.availabilityText || '';
     const tier = (chip.tier || '').toUpperCase();
-    const pct = chip.predictionPercentage > 0 ? ` (${chip.predictionPercentage}%)` : '';
 
-    // If text already starts with status e.g. "AVAILABLE 12" -> format as "SL AVL 12"
-    let statusSummary = text;
-    if (tier === 'AVAILABLE') {
-      const match = text.match(/\d+/);
-      statusSummary = match ? `AVL ${match[0]}` : 'AVL';
-    } else if (tier === 'RAC') {
-      const match = text.match(/\d+/);
-      statusSummary = match ? `RAC ${match[0]}` : 'RAC';
-    } else if (tier === 'WAITLIST' || tier === 'WL') {
-      const match = text.match(/\d+/);
-      statusSummary = match ? `WL ${match[0]}${pct}` : `WL${pct}`;
+    // 1. Error / Couldn't check
+    if (tier === 'ERROR' || tier === 'UNKNOWN') {
+      return (
+        <span className="flex items-center gap-1 text-rose-300">
+          <span>{cls}</span>
+          <span>·</span>
+          <span>couldn't check</span>
+        </span>
+      );
     }
 
-    return `${cls} ${statusSummary}`;
+    // 2. Unavailable
+    if (tier === 'UNAVAILABLE') {
+      return (
+        <span className="flex items-center gap-1 text-[#9CA3AF]">
+          <span>{cls}</span>
+          <span>·</span>
+          <span>Not available</span>
+        </span>
+      );
+    }
+
+    // Fare string if present on checked chip
+    const fareStr = (typeof chip.fare === 'number' && chip.fare > 0)
+      ? ` · ₹${chip.fare.toLocaleString('en-IN')}`
+      : '';
+
+    // 3. Available
+    if (tier === 'AVAILABLE') {
+      let count = chip.seatsAvailable;
+      if (count === null || count === undefined) {
+        const match = String(chip.availabilityText || '').match(/\d+/);
+        count = match ? match[0] : '';
+      }
+      const avlText = count ? `AVL ${count}` : 'AVL';
+      return (
+        <span className="flex items-center gap-1">
+          <span>{cls}</span>
+          <span>·</span>
+          <span>{avlText}</span>
+          {fareStr && <span className="text-emerald-300 font-semibold">{fareStr}</span>}
+        </span>
+      );
+    }
+
+    // 4. RAC
+    if (tier === 'RAC') {
+      let racPos = chip.racPosition ?? chip.seatsAvailable;
+      if (!racPos) {
+        const match = String(chip.availabilityText || '').match(/\d+/);
+        racPos = match ? match[0] : '';
+      }
+      const racText = racPos ? `RAC ${racPos}` : 'RAC';
+      return (
+        <span className="flex items-center gap-1">
+          <span>{cls}</span>
+          <span>·</span>
+          <span>{racText}</span>
+          {fareStr && <span className="text-[#E8B04A] font-semibold">{fareStr}</span>}
+        </span>
+      );
+    }
+
+    // 5. WAITLIST
+    if (tier === 'WAITLIST' || tier === 'WL') {
+      let wlPos = chip.waitlistPosition;
+      if (!wlPos) {
+        const slashMatch = /(?:GNWL|RLWL|PQWL|TQWL|RSWL|WL)\s*\d+\s*\/\s*(?:WL\s*)?(\d+)/i.exec(String(chip.availabilityText || ''));
+        if (slashMatch) {
+          wlPos = slashMatch[1];
+        } else {
+          const match = String(chip.availabilityText || '').match(/\d+/);
+          wlPos = match ? match[0] : '';
+        }
+      }
+      const pct = chip.predictionPercentage > 0 ? ` · ${chip.predictionPercentage}%` : '';
+      const wlText = wlPos ? `WL ${wlPos}${pct}` : `WL${pct}`;
+      return (
+        <span className="flex items-center gap-1">
+          <span>{cls}</span>
+          <span>·</span>
+          <span>{wlText}</span>
+          {fareStr && <span className="text-[#A7AFBA] font-semibold">{fareStr}</span>}
+        </span>
+      );
+    }
+
+    return `${cls} · ${chip.availabilityText || tier}`;
   };
 
   /**
    * Styling based on tier and state
    */
   const getChipStyle = (chip) => {
-    const isQuestion = chip.state === 'UNCHECKED' || chip.state === 'UNVERIFIED' || !chip.availabilityText;
+    const isQuestion = chip.state === 'UNCHECKED' || chip.state === 'UNVERIFIED' || !chip.tier;
     const isSelected = activeClassFilter === chip.class;
 
     if (isQuestion) {
@@ -105,6 +184,12 @@ export function P0ClassChips({
     }
 
     const tier = (chip.tier || '').toUpperCase();
+    if (tier === 'ERROR' || tier === 'UNKNOWN') {
+      return 'border border-dashed border-rose-500/50 bg-rose-950/20 text-rose-300 hover:border-rose-400 hover:bg-rose-900/30 cursor-pointer';
+    }
+    if (tier === 'UNAVAILABLE') {
+      return 'border border-[#303640] bg-[#12151A] text-[#7E8794] opacity-80 cursor-default';
+    }
     if (tier === 'AVAILABLE') {
       return isSelected
         ? 'border border-emerald-400 bg-emerald-500/20 text-emerald-300 font-semibold shadow-sm shadow-emerald-900/30'
@@ -115,7 +200,7 @@ export function P0ClassChips({
         ? 'border border-amber-400 bg-amber-500/20 text-amber-300 font-semibold shadow-sm'
         : 'border border-amber-500/40 bg-amber-950/40 text-amber-400 hover:border-amber-400 font-medium';
     }
-    // WAITLIST or other
+    // WAITLIST
     return isSelected
       ? 'border border-[#6B7280] bg-[#2A313C] text-[#E5E7EB] font-semibold'
       : 'border border-[#374151] bg-[#161B22] text-[#9CA3AF] hover:border-[#4B5563]';
@@ -123,21 +208,28 @@ export function P0ClassChips({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Class availability chips">
-      {classes.map((chip, idx) => (
-        <button
-          key={chip.class || idx}
-          type="button"
-          onClick={() => handleChipClick(chip)}
-          className={`inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-xs transition-all ${getChipStyle(chip)}`}
-          title={
-            chip.state === 'UNCHECKED' || chip.state === 'UNVERIFIED'
-              ? `Check availability for ${chip.class} (1 call)`
-              : `${chip.class}: ${chip.availabilityText || 'Checked'}`
-          }
-        >
-          {renderChipContent(chip)}
-        </button>
-      ))}
+      {classes.map((chip, idx) => {
+        const isError = chip.tier === 'ERROR' || chip.tier === 'UNKNOWN';
+        const isUnchecked = chip.state === 'UNCHECKED' || chip.state === 'UNVERIFIED' || !chip.tier;
+
+        return (
+          <button
+            key={chip.class || idx}
+            type="button"
+            onClick={() => handleChipClick(chip)}
+            className={`inline-flex items-center justify-center rounded-lg px-2.5 py-1 text-xs transition-all ${getChipStyle(chip)}`}
+            title={
+              isUnchecked
+                ? `Check availability for ${chip.class} (1 call)`
+                : isError
+                ? `Could not check availability. Tap to retry (1 call)`
+                : `${chip.class}: ${chip.availabilityText || 'Checked'}`
+            }
+          >
+            {renderChipContent(chip)}
+          </button>
+        );
+      })}
     </div>
   );
 }

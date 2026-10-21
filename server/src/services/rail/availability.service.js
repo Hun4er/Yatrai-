@@ -17,6 +17,12 @@ const AVAIL_TTL_WAITLIST_MS  = config.p0v2?.availabilityTtlWaitlistMs ?? 600_000
 
 function getTtlForStatus(normalizedStatus) {
   if (
+    normalizedStatus === AVAILABILITY_STATUS.ERROR ||
+    normalizedStatus === 'ERROR'
+  ) {
+    return 30_000; // 30s for ERROR
+  }
+  if (
     normalizedStatus === AVAILABILITY_STATUS.AVAILABLE ||
     normalizedStatus === 'AVAILABLE' ||
     normalizedStatus === AVAILABILITY_STATUS.RAC ||
@@ -188,10 +194,14 @@ export class AvailabilityService {
         quota,
         normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
         originalStatus: 'UNKNOWN',
+        statusText: "couldn't check — tap to retry",
+        availabilityText: "couldn't check — tap to retry",
         seatsAvailable: null,
         isAvailable: false,
         lastUpdated: new Date().toISOString(),
         isLive: false,
+        reason: 'CALL_FAILED',
+        errorCode: 'CALL_FAILED',
       };
     }
 
@@ -314,8 +324,10 @@ export class AvailabilityService {
       };
     }
 
-    // Check if any leg is unknown
-    const hasUnknown = legStatuses.some((l) => l.status === AVAILABILITY_STATUS.UNKNOWN);
+    // Check if any leg is unknown or error
+    const hasUnknown = legStatuses.some(
+      (l) => l.status === AVAILABILITY_STATUS.UNKNOWN || l.status === AVAILABILITY_STATUS.ERROR || l.status === 'ERROR'
+    );
     if (hasUnknown) {
       return {
         status: JOURNEY_AVAILABILITY.UNKNOWN,

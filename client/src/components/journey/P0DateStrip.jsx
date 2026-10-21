@@ -51,10 +51,13 @@ export function P0DateStrip({
               }
             >
               <span>{formatDateDisplay(item.date)}</span>
+              {item.availabilityText && !isConfirmed && (
+                <span className="text-[11px] text-[#A7AFBA]">· {item.availabilityText}</span>
+              )}
               {isConfirmed && (
-                <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/20 px-1.5 py-0.2 text-[10px] font-bold text-emerald-400">
+                <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400">
                   <Sparkles className="h-2.5 w-2.5" />
-                  AVL {item.class ? `(${item.class})` : ''}
+                  {item.availabilityText || (item.class ? `AVL (${item.class})` : 'AVL')}
                 </span>
               )}
               {cached && !isCurrent && (
