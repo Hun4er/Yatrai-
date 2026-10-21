@@ -12,6 +12,7 @@ import directPassService from '../services/rail/directPass.service.js';
 import alternativesEngineService from '../services/rail/alternativesEngine.service.js';
 import actionBudgetService, { getCapForActionType } from '../services/rail/actionBudget.service.js';
 import availabilityService from '../services/rail/availability.service.js';
+import clusterService from '../services/rail/cluster.service.js';
 import { resolveStationCode } from '../providers/transport/rail/rail.provider.js';
 import locationService from '../services/locationService.js';
 import { successResponse, errorResponse } from '../utils/apiResponse.js';
@@ -116,7 +117,7 @@ export const journeyV2Controller = {
         );
       }
 
-      // ── Station Resolution ─────────────────────────────────────────
+      // ── Station Resolution & Cluster Expansion ────────────────────
       const origins = await resolveStations(Array.isArray(rawOrigins) ? rawOrigins : [rawOrigins]);
       const destinations = await resolveStations(Array.isArray(rawDestinations) ? rawDestinations : [rawDestinations]);
 
@@ -125,6 +126,14 @@ export const journeyV2Controller = {
           errorResponse('Could not resolve origin or destination station', 'STATION_NOT_FOUND')
         );
       }
+
+      // Expand same-city cluster stations while preserving primary requested station first
+      const expandedOrigins = [
+        ...new Set(origins.flatMap((o) => clusterService.getClusterStationCodes(o))),
+      ];
+      const expandedDestinations = [
+        ...new Set(destinations.flatMap((d) => clusterService.getClusterStationCodes(d))),
+      ];
 
       // Canonicalize mode aliases:
       // "default" / "direct" / "auto"
@@ -154,8 +163,8 @@ export const journeyV2Controller = {
         // ── Direct pass ──────────────────────────────────────────────
         if (isAutoOrDirect) {
           directResult = await directPassService.run({
-            origins,
-            destinations,
+            origins: expandedOrigins,
+            destinations: expandedDestinations,
             date: formattedDate,
             travelClass,
             quota,

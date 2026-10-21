@@ -24,6 +24,7 @@
 import railKitAdapter from '../../providers/rail/railKit.adapter.js';
 import availabilityService, { AVAILABILITY_STATUS } from './availability.service.js';
 import corridorHubsService from './corridorHubs.service.js';
+import clusterService from './cluster.service.js';
 import actionBudgetService from './actionBudget.service.js';
 import config from '../../config/index.js';
 import logger from '../../utils/logger.js';
@@ -506,17 +507,30 @@ export class AlternativesEngineService {
         const t2Dep = t2.from?.departure || t2.departureTime || null;
         const t2No = String(t2.train?.number || t2.trainNumber || t2.number || '');
 
-        // Same hub station code required
+        // Same hub station code or same-city cluster transfer
         const hubA = String(t1.to?.code || t1.to_stn_code || hubCode).toUpperCase();
         const hubB = String(t2.from?.code || t2.from_stn_code || hubCode).toUpperCase();
-        if (hubA !== hubB) continue;
 
-        // Layover check
+        const isSameStation = hubA === hubB;
+        let isClusterTransfer = false;
+
+        if (!isSameStation) {
+          const clusterA = clusterService.getClusterForStation(hubA);
+          const clusterB = clusterService.getClusterForStation(hubB);
+          if (clusterA && clusterB && clusterA.primaryCode === clusterB.primaryCode) {
+            isClusterTransfer = true;
+          }
+        }
+
+        if (!isSameStation && !isClusterTransfer) continue;
+
+        // Layover check: inter-station transfers require minimum 120-minute buffer
         if (!t1Arr || !t2Dep) continue;
         const layover = layoverMinutes(this._toIso(t1Arr, dateStr), this._toIso(t2Dep, dateStr));
-        if (layover < layoverMin || layover > layoverMax) continue;
+        const effectiveMinLayover = isClusterTransfer ? Math.max(120, layoverMin) : layoverMin;
+        if (layover < effectiveMinLayover || layover > layoverMax) continue;
 
-        const isTight = layover < layoverTight;
+        const isTight = !isClusterTransfer && layover < layoverTight;
 
         // Detour check
         if (directDistanceKm) {
@@ -534,33 +548,50 @@ export class AlternativesEngineService {
 
         if (leg1Dur >= leg2Dur) {
           // Check leg1 first
-          leg1Avail = await this._checkAvailMemo(t1No, originCode, hubCode, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
+          leg1Avail = await this._checkAvailMemo(t1No, originCode, hubA, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
           if (leg1Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
 
-          leg2Avail = await this._checkAvailMemo(t2No, hubCode, destCode, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
+          leg2Avail = await this._checkAvailMemo(t2No, hubB, destCode, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
           if (leg2Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
         } else {
           // Check leg2 first
-          leg2Avail = await this._checkAvailMemo(t2No, hubCode, destCode, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
+          leg2Avail = await this._checkAvailMemo(t2No, hubB, destCode, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
           if (leg2Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
 
-          leg1Avail = await this._checkAvailMemo(t1No, originCode, hubCode, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
+          leg1Avail = await this._checkAvailMemo(t1No, originCode, hubA, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
           if (leg1Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
         }
+
+        const legs = [
+          { trainNo: t1No, from: originCode, to: hubA, class: laneClass, availability: leg1Avail },
+        ];
+
+        if (isClusterTransfer) {
+          legs.push({
+            type: 'transfer',
+            isTransfer: true,
+            from: hubA,
+            to: hubB,
+            durationMinutes: layover,
+            label: `get to ${hubB} yourself (local train / metro / cab)`,
+          });
+        }
+
+        legs.push({ trainNo: t2No, from: hubB, to: destCode, class: laneClass, availability: leg2Avail });
 
         plans.push({
           type: 'cross_train',
           sameTrain: false,
-          legs: [
-            { trainNo: t1No, from: originCode, to: hubCode, class: laneClass, availability: leg1Avail },
-            { trainNo: t2No, from: hubCode, to: destCode, class: laneClass, availability: leg2Avail },
-          ],
-          hubCode,
+          isClusterTransfer,
+          legs,
+          hubCode: isClusterTransfer ? `${hubA} / ${hubB}` : hubCode,
           laneClass,
           layoverMinutes: layover,
           isTight,
           tightLabel: isTight ? 'tight' : null,
-          notice: 'Separate tickets. A missed connection is not protected.',
+          notice: isClusterTransfer
+            ? `Separate tickets. Self-transfer required between ${hubA} and ${hubB} (minimum 120-minute buffer). A missed connection is not protected.`
+            : 'Separate tickets. A missed connection is not protected.',
         });
 
         if (plans.length >= p0v2.earlyStopPlans) break;

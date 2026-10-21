@@ -615,12 +615,16 @@ export class DirectPassService {
 
   _buildPairs(origins, destinations) {
     const pairs = [];
+    if (origins.length > 0 && destinations.length > 0) {
+      pairs.push([origins[0], destinations[0]]);
+    }
     for (const o of origins) {
       for (const d of destinations) {
+        if (o === origins[0] && d === destinations[0]) continue;
         if (o !== d) pairs.push([o, d]);
       }
     }
-    return pairs;
+    return pairs.slice(0, SEARCH_PAIRS_MAX);
   }
 }
 
