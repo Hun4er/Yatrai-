@@ -26,12 +26,6 @@ export const RANKING_OPTIONS = [
     icon: Shuffle,
     tooltip: 'Prioritizes routes with direct journeys and minimum connection interchanges.',
   },
-  {
-    id: 'most_convenient',
-    label: 'Most Convenient',
-    icon: Compass,
-    tooltip: 'Optimizes daylight schedules, seamless transfers, and minimal mode switching.',
-  },
 ];
 
 /**

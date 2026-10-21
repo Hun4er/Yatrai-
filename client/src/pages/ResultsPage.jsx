@@ -34,6 +34,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import api from '../services/api.js';
 import P0ResultsView from '../components/journey/P0ResultsView.jsx';
 import { generateActionId } from '../services/p0SearchCache.js';
+import { toJourneyViewModel, rankJourneys } from '../utils/journeyViewModel.js';
 
 /**
  * ResultsPage Component
@@ -326,12 +327,33 @@ export function ResultsPage({
 
   // Canonical backend journeys (including any recovered alternatives)
   const backendJourneys = useMemo(() => {
+    if (isP0V2) {
+      return toJourneyViewModel({ direct: p0Direct, alternatives: p0Alternatives });
+    }
     const primary = Array.isArray(data?.journeys) ? data.journeys : [];
     if (!optionalAlternatives || optionalAlternatives.length === 0) return primary;
     const existingIds = new Set(primary.map((j) => j.id));
     const newItems = optionalAlternatives.filter((j) => !existingIds.has(j.id));
     return [...primary, ...newItems];
-  }, [data?.journeys, optionalAlternatives]);
+  }, [isP0V2, p0Direct, p0Alternatives, data?.journeys, optionalAlternatives]);
+
+  // Direct and Alternatives counts computed from real data
+  const confirmedDirectCount = useMemo(() => {
+    return p0Direct.filter((t) =>
+      (t.classes || []).some((c) => c.state === 'CHECKED' && (c.tier === 'AVAILABLE' || c.isAvailable))
+    ).length;
+  }, [p0Direct]);
+
+  const waitlistedDirectCount = useMemo(() => {
+    return p0Direct.filter((t) => {
+      const classes = t.classes || [];
+      const hasConfirmed = classes.some((c) => c.state === 'CHECKED' && (c.tier === 'AVAILABLE' || c.isAvailable));
+      const hasWaitlist = classes.some((c) => c.state === 'CHECKED' && (c.tier === 'WAITLIST' || c.tier === 'RAC'));
+      return !hasConfirmed && hasWaitlist;
+    }).length;
+  }, [p0Direct]);
+
+  const alternativesCount = p0Alternatives.length;
 
   const recoveryMeta = data?.recoveryMeta || null;
 
@@ -388,10 +410,11 @@ export function ResultsPage({
     return deriveFilterBounds(validatedJourneys);
   }, [validatedJourneys]);
 
-  // Filtered journeys (client-side pure filtering)
+  // Filtered and ranked journeys (client-side pure filtering and real field ranking)
   const filteredJourneys = useMemo(() => {
-    return filterJourneys(validatedJourneys, filters);
-  }, [validatedJourneys, filters]);
+    const filtered = filterJourneys(validatedJourneys, filters);
+    return rankJourneys(filtered, activeRanking);
+  }, [validatedJourneys, filters, activeRanking]);
 
   const activeFilterCount = useMemo(() => {
     return countActiveFilters(filters, bounds);
@@ -549,10 +572,31 @@ export function ResultsPage({
             {status === 'success' && backendJourneys.length > 0 && (
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-[#7E8794]">
                 <span className="font-medium text-[#A7AFBA]">Indian Railways</span>
-                <span className="text-[#303640]">·</span>
-                <span>{journeyStats.direct} direct</span>
-                <span className="text-[#303640]">·</span>
-                <span>{journeyStats.connecting} connecting</span>
+                {isP0V2 ? (
+                  <>
+                    <span className="text-[#303640]">·</span>
+                    <span className="text-emerald-400 font-semibold">{confirmedDirectCount} confirmed direct</span>
+                    <span className="text-[#303640]">·</span>
+                    <span className="text-amber-400 font-semibold">{waitlistedDirectCount} waitlisted direct</span>
+                    {alternativesCount > 0 && (
+                      <>
+                        <span className="text-[#303640]">·</span>
+                        <span className="text-[#E8B04A] font-semibold">{alternativesCount} alternatives</span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span className="text-[#303640]">·</span>
+                    <span>{journeyStats.direct} direct</span>
+                    {journeyStats.connecting > 0 && (
+                      <>
+                        <span className="text-[#303640]">·</span>
+                        <span>{journeyStats.connecting} connecting</span>
+                      </>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -868,6 +912,8 @@ export function ResultsPage({
                 budget={p0Budget}
                 date={travelDate}
                 quota={searchParams?.quota || 'GN'}
+                destinationCode={userDest}
+                destinationName={exactDestName}
                 isLoadingAlternatives={isLoadingAlternatives}
                 isLoadingMoreTrains={isLoadingMoreTrains}
                 isSearchingDeeper={isSearchingDeeper}

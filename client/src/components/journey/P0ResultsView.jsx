@@ -39,6 +39,8 @@ export function P0ResultsView({
   budget = { used: 0, cap: 40 },
   date,
   quota = 'GN',
+  destinationCode = '',
+  destinationName = '',
   providerNotice = null,
   allCancelled = false,
   message = null,
@@ -63,15 +65,47 @@ export function P0ResultsView({
     return new URLSearchParams(window.location.search).get('debug') === '1';
   }, []);
 
-  // Collect all unique classes offered across direct trains
+  // Collect only reservable classes (1A, 2A, 3A, 3E, SL, CC, EC, 2S). Remove GEN and PWD.
   const offeredClasses = useMemo(() => {
+    const RESERVABLE_CLASSES = ['1A', '2A', '3A', '3E', 'SL', 'CC', 'EC', '2S'];
     const set = new Set();
     direct.forEach((t) => {
-      (t.classes || []).forEach((c) => set.add(c.class));
-      (t.offeredClasses || []).forEach((c) => set.add(c));
+      (t.classes || []).forEach((c) => {
+        const cls = String(c.class || '').toUpperCase();
+        if (RESERVABLE_CLASSES.includes(cls)) set.add(cls);
+      });
+      (t.offeredClasses || []).forEach((c) => {
+        const cls = String(c || '').toUpperCase();
+        if (RESERVABLE_CLASSES.includes(cls)) set.add(cls);
+      });
     });
-    return ['ALL', ...Array.from(set)];
+    const sorted = RESERVABLE_CLASSES.filter((c) => set.has(c));
+    return ['ALL', ...sorted];
   }, [direct]);
+
+  // Selecting a class filters trains by that class and checks visible trains in budgeted order
+  const handleSelectClassFilter = (cls) => {
+    setSelectedClassFilter(cls);
+    if (cls && cls !== 'ALL' && onCheckClass) {
+      const visibleTrains = direct.filter((t) =>
+        (t.classes || []).some((c) => c.class === cls) || (t.offeredClasses || []).includes(cls)
+      ).slice(0, 3);
+
+      visibleTrains.forEach((t) => {
+        const targetClass = (t.classes || []).find((c) => c.class === cls);
+        if (targetClass && targetClass.state !== 'CHECKED') {
+          onCheckClass({
+            trainNo: t.trainNumber,
+            from: t.from,
+            to: t.to,
+            class: cls,
+            date,
+            quota,
+          });
+        }
+      });
+    }
+  };
 
   // Filter direct trains by class if selected
   const filteredDirect = useMemo(() => {
@@ -207,11 +241,13 @@ export function P0ResultsView({
                 train={train}
                 date={date}
                 quota={quota}
+                destinationCode={destinationCode}
+                destinationName={destinationName}
                 onCheckClass={onCheckClass}
                 onRefreshCard={onRefreshCard}
                 onBook={onBookJourney}
                 activeClassFilter={selectedClassFilter === 'ALL' ? null : selectedClassFilter}
-                onSelectClassFilter={(cls) => setSelectedClassFilter(cls || 'ALL')}
+                onSelectClassFilter={handleSelectClassFilter}
               />
             ))}
           </div>

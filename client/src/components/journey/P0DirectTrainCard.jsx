@@ -30,6 +30,8 @@ export function P0DirectTrainCard({
   train,
   date,
   quota = 'GN',
+  destinationCode = '',
+  destinationName = '',
   onCheckClass,
   onRefreshCard,
   onBook,
@@ -91,8 +93,13 @@ export function P0DirectTrainCard({
               <span className="font-bold text-[#F0F1F3] text-sm sm:text-base">{trainNo}</span>
               <span className="text-[#A7AFBA] text-xs sm:text-sm font-medium">{trainName}</span>
             </div>
-            <div className="text-[11px] text-[#7E8794]">
-              {from} → {to}
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#7E8794]">
+              <span>{from} → {to}</span>
+              {destinationCode && to && to.toUpperCase() !== destinationCode.toUpperCase() && (
+                <span className="rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                  Arrives at {train.toName || to} ({to}), not {destinationName || destinationCode}
+                </span>
+              )}
             </div>
           </div>
         </div>
