@@ -745,11 +745,13 @@ export class RailKitAdapter {
           isBudgetExhausted: true,
         };
       }
+      const isFromCache = this.hasCachedSearch(fromCode, toCode, date);
       return {
         status: 'ok',
         success: Boolean(json?.success),
         provider: 'RailKit',
         data: Array.isArray(json?.data) ? json.data : [],
+        cacheHit: Boolean(isFromCache || json?._fromCache),
       };
     } catch (err) {
       const isNoTrains =
@@ -810,6 +812,27 @@ export class RailKitAdapter {
     } catch (err) {
       return { status: 'error', success: false, data: null, error: err.message };
     }
+  }
+
+  async trainSchedule(trainNumber) {
+    return this.getTrainInfo(trainNumber);
+  }
+
+  hasCachedSearch(fromCode, toCode, date) {
+    const internalDate = date ? formatJourneyDate(date) : '';
+    const rkDate = internalDate ? toRailKitDate(internalDate) : '';
+    const from = this._normalizeCode(fromCode);
+    const to = this._normalizeCode(toCode);
+    const cacheKey = `trains:between:${from}:${to}:${rkDate || 'all'}`;
+    const cached = this._cache.get(cacheKey);
+    return Boolean(cached && cached.expiresAt > Date.now());
+  }
+
+  hasCachedInfo(trainNumber) {
+    const num = this._normalizeTrainNo(trainNumber);
+    const cacheKey = `train:info:${num}`;
+    const cached = this._cache.get(cacheKey);
+    return Boolean(cached && cached.expiresAt > Date.now());
   }
 
   /**

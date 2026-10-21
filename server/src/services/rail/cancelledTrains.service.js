@@ -18,6 +18,14 @@ const _memCache = new Map();
 
 export class CancelledTrainsService {
   /**
+   * Checks if cancelled trains for date are cached in L1 memory.
+   */
+  hasCached(dateStr) {
+    const dateKey = String(dateStr).slice(0, 10);
+    return _memCache.has(dateKey);
+  }
+
+  /**
    * Returns a Set of cancelled train numbers for the given date string "YYYY-MM-DD".
    * One RailKit call is made at most once per date per TTL window.
    *

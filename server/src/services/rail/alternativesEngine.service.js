@@ -101,6 +101,7 @@ export class AlternativesEngineService {
     actionType = 'default',
     referenceTrains = [],
     directDistanceKm = null,
+    isDegraded = false,
   }) {
     const dateStr = formatJourneyDate(date) || String(date).slice(0, 10);
     const budget = this.actionBudgetService;
@@ -112,7 +113,7 @@ export class AlternativesEngineService {
     const maxCrossHubs = isDeep ? 4 : (isAltButton ? 3 : 2);
     const earlyStop = p0v2.earlyStopPlans;
 
-    logger.info(`[AltEngine] Starting for ${originCode}→${destCode}, date=${dateStr}, actionType=${actionType}, maxHubs=${maxHubs}, maxLanes=${maxLanes}`);
+    logger.info(`[AltEngine] Starting for ${originCode}→${destCode}, date=${dateStr}, actionType=${actionType}, degraded=${isDegraded}, maxHubs=${maxHubs}, maxLanes=${maxLanes}`);
 
     // ── Step 1: Hub discovery ──────────────────────────────────────
     let hubs = await this.corridorHubsService.getStoredHubs(originCode, destCode);
@@ -160,17 +161,19 @@ export class AlternativesEngineService {
         if (plan) allPlans.push(plan);
       }
 
-      // ── Step 4: Cross-train splits ───────────────────────────────
-      const hubsForCross = hubs.slice(0, maxCrossHubs);
-      for (const hub of hubsForCross) {
-        if (allPlans.length >= earlyStop) break;
-        if (budget.isAtCap(actionId)) break;
+      // ── Step 4: Cross-train splits (skipped in degraded mode) ─────
+      if (!isDegraded) {
+        const hubsForCross = hubs.slice(0, maxCrossHubs);
+        for (const hub of hubsForCross) {
+          if (allPlans.length >= earlyStop) break;
+          if (budget.isAtCap(actionId)) break;
 
-        const plans = await this._crossTrainSearch({
-          originCode, destCode, hubCode: hub.code, laneClass, dateStr, quota, actionId, budget, directDistanceKm, isDeep,
-        });
-        allPlans.push(...plans);
-        if (allPlans.length >= earlyStop) break;
+          const plans = await this._crossTrainSearch({
+            originCode, destCode, hubCode: hub.code, laneClass, dateStr, quota, actionId, budget, directDistanceKm, isDeep,
+          });
+          allPlans.push(...plans);
+          if (allPlans.length >= earlyStop) break;
+        }
       }
     }
 
@@ -218,7 +221,19 @@ export class AlternativesEngineService {
       const trainNo = String(refTrain.trainNumber || refTrain.train_number || refTrain.train?.number || '');
       if (!trainNo) continue;
 
-      if (budget && typeof budget.increment === 'function') {
+      const isScheduleCached = (typeof this.railKit.hasCachedInfo === 'function' && this.railKit.hasCachedInfo(trainNo)) ||
+        (typeof this.railKit.hasCachedSchedule === 'function' && this.railKit.hasCachedSchedule(trainNo));
+
+      if (budget && typeof budget.recordCall === 'function') {
+        const ok = await budget.recordCall({
+          actionId,
+          phase: 'scheduleRoutes',
+          endpoint: 'trainSchedule',
+          cacheHit: isScheduleCached,
+          cost: isScheduleCached ? 0 : 1,
+        });
+        if (!ok) break;
+      } else if (budget && typeof budget.increment === 'function') {
         const ok = await budget.increment(actionId, 'scheduleRoutes');
         if (!ok) break;
       }
@@ -285,6 +300,8 @@ export class AlternativesEngineService {
   async _sameTrainReachSearch({ trainNo, originCode, destCode, hubs, laneClass, dateStr, quota, actionId, budget, isDeep }) {
     if (hubs.length === 0) return null;
 
+    logger.debug(`[AltEngine] TODO[MONOTONIC]: Checking same-train seat reach monotonic assumption for train ${trainNo}`);
+
     // Track whether monotonic assumption has been violated for this train
     let monotonicDisabled = false;
 
@@ -294,9 +311,8 @@ export class AlternativesEngineService {
     if (monotonicDisabled) {
       // Linear scan fallback
       for (let i = 0; i < hubs.length; i++) {
-        const ok = await budget.increment(actionId, 'sameTrain');
-        if (!ok) break;
-        const avail = await this._checkAvailMemo(trainNo, originCode, hubs[i].code, laneClass, dateStr, quota);
+        const avail = await this._checkAvailMemo(trainNo, originCode, hubs[i].code, laneClass, dateStr, quota, actionId, 'sameTrain', budget);
+        if (!avail) break;
         if (avail?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE) {
           farthestAvailableIdx = i;
         }
@@ -305,10 +321,8 @@ export class AlternativesEngineService {
       // Binary search
       while (lo <= hi) {
         const mid = Math.floor((lo + hi) / 2);
-        const ok = await budget.increment(actionId, 'sameTrain');
-        if (!ok) break;
-
-        const avail = await this._checkAvailMemo(trainNo, originCode, hubs[mid].code, laneClass, dateStr, quota);
+        const avail = await this._checkAvailMemo(trainNo, originCode, hubs[mid].code, laneClass, dateStr, quota, actionId, 'sameTrain', budget);
+        if (!avail) break;
         const isAvail = avail?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE;
 
         // Validate monotonic assumption if we have a previous data point
@@ -341,10 +355,7 @@ export class AlternativesEngineService {
     const Ha = hubs[farthestAvailableIdx];
 
     // Step 3b: Check Ha→destination
-    const okB = await budget.increment(actionId, 'sameTrain');
-    if (!okB) return null;
-
-    const availB = await this._checkAvailMemo(trainNo, Ha.code, destCode, laneClass, dateStr, quota);
+    const availB = await this._checkAvailMemo(trainNo, Ha.code, destCode, laneClass, dateStr, quota, actionId, 'sameTrain', budget);
     if (availB?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE) {
       logger.info(`[AltEngine] Same-train 2-leg plan: ${originCode}→${Ha.code}→${destCode} on train ${trainNo} (${laneClass})`);
       return {
@@ -367,9 +378,8 @@ export class AlternativesEngineService {
       let loB = 0, hiB = hubs.length - 1, nearestAvailFromDestIdx = -1;
       while (loB <= hiB) {
         const mid = Math.floor((loB + hiB) / 2);
-        const ok = await budget.increment(actionId, 'sameTrain');
-        if (!ok) break;
-        const avail = await this._checkAvailMemo(trainNo, hubs[mid].code, destCode, laneClass, dateStr, quota);
+        const avail = await this._checkAvailMemo(trainNo, hubs[mid].code, destCode, laneClass, dateStr, quota, actionId, 'sameTrain', budget);
+        if (!avail) break;
         if (avail?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE) {
           nearestAvailFromDestIdx = mid;
           hiB = mid - 1;
@@ -380,25 +390,22 @@ export class AlternativesEngineService {
 
       if (nearestAvailFromDestIdx >= 0 && farthestAvailableIdx < nearestAvailFromDestIdx) {
         const Hb = hubs[nearestAvailFromDestIdx];
-        const okC = await budget.increment(actionId, 'sameTrain');
-        if (okC) {
-          const availC = await this._checkAvailMemo(trainNo, Ha.code, Hb.code, laneClass, dateStr, quota);
-          if (availC?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE) {
-            logger.info(`[AltEngine] Same-train 3-leg plan: ${originCode}→${Ha.code}→${Hb.code}→${destCode} on train ${trainNo} (${laneClass})`);
-            return {
-              type: 'same_train',
-              sameTrain: true,
-              legs: [
-                { trainNo, from: originCode, to: Ha.code, class: laneClass },
-                { trainNo, from: Ha.code, to: Hb.code, class: laneClass },
-                { trainNo, from: Hb.code, to: destCode, class: laneClass },
-              ],
-              hubCodes: [Ha.code, Hb.code],
-              laneClass,
-              badge: `Stay on this train — three tickets`,
-              notice: 'Separate tickets. A missed connection is not protected.',
-            };
-          }
+        const availC = await this._checkAvailMemo(trainNo, Ha.code, Hb.code, laneClass, dateStr, quota, actionId, 'sameTrain', budget);
+        if (availC?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE) {
+          logger.info(`[AltEngine] Same-train 3-leg plan: ${originCode}→${Ha.code}→${Hb.code}→${destCode} on train ${trainNo} (${laneClass})`);
+          return {
+            type: 'same_train',
+            sameTrain: true,
+            legs: [
+              { trainNo, from: originCode, to: Ha.code, class: laneClass },
+              { trainNo, from: Ha.code, to: Hb.code, class: laneClass },
+              { trainNo, from: Hb.code, to: destCode, class: laneClass },
+            ],
+            hubCodes: [Ha.code, Hb.code],
+            laneClass,
+            badge: `Stay on this train — three tickets`,
+            notice: 'Separate tickets. A missed connection is not protected.',
+          };
         }
       }
     }
@@ -419,7 +426,17 @@ export class AlternativesEngineService {
     // searchTrains O→H
     let leg1Trains = [];
     {
-      const ok = await budget.increment(actionId, 'crossTrain');
+      const isLeg1Cached = typeof this.railKit.hasCachedSearch === 'function' &&
+        this.railKit.hasCachedSearch(originCode, hubCode, dateStr);
+      const ok = budget && typeof budget.recordCall === 'function'
+        ? await budget.recordCall({
+            actionId,
+            phase: 'crossTrain',
+            endpoint: 'searchTrains',
+            cacheHit: isLeg1Cached,
+            cost: isLeg1Cached ? 0 : 1,
+          })
+        : (budget ? await budget.increment(actionId, 'crossTrain') : true);
       if (!ok) return plans;
       const cacheKey = `search:${originCode}:${hubCode}:${dateStr}`;
       try {
@@ -442,7 +459,17 @@ export class AlternativesEngineService {
     // searchTrains H→D
     let leg2Trains = [];
     {
-      const ok = await budget.increment(actionId, 'crossTrain');
+      const isLeg2Cached = typeof this.railKit.hasCachedSearch === 'function' &&
+        this.railKit.hasCachedSearch(hubCode, destCode, dateStr);
+      const ok = budget && typeof budget.recordCall === 'function'
+        ? await budget.recordCall({
+            actionId,
+            phase: 'crossTrain',
+            endpoint: 'searchTrains',
+            cacheHit: isLeg2Cached,
+            cost: isLeg2Cached ? 0 : 1,
+          })
+        : (budget ? await budget.increment(actionId, 'crossTrain') : true);
       if (!ok) return plans;
       const cacheKey = `search:${hubCode}:${destCode}:${dateStr}`;
       try {
@@ -507,25 +534,17 @@ export class AlternativesEngineService {
 
         if (leg1Dur >= leg2Dur) {
           // Check leg1 first
-          const ok1 = await budget.increment(actionId, 'crossTrain');
-          if (!ok1) break;
-          leg1Avail = await this._checkAvailMemo(t1No, originCode, hubCode, laneClass, dateStr, quota);
+          leg1Avail = await this._checkAvailMemo(t1No, originCode, hubCode, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
           if (leg1Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
 
-          const ok2 = await budget.increment(actionId, 'crossTrain');
-          if (!ok2) break;
-          leg2Avail = await this._checkAvailMemo(t2No, hubCode, destCode, laneClass, dateStr, quota);
+          leg2Avail = await this._checkAvailMemo(t2No, hubCode, destCode, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
           if (leg2Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
         } else {
           // Check leg2 first
-          const ok2 = await budget.increment(actionId, 'crossTrain');
-          if (!ok2) break;
-          leg2Avail = await this._checkAvailMemo(t2No, hubCode, destCode, laneClass, dateStr, quota);
+          leg2Avail = await this._checkAvailMemo(t2No, hubCode, destCode, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
           if (leg2Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
 
-          const ok1 = await budget.increment(actionId, 'crossTrain');
-          if (!ok1) break;
-          leg1Avail = await this._checkAvailMemo(t1No, originCode, hubCode, laneClass, dateStr, quota);
+          leg1Avail = await this._checkAvailMemo(t1No, originCode, hubCode, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
           if (leg1Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
         }
 
@@ -553,9 +572,27 @@ export class AlternativesEngineService {
 
   // ── Availability memoization ───────────────────────────────────────────────
 
-  async _checkAvailMemo(trainNo, from, to, cls, dateStr, quota) {
+  async _checkAvailMemo(trainNo, from, to, cls, dateStr, quota, actionId = null, phase = 'crossTrain', budget = null) {
     const key = `${trainNo}:${from}:${to}:${cls}:${dateStr}:${quota}`;
-    if (this._availMemo.has(key)) return this._availMemo.get(key);
+    const budgetTracker = budget || this.actionBudgetService;
+
+    const isMemo = this._availMemo.has(key);
+    const isServiceCached = typeof this.availabilityService.hasCached === 'function' &&
+      this.availabilityService.hasCached(trainNo, from, to, dateStr, cls, quota);
+    const isCached = isMemo || isServiceCached;
+
+    if (actionId && budgetTracker && typeof budgetTracker.recordCall === 'function') {
+      const ok = await budgetTracker.recordCall({
+        actionId,
+        phase,
+        endpoint: 'seatAvailability',
+        cacheHit: isCached,
+        cost: isCached ? 0 : 1,
+      });
+      if (!ok) return null;
+    }
+
+    if (isMemo) return this._availMemo.get(key);
 
     const result = await this.availabilityService.checkLegAvailability({
       trainNumber: trainNo,

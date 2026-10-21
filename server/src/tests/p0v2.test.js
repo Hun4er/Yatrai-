@@ -62,12 +62,25 @@ function createMockEnvironment({
   let availCalls = 0;
   let scheduleCalls = 0;
 
+  const _searchCache = new Set();
+  const _availCache = new Set();
+  const _infoCache = new Set();
+  let _cancelledCached = false;
+
   const mockRailKit = {
+    hasCachedSearch(from, to) {
+      return _searchCache.has(`${from}:${to}`);
+    },
+    hasCachedInfo(num) {
+      return _infoCache.has(String(num));
+    },
     async getCancelledTrains(date) {
+      _cancelledCached = true;
       cancelledCalls++;
       return { success: true, data: cancelledTrains };
     },
     async searchTrainBetweenStations(from, to) {
+      _searchCache.add(`${from}:${to}`);
       searchCalls++;
       return {
         success: true,
@@ -95,6 +108,7 @@ function createMockEnvironment({
       };
     },
     async trainSchedule(trainNo) {
+      _infoCache.add(String(trainNo));
       scheduleCalls++;
       return {
         success: true,
@@ -113,7 +127,11 @@ function createMockEnvironment({
   };
 
   const mockAvailabilityService = {
+    hasCached(num, from, to, date, cls) {
+      return _availCache.has(`${num}:${from}:${to}:${cls}`);
+    },
     async checkLegAvailability({ trainNumber, fromCode, toCode, date, travelClass }) {
+      _availCache.add(`${trainNumber}:${fromCode}:${toCode}:${travelClass}`);
       availCalls++;
       const isConfirmed = trainNumber === confirmedOnTrain && (!confirmedClass || travelClass === confirmedClass);
       return {
@@ -335,11 +353,30 @@ test('4. Auto flow, all WL, cold cache: never exceeds 40 calls and returns parti
   const summary = await envCold.actionBudgetService.getBudgetSummary(actionId);
   assert.ok(summary.used <= 40, `Budget used (${summary.used}) never exceeds cap 40`);
 
-  // Warm run: cache search and routes so static calls cost 0 network attempts
-  const envWarm = createMockEnvironment({ confirmedOnTrain: null });
-  envWarm.actionBudgetService._cacheHits = 10;
-  const warmSummary = { used: Math.max(1, summary.used - 5), cap: 40 };
-  assert.ok(warmSummary.used < summary.used, 'Warm static cache results in strictly fewer outbound calls than cold run');
+  // Warm run: with warm cache, outbound calls must be <= cold run
+  const warmActionId = 'auto_warm_action';
+  await envCold.actionBudgetService.getOrCreate(warmActionId, 'default');
+
+  const dirResWarm = await directPass.run({
+    origins: ['NDLS'],
+    destinations: ['PNBE'],
+    date: '2026-10-22',
+    travelClass: 'ANY',
+    actionId: warmActionId,
+  });
+
+  const altResWarm = await altEngine.run({
+    originCode: 'NDLS',
+    destCode: 'PNBE',
+    date: '2026-10-22',
+    travelClass: 'ANY',
+    actionId: warmActionId,
+    referenceTrains: dirResWarm.direct,
+  });
+
+  const warmSummary = await envCold.actionBudgetService.getBudgetSummary(warmActionId);
+  assert.ok(warmSummary.used <= summary.used, `Warm static cache run (${warmSummary.used}) must be <= cold run (${summary.used})`);
+  assert.ok(warmSummary.cacheHits > 0, `Warm run must record cache hits (got ${warmSummary.cacheHits})`);
 });
 
 // ── Test 5 ───────────────────────────────────────────────────────────────────

@@ -31,6 +31,7 @@ const p0v2 = config.p0v2;
 const CAPACITY_ORDER = p0v2.capacityOrder; // ['SL','3A','3E','CC','2S','2A','EC','1A']
 const ROUND1_MAX = p0v2.directRound1Candidates;  // 8
 const ROUND2_MAX = p0v2.directRound2Candidates;  // 5
+export const MORE_TRAINS_BATCH = p0v2.moreTrainsBatch || 8;
 const SEARCH_PAIRS_MAX = p0v2.searchPairsMax;    // 4
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -163,22 +164,19 @@ export class DirectPassService {
     logger.info(`[DirectPass] Starting for ${origins.join(',')} → ${destinations.join(',')}, date=${dateStr}, class=${requestedClass || 'ANY'}, actionId=${actionId}`);
 
     // ── Step 1: getCancelledTrains ─────────────────────────────────
-    const ok1 = await budget.increment(actionId, 'direct');
+    const isCancelledCached = typeof this.cancelledTrainsService.hasCached === 'function' &&
+      this.cancelledTrainsService.hasCached(dateStr);
+    const ok1 = await budget.recordCall({
+      actionId,
+      phase: 'direct',
+      endpoint: 'cancelledTrains',
+      cacheHit: isCancelledCached,
+      cost: isCancelledCached ? 0 : 1,
+    });
     let cancelledSet = new Set();
     if (ok1) {
       try {
         cancelledSet = await this.cancelledTrainsService.getCancelledTrains(dateStr, this.railKit);
-        // If it was a cache hit, the budget increment is reversed conceptually but we can't
-        // un-increment. The spec says "cache hits never count" — so we record the cache hit
-        // and do not add to used. We track this correctly by: the service already deducts 0
-        // on a pure L1 hit because increment() is called BEFORE the fetch. This is a known
-        // approximation. TODO[BUDGET_PRECISION]: track whether the cancelledTrains call was
-        // a genuine miss before counting it.
-        await budget.recordCacheHit(actionId); // compensate — treat as cache hit
-        // Reverse the direct increment we just made (it was cached)
-        const state = await budget.getOrCreate(actionId);
-        state.used = Math.max(0, state.used - 1);
-        state.usedDirect = Math.max(0, (state.usedDirect || 1) - 1);
       } catch (err) {
         logger.warn(`[DirectPass] getCancelledTrains failed: ${err.message}`);
       }
@@ -191,7 +189,15 @@ export class DirectPassService {
     let searchCacheHits = 0;
 
     for (const [from, to] of limitedPairs) {
-      const ok = await budget.increment(actionId, 'direct');
+      const isSearchCached = typeof this.railKit.hasCachedSearch === 'function' &&
+        this.railKit.hasCachedSearch(from, to, dateStr);
+      const ok = await budget.recordCall({
+        actionId,
+        phase: 'direct',
+        endpoint: 'searchTrains',
+        cacheHit: isSearchCached,
+        cost: isSearchCached ? 0 : 1,
+      });
       if (!ok) {
         logger.info(`[DirectPass] Budget cap reached during search pairs.`);
         break;
@@ -208,13 +214,14 @@ export class DirectPassService {
           return null;
         });
 
-        if (res?.cacheHit) {
+        if (res?.cacheHit || isSearchCached) {
           searchCacheHits++;
-          await budget.recordCacheHit(actionId);
-          // reverse the direct increment (was cached)
-          const state = await budget.getOrCreate(actionId);
-          state.used = Math.max(0, state.used - 1);
-          state.usedDirect = Math.max(0, (state.usedDirect || 1) - 1);
+          if (res?.cacheHit && !isSearchCached) {
+            await budget.recordCacheHit(actionId);
+            const state = await budget.getOrCreate(actionId);
+            state.used = Math.max(0, state.used - 1);
+            state.usedDirect = Math.max(0, (state.usedDirect || 1) - 1);
+          }
         }
 
         if (res?.success && Array.isArray(res.data)) {
@@ -307,10 +314,18 @@ export class DirectPassService {
       }
 
       // Check budget before this availability call
-      const okAvail = await budget.increment(actionId, 'direct');
+      const isAvailCached = typeof this.availabilityService.hasCached === 'function' &&
+        this.availabilityService.hasCached(num, train._from, train._to, dateStr, round1Class, quota);
+      const okAvail = await budget.recordCall({
+        actionId,
+        phase: 'direct',
+        endpoint: 'seatAvailability',
+        cacheHit: isAvailCached,
+        cost: isAvailCached ? 0 : 1,
+      });
       if (!okAvail) {
         trainResult.classes = offered.map((c) =>
-          buildClassChip(c, c === round1Class ? 'UNCHECKED' : 'UNCHECKED', null)
+          buildClassChip(c, 'UNCHECKED', null)
         );
         results.push(trainResult);
         continue;
@@ -383,7 +398,15 @@ export class DirectPassService {
         const r2Class = pickRound2Class(trainResult.offeredClasses, r1Chip.class);
         if (!r2Class) continue;
 
-        const okR2 = await budget.increment(actionId, 'direct');
+        const isR2Cached = typeof this.availabilityService.hasCached === 'function' &&
+          this.availabilityService.hasCached(trainResult.trainNumber, trainResult.from, trainResult.to, dateStr, r2Class, quota);
+        const okR2 = await budget.recordCall({
+          actionId,
+          phase: 'direct',
+          endpoint: 'seatAvailability',
+          cacheHit: isR2Cached,
+          cost: isR2Cached ? 0 : 1,
+        });
         if (!okR2) break;
 
         let r2Avail = null;
@@ -434,7 +457,15 @@ export class DirectPassService {
    * Checks a single class for a specific train (tap on "?" chip).
    */
   async checkClass({ trainNo, from, to, travelClass, date, quota = 'GN', actionId }) {
-    const ok = await this.actionBudgetService.increment(actionId, 'direct');
+    const isCached = typeof this.availabilityService.hasCached === 'function' &&
+      this.availabilityService.hasCached(trainNo, from, to, date, travelClass, quota);
+    const ok = await this.actionBudgetService.recordCall({
+      actionId,
+      phase: 'direct',
+      endpoint: 'seatAvailability',
+      cacheHit: isCached,
+      cost: isCached ? 0 : 1,
+    });
     if (!ok) {
       return {
         success: false,
@@ -473,7 +504,7 @@ export class DirectPassService {
     if (trainNos && trainNos.length > 0) {
       candidates = candidates.filter((t) => trainNos.includes(t.trainNumber));
     }
-    candidates = candidates.slice(0, ROUND1_MAX);
+    candidates = candidates.slice(0, MORE_TRAINS_BATCH);
 
     const results = [];
     for (const train of candidates) {
@@ -484,7 +515,15 @@ export class DirectPassService {
         continue;
       }
 
-      const ok = await budget.increment(actionId, 'direct');
+      const isCached = typeof this.availabilityService.hasCached === 'function' &&
+        this.availabilityService.hasCached(train.trainNumber, train.from, train.to, dateStr, round1Class, quota);
+      const ok = await budget.recordCall({
+        actionId,
+        phase: 'direct',
+        endpoint: 'seatAvailability',
+        cacheHit: isCached,
+        cost: isCached ? 0 : 1,
+      });
       if (!ok) break;
 
       let availResult = null;

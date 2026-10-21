@@ -132,7 +132,7 @@ export class AvailabilityService {
     const cached = this.cache.get(cacheKey);
     if (cached && cached.expiresAt > now) {
       if (budgetTracker) budgetTracker.recordCacheHit();
-      return cached.data;
+      return { ...cached.data, fromCache: true, cacheHit: true };
     }
 
     if (budgetTracker && isRecovery && !budgetTracker.canMakeRecoveryRequest()) {
@@ -210,6 +210,15 @@ export class AvailabilityService {
     const to = String(toCode || '').trim().toUpperCase();
     const dateStr = formatJourneyDate(date) || (typeof date === 'string' ? date.slice(0, 10) : new Date().toISOString().slice(0, 10));
     return `avail:${num}:${from}:${to}:${dateStr}:${travelClass}:${quota}`;
+  }
+
+  /**
+   * Checks if an availability check is cached and still valid.
+   */
+  hasCached(trainNumber, fromCode, toCode, date, travelClass = '3A', quota = 'GN') {
+    const key = this.buildCacheKey(trainNumber, fromCode, toCode, date, travelClass, quota);
+    const cached = this.cache.get(key);
+    return Boolean(cached && cached.expiresAt > Date.now());
   }
 
   /**

@@ -180,6 +180,9 @@ export const config = Object.freeze({
     criticalPercent: 95,
     // Monthly degraded-mode threshold: under 10% of 10,000 → direct + same-train only
     degradedThresholdPercent: parseInt(process.env.RAILKIT_DEGRADED_THRESHOLD_PERCENT || '10', 10),
+    // 10,000 plan expiration: 13 Nov 2026
+    planExpiry: process.env.RAILKIT_PLAN_EXPIRY || '2026-11-13',
+    adminSecret: process.env.ADMIN_SECRET || 'yatrai_admin_secret_key',
   },
 
   /**
@@ -212,6 +215,7 @@ export const config = Object.freeze({
     // ── Direct pass algorithm constants ───────────────────────────
     directRound1Candidates: parseInt(process.env.P0V2_ROUND1_CANDIDATES || '8', 10),
     directRound2Candidates: parseInt(process.env.P0V2_ROUND2_CANDIDATES || '5', 10),
+    moreTrainsBatch: parseInt(process.env.P0V2_MORE_TRAINS_BATCH || '8', 10),
     searchPairsMax: parseInt(process.env.P0V2_SEARCH_PAIRS_MAX || '4', 10),
 
     // ── Alternatives algorithm constants ──────────────────────────

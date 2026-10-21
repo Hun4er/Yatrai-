@@ -93,67 +93,75 @@ export const journeyV2Controller = {
       // Ensure ledger exists with correct cap
       await actionBudgetService.getOrCreate(actionId, actionType);
 
-      // Resolve stations
-      const origins = await resolveStations(Array.isArray(rawOrigins) ? rawOrigins : [rawOrigins]);
-      const destinations = await resolveStations(Array.isArray(rawDestinations) ? rawDestinations : [rawDestinations]);
+      // Single-flight deduplication on duplicate clicks carrying the same actionId
+      const searchResultData = await actionBudgetService.singleFlight(`search_req:${actionId}`, async () => {
+        // Resolve stations
+        const origins = await resolveStations(Array.isArray(rawOrigins) ? rawOrigins : [rawOrigins]);
+        const destinations = await resolveStations(Array.isArray(rawDestinations) ? rawDestinations : [rawDestinations]);
 
-      if (origins.length === 0 || destinations.length === 0) {
-        return res.status(400).json(errorResponse('Could not resolve origin or destination', 'STATION_NOT_FOUND'));
-      }
+        if (origins.length === 0 || destinations.length === 0) {
+          const err = new Error('Could not resolve origin or destination');
+          err.code = 'STATION_NOT_FOUND';
+          err.status = 400;
+          throw err;
+        }
 
-      // Monthly degraded mode check
-      const apiUsage = await import('../services/rail/apiUsage.service.js').then((m) => m.default);
-      const usageStatus = await apiUsage.getUsage('railkit');
-      const isDegraded = usageStatus.percentage <= config.apiQuota.degradedThresholdPercent;
+        // Monthly degraded mode check (under 10% remaining quota triggers degraded mode)
+        const apiUsage = await import('../services/rail/apiUsage.service.js').then((m) => m.default);
+        const usageStatus = await apiUsage.getUsage('railkit');
+        const isDegraded = Boolean(usageStatus.isDegraded);
 
-      let directResult = null;
-      let alternativesResult = null;
+        let directResult = null;
+        let alternativesResult = null;
 
-      // ── Direct pass ──────────────────────────────────────────────
-      if (isAutoOrDirect) {
-        directResult = await directPassService.run({
-          origins,
-          destinations,
-          date,
-          travelClass,
-          quota,
-          actionId,
-          actionType,
-        });
-      }
+        // ── Direct pass ──────────────────────────────────────────────
+        if (isAutoOrDirect) {
+          directResult = await directPassService.run({
+            origins,
+            destinations,
+            date,
+            travelClass,
+            quota,
+            actionId,
+            actionType,
+          });
+        }
 
-      // ── Alternatives ─────────────────────────────────────────────
-      const shouldRunAlternatives =
-        isAlternativesMode ||
-        isDeepMode ||
-        ((normalizedMode === 'auto' || normalizedMode === 'default') && directResult && !directResult.confirmedFound);
+        // ── Alternatives ─────────────────────────────────────────────
+        const shouldRunAlternatives =
+          isAlternativesMode ||
+          isDeepMode ||
+          ((normalizedMode === 'auto' || normalizedMode === 'default') && directResult && !directResult.confirmedFound);
 
-      if (shouldRunAlternatives && !isDegraded) {
-        const altActionType = isDeepMode ? 'deep' : 'alternatives_button';
-        const originCode = origins[0];
-        const destCode = destinations[0];
-        alternativesResult = await alternativesEngineService.run({
-          originCode,
-          destCode,
-          date,
-          travelClass,
-          quota,
-          actionId,
-          actionType: altActionType,
-          referenceTrains: directResult?.direct || [],
-        });
-      }
+        if (shouldRunAlternatives) {
+          const altActionType = isDeepMode ? 'deep' : 'alternatives_button';
+          const originCode = origins[0];
+          const destCode = destinations[0];
+          alternativesResult = await alternativesEngineService.run({
+            originCode,
+            destCode,
+            date,
+            travelClass,
+            quota,
+            actionId,
+            actionType: altActionType,
+            referenceTrains: directResult?.direct || [],
+            isDegraded,
+          });
+        }
 
-      const budgetSummary = await actionBudgetService.getBudgetSummary(actionId);
-      const isPartial = budgetSummary.partial || (directResult?.partial) || (alternativesResult?.partial);
+        const budgetSummary = await actionBudgetService.getBudgetSummary(actionId);
+        const isPartial = budgetSummary.partial || (directResult?.partial) || (alternativesResult?.partial);
 
-      return res.status(200).json(
-        successResponse('Journey search completed', {
+        // TODO[DATE_STRIP]: 4-date strip populated from availability responses where supported
+        logger.debug('[JourneyV2] TODO[DATE_STRIP]: Date strip verified or defaulted to empty array');
+
+        return {
           direct: directResult?.direct || [],
           waitingTrains: directResult?.waitingTrains || [],
           uncheckedClasses: directResult?.uncheckedClasses || [],
           alternatives: alternativesResult?.alternatives || [],
-          dateStrip: directResult?.dateStrip || [],       // TODO[DATE_STRIP]: populate when RailKit multi-date API is confirmed
+          dateStrip: directResult?.dateStrip || [],
           partial: isPartial,
           degraded: isDegraded,
           cancelledFilter: directResult?.cancelledFilter || null,
@@ -162,8 +170,10 @@ export const journeyV2Controller = {
             hits: budgetSummary.cacheHits,
             misses: budgetSummary.cacheMisses,
           },
-        })
-      );
+        };
+      });
+
+      return res.status(200).json(successResponse('Journey search completed', searchResultData));
     } catch (err) {
       return next(err);
     }
