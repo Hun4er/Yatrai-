@@ -452,3 +452,19 @@ npm run build
 | PHASE 19    | Performance Optimization & Caching                    | Upcoming      |
 | PHASE 20    | Deployment & CI/CD Pipeline                           | Upcoming      |
 | PHASE 21    | Production Verification & Monitoring                  | Upcoming      |
+
+---
+
+## 16. Known Limitations & Production Caveats
+
+1. **Separate Tickets Required:**
+   Indian Railways PRS does not currently support multi-leg unified ticket booking under a single PNR. Travelers must book Leg 1 and Leg 2 separately on IRCTC. Missed connections due to upstream train delays are not automatically protected or compensated.
+2. **No Live Delay Data for Future Dates:**
+   RailKit's `Track Train` API only provides live GPS running status for trains operating on the current calendar day. For future journey dates, itineraries rely on official scheduled timetables.
+3. **Same-Train Berth Change:**
+   On a same-train split ticket, while the traveler remains on the exact same train throughout the journey, their assigned coach or berth number may change at the intermediate split junction (e.g. Kanpur Central) as seat allocations switch quotas.
+4. **Quota Monotonicity & Intermediate Reach:**
+   The assumption that seat availability is monotonic across intermediate stations holds strictly for General Quota (GN), but pooled quotas (PQWL, RLWL) across smaller regional stations may have non-linear seat allocations. Where contradictions occur, binary search fallback safely reverts to direct inspection.
+5. **Multi-Date Availability Strip:**
+   The 4-day availability strip is populated directly from RailKit multi-date responses where available. Where dates beyond the advance booking window (60 days) are queried, Yatrai presents an informative booking notice.
+

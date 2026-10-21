@@ -106,6 +106,11 @@ export function P0DirectTrainCard({
 
         {/* Checked N min ago + Refresh button */}
         <div className="flex items-center gap-2 self-start sm:self-auto text-xs text-[#7E8794]">
+          {train.isCachedResult && (
+            <span className="rounded bg-sky-500/15 border border-sky-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-sky-300">
+              cached result
+            </span>
+          )}
           {refreshMessage ? (
             <span className="text-[11px] text-[#E8B04A] animate-pulse">{refreshMessage}</span>
           ) : (

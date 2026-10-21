@@ -204,6 +204,28 @@ export const journeyV2Controller = {
           message = 'No direct trains found between selected stations.';
         }
 
+        // Phase 11: Demo Mode — store last good search result
+        if (directResult?.direct?.length > 0 || alternativesResult?.alternatives?.length > 0) {
+          const originCode = (origins || [])[0];
+          const destCode = (destinations || [])[0];
+          if (originCode && destCode) {
+            persistentCacheService.set(
+              `demo:search:${originCode}:${destCode}`,
+              {
+                direct: (directResult?.direct || []).map((t) => ({ ...t, isCachedResult: true })),
+                waitingTrains: directResult?.waitingTrains || [],
+                uncheckedClasses: directResult?.uncheckedClasses || [],
+                alternatives: (alternativesResult?.alternatives || []).map((a) => ({ ...a, isCachedResult: true })),
+                dateStrip: directResult?.dateStrip || [],
+                partial: false,
+                degraded: false,
+              },
+              'timetable',
+              24 * 60 * 60 * 1000
+            ).catch(() => {});
+          }
+        }
+
         // TODO[DATE_STRIP]: 4-date strip populated from availability responses where supported
         logger.debug('[JourneyV2] TODO[DATE_STRIP]: Date strip verified or defaulted to empty array');
 
@@ -273,6 +295,32 @@ export const journeyV2Controller = {
 
       if (isProviderErr) {
         logger.warn(`[JourneyV2] Third-party provider error encountered during search: ${err.message}`);
+
+        // Phase 11: DEMO_MODE fallback
+        if (process.env.DEMO_MODE === 'true') {
+          const originCode = (req.body?.origins || [])[0];
+          const destCode = (req.body?.destinations || [])[0];
+          const demoCacheKey = `demo:search:${originCode}:${destCode}`;
+          const cachedFallback = await persistentCacheService.get(demoCacheKey);
+          if (cachedFallback) {
+            logger.info(`[DEMO_MODE] Serving last good cached response for ${originCode}->${destCode}`);
+            const actionId = req.body?.actionId;
+            const budgetSummary = actionId
+              ? await actionBudgetService.getBudgetSummary(actionId).catch(() => ({ used: 0, cap: 40 }))
+              : { used: 0, cap: 40 };
+            return res.status(200).json(
+              successResponse('Journey search completed (cached demo result)', {
+                ...cachedFallback,
+                isCachedResult: true,
+                cachedResultLabel: 'cached result',
+                providerNotice: 'Live provider unavailable — serving last good cached result',
+                budget: budgetSummary,
+                cache: { hits: 1, misses: 0 },
+              })
+            );
+          }
+        }
+
         const actionId = req.body?.actionId;
         const budgetSummary = actionId
           ? await actionBudgetService.getBudgetSummary(actionId).catch(() => ({ used: 0, cap: 40 }))

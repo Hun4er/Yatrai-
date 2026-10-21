@@ -22,6 +22,7 @@
     "location:verify": "npm --workspace=server run location:verify",
     "journey:verify": "npm --workspace=server run journey:verify",
     "providers:verify": "npm --workspace=server run providers:verify",
+    "seed:demo": "node scripts/seed-demo-cache.js",
     "test": "npm --workspace=server run test"
   },
   "keywords": [

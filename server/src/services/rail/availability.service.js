@@ -184,6 +184,20 @@ export class AvailabilityService {
       }
     }
 
+    // Phase 11: DEMO_MODE fallback — serve last good cached availability if present
+    if (!result && process.env.DEMO_MODE === 'true') {
+      const fallback = this.cache.get(cacheKey);
+      if (fallback?.data && fallback.data.normalizedStatus !== AVAILABILITY_STATUS.ERROR && fallback.data.normalizedStatus !== 'ERROR') {
+        logger.info(`[DEMO_MODE] Serving last good cached availability for ${cacheKey}`);
+        return {
+          ...fallback.data,
+          isCachedResult: true,
+          cachedResultLabel: 'cached result',
+          statusText: `${fallback.data.statusText || fallback.data.availabilityText || 'Available'} (cached result)`,
+        };
+      }
+    }
+
     // 3. Fallback normalization if still null or unknown
     if (!result) {
       result = {

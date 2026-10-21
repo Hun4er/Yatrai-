@@ -117,6 +117,13 @@ export function P0AlternativeCardInner({
             {laneClass}
           </span>
 
+          {/* Demo Mode Cached Result Badge */}
+          {alternative.isCachedResult && (
+            <span className="rounded-full bg-sky-500/15 border border-sky-500/30 px-2.5 py-0.5 text-xs font-semibold text-sky-300">
+              cached result
+            </span>
+          )}
+
           {/* Same-train vs Cross-train Badge */}
           {isSameTrain ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E8B04A]/15 border border-[#E8B04A]/30 px-2.5 py-0.5 text-xs font-semibold text-[#E8B04A]">
