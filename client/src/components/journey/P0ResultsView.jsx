@@ -82,6 +82,18 @@ export function P0ResultsView({
     );
   }, [direct, selectedClassFilter]);
 
+  // Filter alternatives by class if selected, keeping unknown/null values
+  const filteredAlternatives = useMemo(() => {
+    if (selectedClassFilter === 'ALL') return alternatives;
+    return alternatives.filter((alt) => {
+      if (!alt.laneClass && (!alt.legs || alt.legs.length === 0)) return true;
+      if (alt.laneClass === selectedClassFilter) return true;
+      return (alt.legs || []).some((l) => l.class === selectedClassFilter || !l.class);
+    });
+  }, [alternatives, selectedClassFilter]);
+
+  const hiddenAlternativesCount = alternatives.length - filteredAlternatives.length;
+
   const totalTrainsCount = direct.length + waitingTrains.length;
   const checkedTrainsCount = direct.length;
 
@@ -253,14 +265,14 @@ export function P0ResultsView({
       </section>
 
       {/* 6. Alternatives Section */}
-      <section className="space-y-4 pt-4 border-t border-[#242931]" aria-label="Alternative Journeys">
+      <section id="alternatives-section" className="space-y-4 pt-4 border-t border-[#242931]" aria-label="Alternative Journeys">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-1">
           <div>
             <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8B04A] flex items-center gap-2">
               <span>Alternative Journeys</span>
-              {alternatives.length > 0 && (
+              {filteredAlternatives.length > 0 && (
                 <span className="rounded-full bg-[#1F242C] border border-[#303640] px-2 py-0.5 text-[10px] text-[#A7AFBA]">
-                  {alternatives.length} verified
+                  {filteredAlternatives.length} verified
                 </span>
               )}
             </h2>
@@ -295,8 +307,24 @@ export function P0ResultsView({
           </div>
         )}
 
+        {/* Hidden by filters banner */}
+        {hiddenAlternativesCount > 0 && (
+          <div className="flex items-center justify-between rounded-xl bg-[#161B22] border border-[#242931] px-3.5 py-2 text-xs text-[#A7AFBA]">
+            <span>
+              {hiddenAlternativesCount} option{hiddenAlternativesCount > 1 ? 's' : ''} hidden by class filter ({selectedClassFilter})
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedClassFilter('ALL')}
+              className="font-semibold text-[#E8B04A] hover:underline cursor-pointer"
+            >
+              Clear filter
+            </button>
+          </div>
+        )}
+
         {/* Notice Banner at Top of Alternatives */}
-        {alternatives.length > 0 && (
+        {filteredAlternatives.length > 0 && (
           <div className="flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3.5 py-2 text-xs text-amber-300">
             <ShieldAlert className="h-4 w-4 text-amber-400 shrink-0" />
             <span>Separate tickets. A missed connection is not protected.</span>
@@ -304,9 +332,9 @@ export function P0ResultsView({
         )}
 
         {/* Alternatives List */}
-        {!isLoadingAlternatives && alternatives.length > 0 && (
+        {!isLoadingAlternatives && filteredAlternatives.length > 0 && (
           <div className="space-y-3">
-            {alternatives.map((alt, idx) => (
+            {filteredAlternatives.map((alt, idx) => (
               <P0AlternativeCard
                 key={idx}
                 alternative={alt}

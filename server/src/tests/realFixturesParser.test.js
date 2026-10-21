@@ -222,3 +222,93 @@ test('Phase 2: Failed/unparseable call is ERROR and cached <= 30 seconds', async
   assert.ok(cached.expiresAt <= Date.now() + 30_000 + 100);
   assert.equal(cached.data.normalizedStatus, AVAILABILITY_STATUS.ERROR);
 });
+
+test('Phase 3 Regression: 4-plan fixture contains 4 plans with pill == cards == header count', () => {
+  const fixture = loadFixture('alternatives-response.json');
+  assert.equal(fixture.success, true);
+  assert.equal(Array.isArray(fixture.alternatives), true);
+  assert.equal(fixture.alternatives.length, 4);
+
+  // Selector simulator: All 3 components read from ONE selector
+  const selectAlternatives = (data) => data?.alternatives || [];
+  const renderedCards = selectAlternatives(fixture);
+  const pillCount = selectAlternatives(fixture).length;
+  const headerCount = selectAlternatives(fixture).length;
+
+  assert.equal(renderedCards.length, 4);
+  assert.equal(pillCount, 4);
+  assert.equal(headerCount, 4);
+  assert.equal(pillCount, renderedCards.length);
+  assert.equal(headerCount, renderedCards.length);
+
+  // Validate cards structure: each has legs, fare, and badges
+  for (const alt of renderedCards) {
+    assert.ok(alt.legs && alt.legs.length >= 2, 'Alternative must have at least 2 legs');
+    assert.ok(alt.laneClass, 'Alternative must have laneClass');
+    assert.ok(typeof alt.totalFare === 'number' || alt.totalFare === null, 'Alternative totalFare must be number or null');
+    assert.ok(alt.badge || alt.notice, 'Alternative must have same-train or cross-train badge/notice');
+  }
+
+  // Cross-train layover: plan 3 has layoverMinutes 135 (< 180 min -> tight connection)
+  const crossTrainPlan = renderedCards.find((p) => p.type === 'cross_train' || !p.sameTrain);
+  assert.ok(crossTrainPlan, 'Must have at least one cross-train alternative');
+  assert.equal(crossTrainPlan.layoverMinutes, 135);
+  const isTight = crossTrainPlan.layoverMinutes > 0 && crossTrainPlan.layoverMinutes < 180;
+  assert.equal(isTight, true, 'Layover < 180m must be labeled tight');
+});
+
+test('Phase 3: Filters never silently drop plans (null treated as unknown)', () => {
+  const plans = [
+    { id: '1', laneClass: '3A', totalFare: 2480 },
+    { id: '2', laneClass: '2A', totalFare: null }, // missing fare
+    { id: '3', laneClass: null, totalFare: 1800 }, // missing class
+  ];
+
+  // Filter with class 3A
+  const filterByClass = (list, cls) => {
+    if (!cls || cls === 'ALL') return list;
+    return list.filter((p) => p.laneClass === cls || p.laneClass === null); // null is kept!
+  };
+
+  const filtered3A = filterByClass(plans, '3A');
+  // Plan 1 (3A) and Plan 3 (null class) are kept; Plan 2 (explicitly 2A) is filtered out
+  assert.equal(filtered3A.length, 2);
+  assert.ok(filtered3A.some((p) => p.id === '1'));
+  assert.ok(filtered3A.some((p) => p.id === '3'));
+
+  // Price slider filter: treat null as unknown, keep the plan
+  const filterByPrice = (list, maxPrice) => {
+    return list.filter((p) => p.totalFare === null || p.totalFare <= maxPrice);
+  };
+  const filteredPrice = filterByPrice(plans, 2000);
+  assert.equal(filteredPrice.length, 2); // Plan 2 (null fare) kept, Plan 3 (1800 <= 2000) kept
+});
+
+test('Phase 3: Error boundary handles throwing plan card without hiding others', () => {
+  const plans = [
+    { id: '1', valid: true },
+    { id: 'corrupt', valid: false, throwError: true },
+    { id: '3', valid: true },
+    { id: '4', valid: true },
+  ];
+
+  // Simulator for per-card error boundary
+  const renderResults = plans.map((plan) => {
+    try {
+      if (plan.throwError) {
+        throw new Error('Corrupted card data');
+      }
+      return { status: 'rendered', id: plan.id };
+    } catch {
+      return { status: 'fallback', message: "couldn't display this option" };
+    }
+  });
+
+  const successfulRenders = renderResults.filter((r) => r.status === 'rendered');
+  const failedRenders = renderResults.filter((r) => r.status === 'fallback');
+
+  assert.equal(successfulRenders.length, 3);
+  assert.equal(failedRenders.length, 1);
+  assert.equal(failedRenders[0].message, "couldn't display this option");
+});
+

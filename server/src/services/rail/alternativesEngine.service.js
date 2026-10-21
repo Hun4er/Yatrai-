@@ -215,8 +215,21 @@ export class AlternativesEngineService {
     const hubs = [];
     const stationScores = new Map(); // code -> score
 
+    // If referenceTrains is empty, attempt to read cached direct trains for the corridor
+    let candidateTrains = referenceTrains;
+    if ((!candidateTrains || candidateTrains.length === 0) && typeof this.railKit?.searchTrainBetweenStations === 'function') {
+      try {
+        const searchRes = await this.railKit.searchTrainBetweenStations(originCode, destCode, dateStr);
+        if (searchRes?.data && Array.isArray(searchRes.data)) {
+          candidateTrains = searchRes.data.slice(0, 2);
+        }
+      } catch (err) {
+        logger.debug(`[AltEngine] Could not get cached direct trains for hub discovery: ${err.message}`);
+      }
+    }
+
     // Use schedule/route data for up to 2 reference trains (cached, shared)
-    for (const refTrain of referenceTrains.slice(0, 2)) {
+    for (const refTrain of (candidateTrains || []).slice(0, 2)) {
       if (budget && typeof budget.isAtCap === 'function' && budget.isAtCap(actionId)) break;
 
       const trainNo = String(refTrain.trainNumber || refTrain.train_number || refTrain.train?.number || '');
@@ -262,7 +275,7 @@ export class AlternativesEngineService {
           const stations = schedule.data?.route || schedule.data?.stations || schedule.stations || schedule.data || [];
           if (Array.isArray(stations)) {
             for (const stn of stations) {
-              const code = String(stn.station_code || stn.stationCode || stn.code || '').toUpperCase();
+              const code = String(stn.stnCode || stn.station_code || stn.stationCode || stn.code || stn.stn_code || '').toUpperCase();
               if (!code || code === originCode || code === destCode) continue;
               const existing = stationScores.get(code) || 0;
               stationScores.set(code, existing + 1);
@@ -272,6 +285,21 @@ export class AlternativesEngineService {
       } catch (err) {
         logger.warn(`[AltEngine] Schedule fetch failed for ${trainNo}: ${err.message}`);
       }
+    }
+
+    // Fallback: If stationScores is empty, use known major physical corridor hubs
+    if (stationScores.size === 0) {
+      const CORRIDOR_FALLBACKS = {
+        'NDLS:PNBE': ['CNB', 'PRYJ', 'DDU'],
+        'NDLS:DNR': ['CNB', 'PRYJ', 'DDU'],
+        'HWH:BSB': ['ASN', 'DHN', 'GAYA', 'DDU'],
+        'NDLS:HWH': ['CNB', 'PRYJ', 'DDU'],
+        'SBC:MAS': ['KJM', 'JTJ', 'AJJ'],
+      };
+      const key = `${originCode}:${destCode}`;
+      const revKey = `${destCode}:${originCode}`;
+      const known = CORRIDOR_FALLBACKS[key] || CORRIDOR_FALLBACKS[revKey] || ['CNB', 'DDU', 'PRYJ'];
+      known.forEach((c, idx) => stationScores.set(c, 10 - idx));
     }
 
     // Sort by score and take top maxHubs

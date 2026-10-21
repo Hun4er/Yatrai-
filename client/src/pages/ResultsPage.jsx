@@ -577,28 +577,45 @@ export function ResultsPage({
               </button>
             )}
 
-            {/* Explore Alternatives Button */}
-            {backendJourneys.length > 0 && !recoveryMeta?.recoveryTriggered && (
-              <button
-                type="button"
-                onClick={handleExploreAlternatives}
-                disabled={isRecoveringAlternatives}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[#303640] bg-[#15191F] px-3.5 py-2 text-xs font-semibold text-[#F0F1F3] hover:bg-[#181C22] hover:border-[#3A414C] transition-all cursor-pointer disabled:opacity-50"
-                title="Search connecting routes via railway network expansion"
-              >
-                {isRecoveringAlternatives ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#E8B04A]" />
-                ) : (
-                  <Network className="h-3.5 w-3.5 text-[#E8B04A]" />
-                )}
-                <span>
-                  {isRecoveringAlternatives
-                    ? 'Exploring network...'
-                    : optionalAlternatives.length > 0
-                    ? `${optionalAlternatives.length} alternatives added`
-                    : 'Explore alternatives'}
-                </span>
-              </button>
+            {/* Unified Scroll-to-Alternatives Pill Button */}
+            {isP0V2 ? (
+              p0Alternatives.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('alternatives-section');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#E8B04A]/40 bg-[#E8B04A]/10 px-3.5 py-2 text-xs font-semibold text-[#E8B04A] hover:bg-[#E8B04A]/20 hover:border-[#E8B04A] transition-all cursor-pointer shadow-sm"
+                  title="Scroll down to alternative journeys"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-[#E8B04A]" />
+                  <span>{p0Alternatives.length} alternative{p0Alternatives.length > 1 ? 's' : ''} added</span>
+                </button>
+              )
+            ) : (
+              backendJourneys.length > 0 && !recoveryMeta?.recoveryTriggered && (
+                <button
+                  type="button"
+                  onClick={handleExploreAlternatives}
+                  disabled={isRecoveringAlternatives}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#303640] bg-[#15191F] px-3.5 py-2 text-xs font-semibold text-[#F0F1F3] hover:bg-[#181C22] hover:border-[#3A414C] transition-all cursor-pointer disabled:opacity-50"
+                  title="Search connecting routes via railway network expansion"
+                >
+                  {isRecoveringAlternatives ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-[#E8B04A]" />
+                  ) : (
+                    <Network className="h-3.5 w-3.5 text-[#E8B04A]" />
+                  )}
+                  <span>
+                    {isRecoveringAlternatives
+                      ? 'Exploring network...'
+                      : optionalAlternatives.length > 0
+                      ? `${optionalAlternatives.length} alternatives added`
+                      : 'Explore alternatives'}
+                  </span>
+                </button>
+              )
             )}
 
             <button

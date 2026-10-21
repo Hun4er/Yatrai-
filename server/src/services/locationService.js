@@ -282,10 +282,16 @@ export const locationService = {
     }
 
     // 2. Query geocoding provider
-    let candidates = await locationProvider.search(cleanQuery, {
-      limit: Math.max(limit, 5),
-      adapter: providerAdapter,
-    });
+    let candidates = [];
+    try {
+      candidates = await locationProvider.search(cleanQuery, {
+        limit: Math.max(limit, 5),
+        adapter: providerAdapter,
+      });
+    } catch (err) {
+      logger.warn(`[LocationService] Geocoding provider search failed for "${cleanQuery}": ${err.message}`);
+      candidates = [];
+    }
 
     // 2b. If no results found and query has regional qualifiers (e.g. "NCR"), attempt clean relaxation
     if ((!candidates || candidates.length === 0) && /\bNCR\b/i.test(cleanQuery)) {
