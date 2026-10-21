@@ -840,7 +840,7 @@ export function ResultsPage({
             )}
 
             {/* If P0 v2 results are active, render P0ResultsView */}
-            {isP0V2 && p0Direct.length > 0 ? (
+            {isP0V2 ? (
               <P0ResultsView
                 direct={p0Direct}
                 waitingTrains={p0Waiting}

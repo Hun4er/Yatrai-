@@ -78,8 +78,17 @@ export const journeyV2Controller = {
         return res.status(400).json(errorResponse('date is required', 'MISSING_DATE'));
       }
 
-      // Determine action type from mode
-      const actionType = mode === 'deep' ? 'deep' : (mode === 'alternatives' ? 'alternatives_button' : 'default');
+      // Canonicalize mode aliases:
+      // "default" / "direct" / "auto"
+      // "alternatives_button" / "alternatives"
+      // "deep"
+      const normalizedMode = String(mode || 'default').toLowerCase().trim();
+      const isAlternativesMode = normalizedMode === 'alternatives' || normalizedMode === 'alternatives_button';
+      const isDeepMode = normalizedMode === 'deep';
+      const isAutoOrDirect = normalizedMode === 'default' || normalizedMode === 'auto' || normalizedMode === 'direct';
+
+      // Determine action type from canonical mode
+      const actionType = isDeepMode ? 'deep' : (isAlternativesMode ? 'alternatives_button' : 'default');
 
       // Ensure ledger exists with correct cap
       await actionBudgetService.getOrCreate(actionId, actionType);
@@ -101,7 +110,7 @@ export const journeyV2Controller = {
       let alternativesResult = null;
 
       // ── Direct pass ──────────────────────────────────────────────
-      if (mode === 'direct' || mode === 'auto') {
+      if (isAutoOrDirect) {
         directResult = await directPassService.run({
           origins,
           destinations,
@@ -115,11 +124,12 @@ export const journeyV2Controller = {
 
       // ── Alternatives ─────────────────────────────────────────────
       const shouldRunAlternatives =
-        mode === 'alternatives' || mode === 'deep' ||
-        (mode === 'auto' && directResult && !directResult.confirmedFound);
+        isAlternativesMode ||
+        isDeepMode ||
+        ((normalizedMode === 'auto' || normalizedMode === 'default') && directResult && !directResult.confirmedFound);
 
       if (shouldRunAlternatives && !isDegraded) {
-        const altActionType = mode === 'deep' ? 'deep' : 'alternatives_button';
+        const altActionType = isDeepMode ? 'deep' : 'alternatives_button';
         const originCode = origins[0];
         const destCode = destinations[0];
         alternativesResult = await alternativesEngineService.run({

@@ -51,14 +51,14 @@ export const journeyService = {
 
     try {
       const actionId = params.actionId || generateActionId();
-      const response = await api.journeys.search({
+      const response = await api.journeysV2.search({
         actionId,
         origins: [origin.trim()],
         destinations: [destination.trim()],
         date: departureDate,
         class: params.travelClass || params.class || 'ANY',
         quota: params.quota || 'GN',
-        mode: params.mode || 'direct',
+        mode: params.mode || 'default',
         // Legacy parameters for backwards compatibility:
         origin: origin.trim(),
         destination: destination.trim(),
