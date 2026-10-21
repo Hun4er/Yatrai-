@@ -1,4 +1,61 @@
 {
-  "success": false,
-  "error": "Sorry for the inconvenience. Booking will be very slow or not accessible between 11:45 PM and 00:15 AM, Please try after sometime"
+  "success": true,
+  "data": {
+    "train": {
+      "trainNo": "12310",
+      "trainName": "RJPB TEJAS RAJ",
+      "from": "NDLS",
+      "to": "PNBE",
+      "fromStationName": "New Delhi",
+      "toStationName": "Patna Junction",
+      "distance": 1000,
+      "travelClass": "3A",
+      "quota": "GN"
+    },
+    "fare": {
+      "baseFare": 1482,
+      "reservationCharge": 40,
+      "superfastCharge": 45,
+      "serviceTax": 108,
+      "totalFare": 2545
+    },
+    "availability": [
+      {
+        "date": "25-10-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 165",
+        "rawStatus": "GNWL299/WL165",
+        "prediction": "Low Chance",
+        "predictionPercentage": 27,
+        "canBook": true
+      },
+      {
+        "date": "26-10-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 74",
+        "rawStatus": "GNWL188/WL74",
+        "prediction": "46% Chance",
+        "predictionPercentage": 46,
+        "canBook": true
+      },
+      {
+        "date": "27-10-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 70",
+        "rawStatus": "GNWL167/WL70",
+        "prediction": "48% Chance",
+        "predictionPercentage": 48,
+        "canBook": true
+      },
+      {
+        "date": "28-10-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 82",
+        "rawStatus": "GNWL154/WL82",
+        "prediction": "47% Chance",
+        "predictionPercentage": 47,
+        "canBook": true
+      }
+    ]
+  }
 }

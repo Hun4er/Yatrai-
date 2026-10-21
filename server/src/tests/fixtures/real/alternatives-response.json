@@ -1,0 +1,179 @@
+{
+  "success": true,
+  "alternatives": [
+    {
+      "type": "same_train",
+      "sameTrain": true,
+      "laneClass": "3A",
+      "tier": "CONFIRMED",
+      "badge": "Stay on this train — two tickets, berth may change at CNB",
+      "notice": "Separate tickets. A missed connection is not protected.",
+      "hubCode": "CNB",
+      "departureTime": "17:10",
+      "arrivalTime": "04:38",
+      "duration": 688,
+      "totalFare": 2480,
+      "legs": [
+        {
+          "trainNo": "12310",
+          "trainName": "RJPB TEJAS RAJ",
+          "from": "NDLS",
+          "to": "CNB",
+          "departureTime": "17:10",
+          "arrivalTime": "21:50",
+          "duration": 280,
+          "class": "3A",
+          "availabilityText": "AVL 14",
+          "normalizedStatus": "AVAILABLE",
+          "fare": 1120
+        },
+        {
+          "trainNo": "12310",
+          "trainName": "RJPB TEJAS RAJ",
+          "from": "CNB",
+          "to": "PNBE",
+          "departureTime": "21:55",
+          "arrivalTime": "04:38",
+          "duration": 403,
+          "class": "3A",
+          "availabilityText": "AVL 8",
+          "normalizedStatus": "AVAILABLE",
+          "fare": 1360
+        }
+      ]
+    },
+    {
+      "type": "same_train",
+      "sameTrain": true,
+      "laneClass": "2A",
+      "tier": "CONFIRMED",
+      "badge": "Stay on this train — two tickets, berth may change at DDU",
+      "notice": "Separate tickets. A missed connection is not protected.",
+      "hubCode": "DDU",
+      "departureTime": "17:10",
+      "arrivalTime": "04:38",
+      "duration": 688,
+      "totalFare": 3410,
+      "legs": [
+        {
+          "trainNo": "12310",
+          "trainName": "RJPB TEJAS RAJ",
+          "from": "NDLS",
+          "to": "DDU",
+          "departureTime": "17:10",
+          "arrivalTime": "01:53",
+          "duration": 523,
+          "class": "2A",
+          "availabilityText": "AVL 5",
+          "normalizedStatus": "AVAILABLE",
+          "fare": 2510
+        },
+        {
+          "trainNo": "12310",
+          "trainName": "RJPB TEJAS RAJ",
+          "from": "DDU",
+          "to": "PNBE",
+          "departureTime": "02:00",
+          "arrivalTime": "04:38",
+          "duration": 158,
+          "class": "2A",
+          "availabilityText": "AVL 11",
+          "normalizedStatus": "AVAILABLE",
+          "fare": 900
+        }
+      ]
+    },
+    {
+      "type": "cross_train",
+      "sameTrain": false,
+      "laneClass": "3A",
+      "tier": "CONFIRMED",
+      "badge": "Separate tickets — a missed connection is not protected",
+      "notice": "Separate tickets. A missed connection is not protected.",
+      "hubCode": "CNB",
+      "departureTime": "16:55",
+      "arrivalTime": "06:15",
+      "duration": 800,
+      "layoverMinutes": 135,
+      "isTight": true,
+      "totalFare": 2350,
+      "legs": [
+        {
+          "trainNo": "12424",
+          "trainName": "DBRT RAJDHANI",
+          "from": "NDLS",
+          "to": "CNB",
+          "departureTime": "16:55",
+          "arrivalTime": "21:05",
+          "duration": 250,
+          "class": "3A",
+          "availabilityText": "AVL 22",
+          "normalizedStatus": "AVAILABLE",
+          "fare": 1050
+        },
+        {
+          "trainNo": "12394",
+          "trainName": "SAMPOORAN K EXP",
+          "from": "CNB",
+          "to": "PNBE",
+          "departureTime": "23:20",
+          "arrivalTime": "06:15",
+          "duration": 415,
+          "class": "3A",
+          "availabilityText": "AVL 6",
+          "normalizedStatus": "AVAILABLE",
+          "fare": 1300
+        }
+      ]
+    },
+    {
+      "type": "cross_train",
+      "sameTrain": false,
+      "laneClass": "SL",
+      "tier": "CONFIRMED",
+      "badge": "Separate tickets — a missed connection is not protected",
+      "notice": "Separate tickets. A missed connection is not protected.",
+      "hubCode": "PRYJ",
+      "departureTime": "12:50",
+      "arrivalTime": "05:40",
+      "duration": 1010,
+      "layoverMinutes": 190,
+      "isTight": false,
+      "totalFare": 780,
+      "legs": [
+        {
+          "trainNo": "12802",
+          "trainName": "PURUSHOTTAM EXP",
+          "from": "NDLS",
+          "to": "PRYJ",
+          "departureTime": "12:50",
+          "arrivalTime": "20:00",
+          "duration": 430,
+          "class": "SL",
+          "availabilityText": "AVL 48",
+          "normalizedStatus": "AVAILABLE",
+          "fare": 430
+        },
+        {
+          "trainNo": "13202",
+          "trainName": "LTT PATNA EXP",
+          "from": "PRYJ",
+          "to": "PNBE",
+          "departureTime": "23:10",
+          "arrivalTime": "05:40",
+          "duration": 390,
+          "class": "SL",
+          "availabilityText": "AVL 19",
+          "normalizedStatus": "AVAILABLE",
+          "fare": 350
+        }
+      ]
+    }
+  ],
+  "partial": false,
+  "budget": {
+    "used": 12,
+    "cap": 60,
+    "partial": false
+  }
+}

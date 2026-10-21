@@ -1,0 +1,61 @@
+{
+  "success": true,
+  "data": {
+    "train": {
+      "trainNo": "12310",
+      "trainName": "RJPB TEJAS RAJ",
+      "from": "NDLS",
+      "to": "DNR",
+      "fromStationName": "New Delhi",
+      "toStationName": "Danapur",
+      "distance": 990,
+      "travelClass": "3A",
+      "quota": "GN"
+    },
+    "fare": {
+      "baseFare": 1470,
+      "reservationCharge": 40,
+      "superfastCharge": 45,
+      "serviceTax": 108,
+      "totalFare": 2530
+    },
+    "availability": [
+      {
+        "date": "25-10-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 13",
+        "rawStatus": "PQWL21/WL13",
+        "prediction": "82% Chance",
+        "predictionPercentage": 82,
+        "canBook": true
+      },
+      {
+        "date": "26-10-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 6",
+        "rawStatus": "PQWL13/WL6",
+        "prediction": "89% Chance",
+        "predictionPercentage": 89,
+        "canBook": true
+      },
+      {
+        "date": "27-10-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 9",
+        "rawStatus": "PQWL15/WL9",
+        "prediction": "88% Chance",
+        "predictionPercentage": 88,
+        "canBook": true
+      },
+      {
+        "date": "28-10-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 5",
+        "rawStatus": "PQWL14/WL5",
+        "prediction": "92% Chance",
+        "predictionPercentage": 92,
+        "canBook": true
+      }
+    ]
+  }
+}
