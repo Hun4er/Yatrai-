@@ -2,6 +2,7 @@ import railKitAdapter from '../../providers/rail/railKit.adapter.js';
 import aopayAdapter from '../../providers/rail/aopay.adapter.js';
 import { formatJourneyDate, isIrctcMaintenanceWindow } from '../../utils/railwayTime.js';
 import logger from '../../utils/logger.js';
+import config from '../../config/index.js';
 import {
   AVAILABILITY_STATUS,
   JOURNEY_AVAILABILITY,
@@ -9,6 +10,22 @@ import {
 } from './availabilityNorm.js';
 
 export { AVAILABILITY_STATUS, JOURNEY_AVAILABILITY, normalizeSeatAvailability };
+
+// P0 v2 — status-dependent availability TTLs (shared cross-user)
+const AVAIL_TTL_AVAILABLE_MS = config.p0v2?.availabilityTtlAvailableMs ?? 90_000;   // 90 s
+const AVAIL_TTL_WAITLIST_MS  = config.p0v2?.availabilityTtlWaitlistMs ?? 600_000;   // 10 min
+
+function getTtlForStatus(normalizedStatus) {
+  if (
+    normalizedStatus === AVAILABILITY_STATUS.AVAILABLE ||
+    normalizedStatus === 'AVAILABLE' ||
+    normalizedStatus === AVAILABILITY_STATUS.RAC ||
+    normalizedStatus === 'RAC'
+  ) {
+    return AVAIL_TTL_AVAILABLE_MS;
+  }
+  return AVAIL_TTL_WAITLIST_MS;
+}
 
 /**
  * AvailabilityService
@@ -24,8 +41,8 @@ export class AvailabilityService {
   constructor(dependencies = {}) {
     this._railKit = dependencies.railKit || dependencies.railRadar;
     this._aopay = dependencies.aopay;
+    // P0 v2: cache is shared across all users; TTL is status-dependent
     this.cache = new Map();
-    this.cacheTtlMs = 5 * 60 * 1000; // 5 minutes
   }
 
   get railKit() {
@@ -178,7 +195,9 @@ export class AvailabilityService {
       };
     }
 
-    this.cache.set(cacheKey, { data: result, expiresAt: Date.now() + this.cacheTtlMs });
+    // P0 v2: TTL depends on status (90s AVAILABLE/RAC, 10min WL/UNAVAILABLE)
+    const ttlMs = getTtlForStatus(result.normalizedStatus);
+    this.cache.set(cacheKey, { data: result, expiresAt: Date.now() + ttlMs });
     return result;
   }
 

@@ -333,6 +333,9 @@ export function toRailKitDate(dateVal) {
  * During this window, IRCTC disables PRS reservation availability queries.
  */
 export function isIrctcMaintenanceWindow(now = new Date()) {
+  if (process.env.NODE_ENV !== 'production' && !process.env.TEST_MAINTENANCE_WINDOW) {
+    return false;
+  }
   const istEpoch = now.getTime() + IST_OFFSET_MS;
   const istDate = new Date(istEpoch);
   const hours = istDate.getUTCHours();

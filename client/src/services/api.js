@@ -209,6 +209,64 @@ export const api = {
     getById: (id) => request(`/journeys/${id}`),
   },
 
+  /**
+   * P0 v2 — Budget-aware journey search (4 new endpoints).
+   *
+   * Each user action generates a new UUID actionId on the client.
+   * The direct request and its automatic alternatives follow-up share the SAME actionId
+   * so they share one cap (DEFAULT 40).
+   *
+   * React Query usage:
+   *   staleTime: 5 * 60 * 1000,   // 5 min
+   *   refetchOnWindowFocus: false,
+   */
+  journeysV2: {
+    /**
+     * Main search endpoint.
+     *
+     * @param {object} params
+     * @param {string} params.actionId  — UUID generated per user click
+     * @param {string[]} params.origins — station codes
+     * @param {string[]} params.destinations — station codes
+     * @param {string} params.date — "YYYY-MM-DD"
+     * @param {string} [params.class] — travel class or "ANY"
+     * @param {string} [params.quota] — "GN"
+     * @param {'direct'|'auto'|'alternatives'|'deep'} [params.mode]
+     */
+    search: ({ actionId, origins, destinations, date, class: travelClass = 'ANY', quota = 'GN', mode = 'direct', includeRisky }) =>
+      request('/v2/journeys/search', {
+        method: 'POST',
+        body: JSON.stringify({ actionId, origins, destinations, date, class: travelClass, quota, mode, includeRisky }),
+      }),
+
+    /**
+     * Tap on "?" chip → check single class.
+     */
+    checkClass: ({ actionId, trainNo, from, to, class: travelClass, date, quota = 'GN' }) =>
+      request('/v2/journeys/check-class', {
+        method: 'POST',
+        body: JSON.stringify({ actionId, trainNo, from, to, class: travelClass, date, quota }),
+      }),
+
+    /**
+     * Refresh-card icon tap → bypasses cache, rate-limited 1/min/card.
+     */
+    refreshCard: ({ trainNo, from, to, class: travelClass, date, quota = 'GN' }) =>
+      request('/v2/journeys/refresh-card', {
+        method: 'POST',
+        body: JSON.stringify({ trainNo, from, to, class: travelClass, date, quota }),
+      }),
+
+    /**
+     * "Check more trains" button → checks next batch of 8 waiting trains.
+     */
+    moreTrains: ({ actionId, trainNos, waitingTrains, date, class: travelClass = 'ANY', quota = 'GN' }) =>
+      request('/v2/journeys/more-trains', {
+        method: 'POST',
+        body: JSON.stringify({ actionId, trainNos, waitingTrains, date, class: travelClass, quota }),
+      }),
+  },
+
   // Railway Booking Preparation & Compliance
   booking: {
     prepare: ({ journeyId, passengers, travelClass, quota, contactDetails }) =>
