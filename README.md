@@ -17,6 +17,54 @@ If a traveler requests a journey from Delhi to Varanasi and direct trains are so
 
 ---
 
+## 1.1. Yatrai Split Ticketing & Hardened Architecture
+
+### What Yatrai Does
+When direct train tickets between an origin and destination are waitlisted or sold out, Yatrai discovers confirmed seat combinations that traditional search platforms miss:
+- **Same-Train Split (Stay on train):** Book two tickets on the identical train (e.g. Delhi → Kanpur and Kanpur → Patna) exploiting seat quota boundaries.
+- **Cross-Train Split (Connection):** Switch trains at an optimal intermediate junction with a validated, comfortable layover (90–600 min).
+
+### How Splitting Works (in 10 lines)
+1. User searches origin → destination for a specific date and travel class.
+2. Direct pass checks direct trains; if any confirmed seat is found, it returns immediately (early stop).
+3. If all direct trains are waitlisted, the alternatives engine triggers automatically.
+4. Hub discovery identifies key intermediate junctions using cached corridor routes (0 calls on cache hit).
+5. For same-train splits, binary search identifies the farthest reachable hub with confirmed seats (Ha).
+6. Segment Ha → Destination is checked on the same train; if confirmed, a 2-leg split plan is formed.
+7. For cross-train splits, candidate trains are filtered by layover window (90–600 min) and detour ratio (<= 1.15).
+8. The longer leg is verified first to prune unviable candidate pairs before checking the second leg.
+9. Every verified leg is backed by real live PRS availability data (no fabricated availability).
+10. Results clearly display split badges, layover warnings, and separate ticket notices.
+
+### Request Cap & Budget Safety
+To protect API quotas and guarantee fast performance, every action is governed by a strict call ledger:
+- **Default / Direct / Auto Mode Cap:** 40 outbound calls max (typical run uses 1–15 calls).
+- **Alternatives Button Mode Cap:** 60 outbound calls max.
+- **Deep Search Cap:** 100 outbound calls max.
+- **Shared Ledger:** A direct request and its automatic alternatives pass share the exact same `actionId` and 40 cap.
+- **Zero-Cost Caching:** Cache hits (7-day static routes, 1-hr cancelled trains, 90s/10m seat status) cost 0 and never deduct budget. Warm runs are guaranteed to make fewer or equal calls than cold runs.
+- **Degraded Mode:** If monthly plan (10,000 requests, expires 13 Nov 2026) drops under 10% remaining, cross-train splits are suspended to preserve quota for direct and same-train searches.
+
+### Running the RailKit Probe and Test Suites
+- **Probe RailKit (Real API verification, <= 25 calls):**
+  ```bash
+  node scripts/probe-railkit.js
+  ```
+- **Run Backend Tests (504 tests including P0 v2 and Phase 3 gaps):**
+  ```bash
+  cd server && npm test
+  ```
+- **Run Frontend Tests (21 tests):**
+  ```bash
+  cd client && npm test
+  ```
+- **Run Complete Test Suite:**
+  ```bash
+  npm test
+  ```
+
+---
+
 ## 2. Project Architecture
 
 Yatrai is architected as a clean full-stack application structured for progressive expansion from a modular monolith into scalable domain microservices:

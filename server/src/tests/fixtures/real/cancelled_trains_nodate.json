@@ -1,0 +1,1534 @@
+{
+  "success": true,
+  "summary": {
+    "total": 59,
+    "fullyCancelled": 15,
+    "partiallyCancelled": 44,
+    "journeyDates": [
+      "21-10-2026"
+    ]
+  },
+  "data": {
+    "fullyCancelledTrains": [
+      {
+        "trainNo": "13132",
+        "trainName": "MITALI EXPRESS",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "NJP",
+            "name": "NEW JALPAIGURI"
+          },
+          "destination": {
+            "code": "HDB",
+            "name": "HALDIBARI"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "20-09-2026 12:20:02 IST"
+      },
+      {
+        "trainNo": "16515",
+        "trainName": "YPR-KAWR EXPRESS",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "YPR",
+            "name": "YESVANTPUR JN"
+          },
+          "destination": {
+            "code": "KAWR",
+            "name": "KARWAR"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "31-07-2026 12:47:33 IST"
+      },
+      {
+        "trainNo": "18107",
+        "trainName": "INTERCITY EXP",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "ROU",
+            "name": "ROURKELA"
+          },
+          "destination": {
+            "code": "JDB",
+            "name": "JAGDALPUR"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "20-10-2026 13:08:22 IST"
+      },
+      {
+        "trainNo": "18108",
+        "trainName": "JDB-ROU INTERCITY EXP",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "JDB",
+            "name": "JAGDALPUR"
+          },
+          "destination": {
+            "code": "ROU",
+            "name": "ROURKELA"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "23-06-2026 12:13:45 IST"
+      },
+      {
+        "trainNo": "18516",
+        "trainName": "KRDL-VSKP EXP",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "KRDL",
+            "name": "KIRANDUL"
+          },
+          "destination": {
+            "code": "VSKP",
+            "name": "VISAKHAPATNAM"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "20-10-2026 14:37:16 IST"
+      },
+      {
+        "trainNo": "52451",
+        "trainName": "SHIVALK DLX EXP",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "KLK",
+            "name": "KALKA"
+          },
+          "destination": {
+            "code": "SML",
+            "name": "SHIMLA"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "01-10-2026 14:57:39 IST"
+      },
+      {
+        "trainNo": "52452",
+        "trainName": "SHIVALK DLX EXP",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "SML",
+            "name": "SHIMLA"
+          },
+          "destination": {
+            "code": "KLK",
+            "name": "KALKA"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "01-10-2026 14:47:48 IST"
+      },
+      {
+        "trainNo": "52455",
+        "trainName": "HIMALYAN QUEEN",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "KLK",
+            "name": "KALKA"
+          },
+          "destination": {
+            "code": "SML",
+            "name": "SHIMLA"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "01-10-2026 14:53:59 IST"
+      },
+      {
+        "trainNo": "52456",
+        "trainName": "HIMALYAN QUEEN",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "SML",
+            "name": "SHIMLA"
+          },
+          "destination": {
+            "code": "KLK",
+            "name": "KALKA"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "01-10-2026 15:03:41 IST"
+      },
+      {
+        "trainNo": "52457",
+        "trainName": "KLK SML EXP",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "KLK",
+            "name": "KALKA"
+          },
+          "destination": {
+            "code": "SML",
+            "name": "SHIMLA"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "01-10-2026 15:28:07 IST"
+      },
+      {
+        "trainNo": "52458",
+        "trainName": "SML KLK EXP",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "SML",
+            "name": "SHIMLA"
+          },
+          "destination": {
+            "code": "KLK",
+            "name": "KALKA"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "01-10-2026 15:24:57 IST"
+      },
+      {
+        "trainNo": "52459",
+        "trainName": "KLK SML EXPRESS",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "KLK",
+            "name": "KALKA"
+          },
+          "destination": {
+            "code": "SML",
+            "name": "SHIMLA"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "01-10-2026 15:07:34 IST"
+      },
+      {
+        "trainNo": "52460",
+        "trainName": "SML KLK EXPRESS",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "SML",
+            "name": "SHIMLA"
+          },
+          "destination": {
+            "code": "KLK",
+            "name": "KALKA"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "01-10-2026 15:10:55 IST"
+      },
+      {
+        "trainNo": "52539",
+        "trainName": "NJP DJ AC PASS",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "NJP",
+            "name": "NEW JALPAIGURI"
+          },
+          "destination": {
+            "code": "DJ",
+            "name": "DARJEELING"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "04-10-2026 13:58:16 IST"
+      },
+      {
+        "trainNo": "01830",
+        "trainName": "RDE KURJ SPL",
+        "journeyDate": "21-10-2026",
+        "status": "fully_cancelled",
+        "route": {
+          "source": {
+            "code": "RDE",
+            "name": "RUNDHI"
+          },
+          "destination": {
+            "code": "KURJ",
+            "name": "KHAJURAHO"
+          }
+        },
+        "cancelledSegment": null,
+        "trainType": null,
+        "reportedAt": "18-10-2026 14:54:29 IST"
+      }
+    ],
+    "partiallyCancelledTrains": [
+      {
+        "trainNo": "11002",
+        "trainName": "NANDIGRAM EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "BPQ",
+            "name": "BALHARSHAH"
+          },
+          "destination": {
+            "code": "CSMT",
+            "name": "CHHATRAPATI SHIVAJI MAHARAJ TERMINUS"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "DR",
+            "name": "DADAR"
+          },
+          "to": {
+            "code": "CSMT",
+            "name": "CHHATRAPATI SHIVAJI MAHARAJ TERMINUS"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 16:04:23 IST"
+      },
+      {
+        "trainNo": "11020",
+        "trainName": "KONARK EXPRESS",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "BBSN",
+            "name": "BHUBANESWAR NEW JN"
+          },
+          "destination": {
+            "code": "CSMT",
+            "name": "CHHATRAPATI SHIVAJI MAHARAJ TERMINUS"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "DR",
+            "name": "DADAR"
+          },
+          "to": {
+            "code": "CSMT",
+            "name": "CHHATRAPATI SHIVAJI MAHARAJ TERMINUS"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 11:39:16 IST"
+      },
+      {
+        "trainNo": "12134",
+        "trainName": "MAJN CSMT SF EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "MAJN",
+            "name": "MANGALORE JN"
+          },
+          "destination": {
+            "code": "CSMT",
+            "name": "CHHATRAPATI SHIVAJI MAHARAJ TERMINUS"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "TNA",
+            "name": "THANE"
+          },
+          "to": {
+            "code": "CSMT",
+            "name": "CHHATRAPATI SHIVAJI MAHARAJ TERMINUS"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 11:49:18 IST"
+      },
+      {
+        "trainNo": "12759",
+        "trainName": "TBM-HYB CHARMINAR EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "TBM",
+            "name": "TAMBARAM"
+          },
+          "destination": {
+            "code": "HYB",
+            "name": "HYDERABAD"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "TBM",
+            "name": "TAMBARAM"
+          },
+          "to": {
+            "code": "MSB",
+            "name": "CHENNAI BEACH"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "24-09-2026 12:09:33 IST"
+      },
+      {
+        "trainNo": "12760",
+        "trainName": "HYB-TBM CHARMINAR EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "HYB",
+            "name": "HYDERABAD"
+          },
+          "destination": {
+            "code": "TBM",
+            "name": "TAMBARAM"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "MSB",
+            "name": "CHENNAI BEACH"
+          },
+          "to": {
+            "code": "TBM",
+            "name": "TAMBARAM"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "24-09-2026 12:12:21 IST"
+      },
+      {
+        "trainNo": "12810",
+        "trainName": "HWH CSMT MAIL",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "HWH",
+            "name": "HOWRAH JN"
+          },
+          "destination": {
+            "code": "CSMT",
+            "name": "CHHATRAPATI SHIVAJI MAHARAJ TERMINUS"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "DR",
+            "name": "DADAR"
+          },
+          "to": {
+            "code": "CSMT",
+            "name": "CHHATRAPATI SHIVAJI MAHARAJ TERMINUS"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 12:13:13 IST"
+      },
+      {
+        "trainNo": "15637",
+        "trainName": "AGTL KGBP EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "AGTL",
+            "name": "AGARTALA"
+          },
+          "destination": {
+            "code": "KGBP",
+            "name": "KHONGSANG"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "JRBM",
+            "name": "JIRIBAM"
+          },
+          "to": {
+            "code": "KGBP",
+            "name": "KHONGSANG"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "16-10-2026 14:23:24 IST"
+      },
+      {
+        "trainNo": "15638",
+        "trainName": "KGBP AGTL EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "KGBP",
+            "name": "KHONGSANG"
+          },
+          "destination": {
+            "code": "AGTL",
+            "name": "AGARTALA"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "KGBP",
+            "name": "KHONGSANG"
+          },
+          "to": {
+            "code": "JRBM",
+            "name": "JIRIBAM"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "16-10-2026 14:24:19 IST"
+      },
+      {
+        "trainNo": "15911",
+        "trainName": "TSK NHLN EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "TSK",
+            "name": "TINSUKIA JN"
+          },
+          "destination": {
+            "code": "NHLN",
+            "name": "NAHARLAGUN"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "TSK",
+            "name": "TINSUKIA JN"
+          },
+          "to": {
+            "code": "NTSK",
+            "name": "NEW TINSUKIA"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "26-09-2026 14:04:26 IST"
+      },
+      {
+        "trainNo": "16127",
+        "trainName": "MS GURUVAYUR EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "MS",
+            "name": "CHENNAI EGMORE"
+          },
+          "destination": {
+            "code": "GUV",
+            "name": "GURUVAYUR"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "MS",
+            "name": "CHENNAI EGMORE"
+          },
+          "to": {
+            "code": "TBM",
+            "name": "TAMBARAM"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "24-09-2026 12:48:04 IST"
+      },
+      {
+        "trainNo": "16128",
+        "trainName": "GUV CHENNAI EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "GUV",
+            "name": "GURUVAYUR"
+          },
+          "destination": {
+            "code": "MS",
+            "name": "CHENNAI EGMORE"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "TBM",
+            "name": "TAMBARAM"
+          },
+          "to": {
+            "code": "MS",
+            "name": "CHENNAI EGMORE"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "24-09-2026 12:51:18 IST"
+      },
+      {
+        "trainNo": "16751",
+        "trainName": "MS RMM EXPRESS",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "MS",
+            "name": "CHENNAI EGMORE"
+          },
+          "destination": {
+            "code": "RMM",
+            "name": "RAMESWARAM"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "MS",
+            "name": "CHENNAI EGMORE"
+          },
+          "to": {
+            "code": "TBM",
+            "name": "TAMBARAM"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "24-09-2026 13:53:39 IST"
+      },
+      {
+        "trainNo": "16752",
+        "trainName": "RMM MS EXPRESS",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "RMM",
+            "name": "RAMESWARAM"
+          },
+          "destination": {
+            "code": "MS",
+            "name": "CHENNAI EGMORE"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "TBM",
+            "name": "TAMBARAM"
+          },
+          "to": {
+            "code": "MS",
+            "name": "CHENNAI EGMORE"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "24-09-2026 13:56:37 IST"
+      },
+      {
+        "trainNo": "17480",
+        "trainName": "TPTY PURI EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "TPTY",
+            "name": "TIRUPATI"
+          },
+          "destination": {
+            "code": "PURI",
+            "name": "PURI"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "MLT",
+            "name": "MALATIPATPUR"
+          },
+          "to": {
+            "code": "PURI",
+            "name": "PURI"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "18-10-2026 12:56:02 IST"
+      },
+      {
+        "trainNo": "17625",
+        "trainName": "KCG-RAL EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "KCG",
+            "name": "KACHEGUDA"
+          },
+          "destination": {
+            "code": "RAL",
+            "name": "REPALLE"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "KCG",
+            "name": "KACHEGUDA"
+          },
+          "to": {
+            "code": "CHZ",
+            "name": "CHARLAPALLI"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "09-08-2026 12:43:36 IST"
+      },
+      {
+        "trainNo": "18005",
+        "trainName": "SAMBALESWARI EX",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "HWH",
+            "name": "HOWRAH JN"
+          },
+          "destination": {
+            "code": "JDB",
+            "name": "JAGDALPUR"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "KRPU",
+            "name": "KORAPUT JN"
+          },
+          "to": {
+            "code": "JDB",
+            "name": "JAGDALPUR"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "20-10-2026 13:06:37 IST"
+      },
+      {
+        "trainNo": "18006",
+        "trainName": "JDB-HWH SAMALESWARI EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "JDB",
+            "name": "JAGDALPUR"
+          },
+          "destination": {
+            "code": "HWH",
+            "name": "HOWRAH JN"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "JDB",
+            "name": "JAGDALPUR"
+          },
+          "to": {
+            "code": "KRPU",
+            "name": "KORAPUT JN"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "12-10-2026 12:57:02 IST"
+      },
+      {
+        "trainNo": "18239",
+        "trainName": "SHIVNATH EXPRES",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "GAD",
+            "name": "GEVRA ROAD"
+          },
+          "destination": {
+            "code": null,
+            "name": "NETAJI SUBHASH"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "GAD",
+            "name": "GEVRA ROAD"
+          },
+          "to": {
+            "code": "KRBA",
+            "name": "KORBA"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "05-09-2026 13:09:20 IST"
+      },
+      {
+        "trainNo": "18303",
+        "trainName": "SBP PURI INT EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "SBP",
+            "name": "SAMBALPUR JN"
+          },
+          "destination": {
+            "code": "PURI",
+            "name": "PURI"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "SIL",
+            "name": "SAKHI GOPAL"
+          },
+          "to": {
+            "code": "PURI",
+            "name": "PURI"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "18-10-2026 13:03:15 IST"
+      },
+      {
+        "trainNo": "18304",
+        "trainName": "PURI SBP INT EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "PURI",
+            "name": "PURI"
+          },
+          "destination": {
+            "code": "SBP",
+            "name": "SAMBALPUR JN"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "PURI",
+            "name": "PURI"
+          },
+          "to": {
+            "code": "KUR",
+            "name": "KHURDA ROAD JN"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "18-10-2026 13:07:26 IST"
+      },
+      {
+        "trainNo": "18447",
+        "trainName": "HIRAKHAND EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "BBS",
+            "name": "BHUBANESWAR"
+          },
+          "destination": {
+            "code": "JDB",
+            "name": "JAGDALPUR"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "KRPU",
+            "name": "KORAPUT JN"
+          },
+          "to": {
+            "code": "JDB",
+            "name": "JAGDALPUR"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "20-10-2026 13:12:31 IST"
+      },
+      {
+        "trainNo": "18448",
+        "trainName": "HIRAKHAND EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "JDB",
+            "name": "JAGDALPUR"
+          },
+          "destination": {
+            "code": "BBS",
+            "name": "BHUBANESWAR"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "JDB",
+            "name": "JAGDALPUR"
+          },
+          "to": {
+            "code": "KRPU",
+            "name": "KORAPUT JN"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "12-10-2026 13:02:25 IST"
+      },
+      {
+        "trainNo": "19005",
+        "trainName": "SURAT BSL EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "ST",
+            "name": "SURAT"
+          },
+          "destination": {
+            "code": "BSL",
+            "name": "BHUSAVAL JN"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "ST",
+            "name": "SURAT"
+          },
+          "to": {
+            "code": "UDN",
+            "name": "UDHNA JN"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 13:19:42 IST"
+      },
+      {
+        "trainNo": "19006",
+        "trainName": "BSL SURAT EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "BSL",
+            "name": "BHUSAVAL JN"
+          },
+          "destination": {
+            "code": "ST",
+            "name": "SURAT"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "UDN",
+            "name": "UDHNA JN"
+          },
+          "to": {
+            "code": "ST",
+            "name": "SURAT"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 13:07:54 IST"
+      },
+      {
+        "trainNo": "19007",
+        "trainName": "SURAT BSL EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "ST",
+            "name": "SURAT"
+          },
+          "destination": {
+            "code": "BSL",
+            "name": "BHUSAVAL JN"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "ST",
+            "name": "SURAT"
+          },
+          "to": {
+            "code": "UDN",
+            "name": "UDHNA JN"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 13:19:45 IST"
+      },
+      {
+        "trainNo": "19008",
+        "trainName": "BSL SURAT EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "BSL",
+            "name": "BHUSAVAL JN"
+          },
+          "destination": {
+            "code": "ST",
+            "name": "SURAT"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "UDN",
+            "name": "UDHNA JN"
+          },
+          "to": {
+            "code": "ST",
+            "name": "SURAT"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 13:35:03 IST"
+      },
+      {
+        "trainNo": "19045",
+        "trainName": "TAPTI GANGA EXPRESS",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "ST",
+            "name": "SURAT"
+          },
+          "destination": {
+            "code": "THE",
+            "name": "THAWE JN"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "ST",
+            "name": "SURAT"
+          },
+          "to": {
+            "code": "UDN",
+            "name": "UDHNA JN"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 13:50:57 IST"
+      },
+      {
+        "trainNo": "19046",
+        "trainName": "TAPTI GANGA EXPRESS",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "THE",
+            "name": "THAWE JN"
+          },
+          "destination": {
+            "code": "ST",
+            "name": "SURAT"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "UDN",
+            "name": "UDHNA JN"
+          },
+          "to": {
+            "code": "ST",
+            "name": "SURAT"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 14:02:00 IST"
+      },
+      {
+        "trainNo": "19309",
+        "trainName": "SHANTI EXPRESS",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "GNC",
+            "name": "GANDHINAGAR CAPITAL"
+          },
+          "destination": {
+            "code": "INDB",
+            "name": "INDORE JN"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "GNC",
+            "name": "GANDHINAGAR CAPITAL"
+          },
+          "to": {
+            "code": "ADI",
+            "name": "AHMEDABAD JN"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 14:10:58 IST"
+      },
+      {
+        "trainNo": "19310",
+        "trainName": "SHANTI EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "INDB",
+            "name": "INDORE JN"
+          },
+          "destination": {
+            "code": "GNC",
+            "name": "GANDHINAGAR CAPITAL"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "ADI",
+            "name": "AHMEDABAD JN"
+          },
+          "to": {
+            "code": "GNC",
+            "name": "GANDHINAGAR CAPITAL"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 14:12:34 IST"
+      },
+      {
+        "trainNo": "19315",
+        "trainName": "VIRBHUMI EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "INDB",
+            "name": "INDORE JN"
+          },
+          "destination": {
+            "code": "ASV",
+            "name": "ASARVA JN"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "NRD",
+            "name": "NARODA"
+          },
+          "to": {
+            "code": "ASV",
+            "name": "ASARVA JN"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 15:35:42 IST"
+      },
+      {
+        "trainNo": "19316",
+        "trainName": "VIRBHUMI EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "ASV",
+            "name": "ASARVA JN"
+          },
+          "destination": {
+            "code": "INDB",
+            "name": "INDORE JN"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "ASV",
+            "name": "ASARVA JN"
+          },
+          "to": {
+            "code": "NRD",
+            "name": "NARODA"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 15:44:09 IST"
+      },
+      {
+        "trainNo": "20965",
+        "trainName": "BVC INTERCITY",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "SBIB",
+            "name": "SABARMATI BG"
+          },
+          "destination": {
+            "code": "BVC",
+            "name": "BHAVNAGAR TERMINUS"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "SBIB",
+            "name": "SABARMATI BG"
+          },
+          "to": {
+            "code": "GG",
+            "name": "GANDHIGRAM"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "23-06-2026 12:35:16 IST"
+      },
+      {
+        "trainNo": "20966",
+        "trainName": "SABARMATI INCITY",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "BVC",
+            "name": "BHAVNAGAR TERMINUS"
+          },
+          "destination": {
+            "code": "SBIB",
+            "name": "SABARMATI BG"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "GG",
+            "name": "GANDHIGRAM"
+          },
+          "to": {
+            "code": "SBIB",
+            "name": "SABARMATI BG"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "09-07-2026 13:20:58 IST"
+      },
+      {
+        "trainNo": "22120",
+        "trainName": "MAO-CSTM TEJAS",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": null,
+            "name": "MADGAON JUNCTION"
+          },
+          "destination": {
+            "code": "CSMT",
+            "name": "CHHATRAPATI SHIVAJI MAHARAJ TERMINUS"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "DR",
+            "name": "DADAR"
+          },
+          "to": {
+            "code": "CSMT",
+            "name": "CHHATRAPATI SHIVAJI MAHARAJ TERMINUS"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 14:25:24 IST"
+      },
+      {
+        "trainNo": "22201",
+        "trainName": "DURONTO EXPRESS",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "SDAH",
+            "name": "SEALDAH"
+          },
+          "destination": {
+            "code": "PURI",
+            "name": "PURI"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "MLT",
+            "name": "MALATIPATPUR"
+          },
+          "to": {
+            "code": "PURI",
+            "name": "PURI"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "18-10-2026 13:32:43 IST"
+      },
+      {
+        "trainNo": "22651",
+        "trainName": "MAS PGT EXPRESS",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "MAS",
+            "name": "PURATCHI THALAIVAR DR. MGR CTL CHENNAI"
+          },
+          "destination": {
+            "code": "PGT",
+            "name": "PALAKKAD JN"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "PGTN",
+            "name": "PALGHAT TOWN"
+          },
+          "to": {
+            "code": "PGT",
+            "name": "PALAKKAD JN"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "09-10-2026 13:21:48 IST"
+      },
+      {
+        "trainNo": "22652",
+        "trainName": "PGT MAS EXPRESS",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "PGT",
+            "name": "PALAKKAD JN"
+          },
+          "destination": {
+            "code": "MAS",
+            "name": "PURATCHI THALAIVAR DR. MGR CTL CHENNAI"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "PGT",
+            "name": "PALAKKAD JN"
+          },
+          "to": {
+            "code": "PGTN",
+            "name": "PALGHAT TOWN"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "09-10-2026 13:32:34 IST"
+      },
+      {
+        "trainNo": "22973",
+        "trainName": "GIMB PURI SUP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "GIMB",
+            "name": "GANDHIDHAM BG"
+          },
+          "destination": {
+            "code": "PURI",
+            "name": "PURI"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "MLT",
+            "name": "MALATIPATPUR"
+          },
+          "to": {
+            "code": "PURI",
+            "name": "PURI"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "18-10-2026 13:49:20 IST"
+      },
+      {
+        "trainNo": "52453",
+        "trainName": "KLK SML EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "KLK",
+            "name": "KALKA"
+          },
+          "destination": {
+            "code": "SML",
+            "name": "SHIMLA"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "KLK",
+            "name": "KALKA"
+          },
+          "to": {
+            "code": "DMP",
+            "name": "DHARAMPUR HIMACHAL"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 15:00:28 IST"
+      },
+      {
+        "trainNo": "52454",
+        "trainName": "SML KLK EXP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "SML",
+            "name": "SHIMLA"
+          },
+          "destination": {
+            "code": "KLK",
+            "name": "KALKA"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "DMP",
+            "name": "DHARAMPUR HIMACHAL"
+          },
+          "to": {
+            "code": "KLK",
+            "name": "KALKA"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "01-10-2026 14:50:43 IST"
+      },
+      {
+        "trainNo": "58501",
+        "trainName": "VSKP KRDL PGRSP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "VSKP",
+            "name": "VISAKHAPATNAM"
+          },
+          "destination": {
+            "code": "KRDL",
+            "name": "KIRANDUL"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "KRPU",
+            "name": "KORAPUT JN"
+          },
+          "to": {
+            "code": "KRDL",
+            "name": "KIRANDUL"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "20-10-2026 14:11:02 IST"
+      },
+      {
+        "trainNo": "58502",
+        "trainName": "KRDL VSKP PGRSP",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "KRDL",
+            "name": "KIRANDUL"
+          },
+          "destination": {
+            "code": "VSKP",
+            "name": "VISAKHAPATNAM"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "KRDL",
+            "name": "KIRANDUL"
+          },
+          "to": {
+            "code": "KRPU",
+            "name": "KORAPUT JN"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "20-10-2026 14:10:36 IST"
+      },
+      {
+        "trainNo": "09012",
+        "trainName": "BHUJ BDTS SF SPL",
+        "journeyDate": "21-10-2026",
+        "status": "partially_cancelled",
+        "route": {
+          "source": {
+            "code": "BHUJ",
+            "name": "BHUJ"
+          },
+          "destination": {
+            "code": "BDTS",
+            "name": "BANDRA TERMINUS"
+          }
+        },
+        "cancelledSegment": {
+          "from": {
+            "code": "BVI",
+            "name": "BORIVALI"
+          },
+          "to": {
+            "code": "BDTS",
+            "name": "BANDRA TERMINUS"
+          }
+        },
+        "trainType": null,
+        "reportedAt": "18-10-2026 13:56:21 IST"
+      }
+    ]
+  }
+}

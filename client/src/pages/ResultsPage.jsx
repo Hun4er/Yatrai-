@@ -32,6 +32,8 @@ import {
 import { formatDateDisplay } from '../utils/formatters.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../services/api.js';
+import P0ResultsView from '../components/journey/P0ResultsView.jsx';
+import { generateActionId } from '../services/p0SearchCache.js';
 
 /**
  * ResultsPage Component
@@ -122,6 +124,190 @@ export function ResultsPage({
       setActiveRanking(searchParams.ranking);
     }
   }, [data?.ranking?.strategy, searchParams?.ranking]);
+
+  // ── P0 v2 Search Engine State & Handlers ─────────────────────────────────────
+  const isP0V2 = Boolean(data?.direct && Array.isArray(data.direct));
+  const [p0Direct, setP0Direct] = useState([]);
+  const [p0Waiting, setP0Waiting] = useState([]);
+  const [p0Alternatives, setP0Alternatives] = useState([]);
+  const [p0DateStrip, setP0DateStrip] = useState([]);
+  const [p0Budget, setP0Budget] = useState({ used: 0, cap: 40 });
+  const [p0Partial, setP0Partial] = useState(false);
+  const [p0Degraded, setP0Degraded] = useState(false);
+  const [isLoadingAlternatives, setIsLoadingAlternatives] = useState(false);
+  const [isLoadingMoreTrains, setIsLoadingMoreTrains] = useState(false);
+  const [isSearchingDeeper, setIsSearchingDeeper] = useState(false);
+
+  useEffect(() => {
+    if (data?.direct) {
+      setP0Direct(data.direct || []);
+      setP0Waiting(data.waitingTrains || []);
+      setP0Alternatives(data.alternatives || []);
+      setP0DateStrip(data.dateStrip || []);
+      setP0Budget(data.budget || { used: 0, cap: 40 });
+      setP0Partial(Boolean(data.partial));
+      setP0Degraded(Boolean(data.degraded));
+
+      // Check if any train has a confirmed seat
+      const hasConfirmed = (data.direct || []).some((t) =>
+        (t.classes || []).some(
+          (c) => c.state === 'CHECKED' && (c.tier === 'AVAILABLE' || /AVL|AVAILABLE/i.test(c.availabilityText || ''))
+        )
+      );
+
+      // Auto alternatives flow: If no train is CONFIRMED and not degraded, trigger alternatives with SAME actionId
+      if (!hasConfirmed && (!data.alternatives || data.alternatives.length === 0) && !data.degraded) {
+        setIsLoadingAlternatives(true);
+        const originCode = data.direct[0]?.from || searchParams?.origin || searchParams?.from || 'NDLS';
+        const destCode = data.direct[0]?.to || searchParams?.destination || searchParams?.to || 'PNBE';
+        api.journeysV2
+          .search({
+            actionId: data.actionId || generateActionId(),
+            origins: [originCode],
+            destinations: [destCode],
+            date: searchParams?.departureDate || searchParams?.date || '',
+            class: searchParams?.class || 'ANY',
+            quota: searchParams?.quota || 'GN',
+            mode: 'alternatives',
+          })
+          .then((res) => {
+            const altData = res?.data || res || {};
+            if (altData.alternatives) setP0Alternatives(altData.alternatives);
+            if (altData.budget) setP0Budget(altData.budget);
+            if (altData.partial) setP0Partial(true);
+          })
+          .catch(() => {})
+          .finally(() => setIsLoadingAlternatives(false));
+      }
+    }
+  }, [data, searchParams]);
+
+  const handleP0CheckClass = async ({ trainNo, from, to, class: cls, date: d, quota: q }) => {
+    const actId = generateActionId();
+    const res = await api.journeysV2.checkClass({
+      actionId: actId,
+      trainNo,
+      from,
+      to,
+      class: cls,
+      date: d,
+      quota: q,
+    });
+    const chip = res?.data?.checkedClass;
+    setP0Direct((prev) =>
+      prev.map((t) => {
+        if (t.trainNumber !== trainNo) return t;
+        const nextClasses = (t.classes || []).map((c) => {
+          if (c.class === cls) {
+            return {
+              ...c,
+              state: 'CHECKED',
+              tier: chip?.tier || chip?.normalizedStatus,
+              availabilityText: chip?.availabilityText || chip?.statusText,
+              predictionPercentage: chip?.predictionPercentage || 0,
+              checkedAt: new Date().toISOString(),
+            };
+          }
+          return c;
+        });
+        return { ...t, classes: nextClasses };
+      })
+    );
+  };
+
+  const handleP0RefreshCard = async ({ trainNo, from, to, class: cls, date: d, quota: q }) => {
+    const res = await api.journeysV2.refreshCard({ trainNo, from, to, class: cls, date: d, quota: q });
+    const avail = res?.data?.availability;
+    const checkedAt = res?.data?.checkedAt || new Date().toISOString();
+    setP0Direct((prev) =>
+      prev.map((t) => {
+        if (t.trainNumber !== trainNo) return t;
+        const nextClasses = (t.classes || []).map((c) => {
+          if (c.class === cls) {
+            return {
+              ...c,
+              state: 'CHECKED',
+              tier: avail?.normalizedStatus,
+              availabilityText: avail?.statusText || avail?.originalStatus,
+              predictionPercentage: avail?.predictionPercentage || 0,
+              checkedAt,
+            };
+          }
+          return c;
+        });
+        return { ...t, classes: nextClasses, checkedAt };
+      })
+    );
+  };
+
+  const handleP0CheckMoreTrains = async () => {
+    if (isLoadingMoreTrains || p0Waiting.length === 0) return;
+    setIsLoadingMoreTrains(true);
+    try {
+      const res = await api.journeysV2.moreTrains({
+        actionId: data?.actionId || generateActionId(),
+        waitingTrains: p0Waiting,
+        date: searchParams?.departureDate || searchParams?.date || '',
+        class: searchParams?.class || 'ANY',
+        quota: searchParams?.quota || 'GN',
+      });
+      const d = res?.data || res || {};
+      if (d.checkedTrains) setP0Direct((prev) => [...prev, ...d.checkedTrains]);
+      if (d.remainingWaiting) setP0Waiting(d.remainingWaiting);
+      if (d.budget) setP0Budget(d.budget);
+      if (d.partial) setP0Partial(true);
+    } finally {
+      setIsLoadingMoreTrains(false);
+    }
+  };
+
+  const handleP0SearchDeeper = async () => {
+    if (isSearchingDeeper) return;
+    setIsSearchingDeeper(true);
+    try {
+      const originCode = p0Direct[0]?.from || searchParams?.origin || searchParams?.from || 'NDLS';
+      const destCode = p0Direct[0]?.to || searchParams?.destination || searchParams?.to || 'PNBE';
+      const res = await api.journeysV2.search({
+        actionId: generateActionId(),
+        origins: [originCode],
+        destinations: [destCode],
+        date: searchParams?.departureDate || searchParams?.date || '',
+        class: searchParams?.class || 'ANY',
+        quota: searchParams?.quota || 'GN',
+        mode: 'deep',
+      });
+      const d = res?.data || res || {};
+      if (d.alternatives) setP0Alternatives(d.alternatives);
+      if (d.budget) setP0Budget(d.budget);
+      if (d.partial !== undefined) setP0Partial(Boolean(d.partial));
+    } finally {
+      setIsSearchingDeeper(false);
+    }
+  };
+
+  const handleP0ExploreAlternativesButton = async () => {
+    if (isLoadingAlternatives) return;
+    setIsLoadingAlternatives(true);
+    try {
+      const originCode = p0Direct[0]?.from || searchParams?.origin || searchParams?.from || 'NDLS';
+      const destCode = p0Direct[0]?.to || searchParams?.destination || searchParams?.to || 'PNBE';
+      const res = await api.journeysV2.search({
+        actionId: generateActionId(),
+        origins: [originCode],
+        destinations: [destCode],
+        date: searchParams?.departureDate || searchParams?.date || '',
+        class: searchParams?.class || 'ANY',
+        quota: searchParams?.quota || 'GN',
+        mode: 'alternatives',
+      });
+      const d = res?.data || res || {};
+      if (d.alternatives) setP0Alternatives(d.alternatives);
+      if (d.budget) setP0Budget(d.budget);
+      if (d.partial) setP0Partial(true);
+    } finally {
+      setIsLoadingAlternatives(false);
+    }
+  };
 
   // Section 5: Distinguish intended locations vs exact POIs/stations
   const userOrigin = searchParams?.origin || searchParams?.from || data?.origin?.city || 'Origin';
@@ -653,8 +839,38 @@ export function ResultsPage({
               </div>
             )}
 
-            {/* Filter-Empty State */}
-            {filteredJourneys.length === 0 ? (
+            {/* If P0 v2 results are active, render P0ResultsView */}
+            {isP0V2 ? (
+              <P0ResultsView
+                direct={p0Direct}
+                waitingTrains={p0Waiting}
+                alternatives={p0Alternatives}
+                dateStrip={p0DateStrip}
+                partial={p0Partial}
+                degraded={p0Degraded}
+                budget={p0Budget}
+                date={travelDate}
+                quota={searchParams?.quota || 'GN'}
+                isLoadingAlternatives={isLoadingAlternatives}
+                isLoadingMoreTrains={isLoadingMoreTrains}
+                isSearchingDeeper={isSearchingDeeper}
+                hasConfirmedDirectSeat={p0Direct.some((t) =>
+                  (t.classes || []).some(
+                    (c) => c.state === 'CHECKED' && (c.tier === 'AVAILABLE' || /AVL|AVAILABLE/i.test(c.availabilityText || ''))
+                  )
+                )}
+                onCheckClass={handleP0CheckClass}
+                onRefreshCard={handleP0RefreshCard}
+                onExploreAlternatives={handleP0ExploreAlternativesButton}
+                onCheckMoreTrains={handleP0CheckMoreTrains}
+                onSearchDeeper={handleP0SearchDeeper}
+                onSelectDate={(newDate) => {
+                  window.history.pushState(null, '', `?from=${userOrigin}&to=${userDest}&date=${newDate}`);
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }}
+                onBookJourney={(j) => handleBookJourney(j, isAuthenticated)}
+              />
+            ) : filteredJourneys.length === 0 ? (
               <FilterEmptyState onClearFilters={handleClearFilters} />
             ) : (
               <>

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { journeyController } from '../controllers/journey.controller.js';
+import { journeyV2Controller } from '../controllers/journeyV2.controller.js';
 import { optionalAuthenticate } from '../middleware/auth.middleware.js';
 import { validateJourneySearch } from '../middleware/validate.middleware.js';
 
@@ -8,9 +9,21 @@ const router = Router();
 /**
  * POST /api/journeys/search
  * Core internal journey-search pipeline endpoint.
- * Supports both authenticated and unauthenticated queries.
+ * Supports both legacy orchestrator search and P0 v2 budget-aware search.
  */
-router.post('/search', optionalAuthenticate, validateJourneySearch, journeyController.search);
+router.post('/search', optionalAuthenticate, (req, res, next) => {
+  if (req.body?.actionId || req.body?.origins) {
+    return journeyV2Controller.search(req, res, next);
+  }
+  return validateJourneySearch(req, res, () => journeyController.search(req, res, next));
+});
+
+/**
+ * P0 v2 endpoints aliased on /api/journeys for compatibility
+ */
+router.post('/check-class', optionalAuthenticate, journeyV2Controller.checkClass);
+router.post('/refresh-card', optionalAuthenticate, journeyV2Controller.refreshCard);
+router.post('/more-trains', optionalAuthenticate, journeyV2Controller.moreTrains);
 
 /**
  * POST /api/journeys/search/natural

@@ -1,4 +1,5 @@
 import api from './api.js';
+import { generateActionId } from './p0SearchCache.js';
 
 /**
  * Journey Search Service
@@ -49,7 +50,16 @@ export const journeyService = {
     }
 
     try {
-      const response = await api.journeys.search({
+      const actionId = params.actionId || generateActionId();
+      const response = await api.journeysV2.search({
+        actionId,
+        origins: [origin.trim()],
+        destinations: [destination.trim()],
+        date: departureDate,
+        class: params.travelClass || params.class || 'ANY',
+        quota: params.quota || 'GN',
+        mode: params.mode || 'default',
+        // Legacy parameters for backwards compatibility:
         origin: origin.trim(),
         destination: destination.trim(),
         departureDate,
@@ -60,11 +70,42 @@ export const journeyService = {
 
       // Canonical response payload validation
       const resultData = response?.data || {};
-      const journeys = Array.isArray(resultData.journeys)
+      let journeys = Array.isArray(resultData.journeys)
         ? resultData.journeys
         : Array.isArray(response?.journeys)
           ? response.journeys
           : [];
+
+      // If P0 v2 direct trains exist and journeys is empty, synthesize journey representations
+      if (journeys.length === 0 && Array.isArray(resultData.direct) && resultData.direct.length > 0) {
+        journeys = resultData.direct.map((t, idx) => ({
+          id: `p0_${t.trainNumber}_${idx}`,
+          trainNumber: t.trainNumber,
+          trainName: t.trainName,
+          isDirectTrain: true,
+          numberOfTransfers: 0,
+          transportModes: ['rail'],
+          departureTime: t.departureTime,
+          arrivalTime: t.arrivalTime,
+          duration: t.duration,
+          origin: { name: t.from, code: t.from },
+          destination: { name: t.to, code: t.to },
+          legs: [
+            {
+              mode: 'rail',
+              trainNumber: t.trainNumber,
+              trainName: t.trainName,
+              from: { name: t.from, code: t.from },
+              to: { name: t.to, code: t.to },
+              departureTime: t.departureTime,
+              arrivalTime: t.arrivalTime,
+              duration: t.duration,
+            },
+          ],
+          classes: t.classes || [],
+          p0Train: t,
+        }));
+      }
 
       return {
         searchRequestId: resultData.searchRequestId || null,
@@ -78,6 +119,17 @@ export const journeyService = {
         ranking: resultData.ranking || { strategy: ranking, label: 'Best Overall' },
         meta: resultData.meta || {},
         journeys,
+        // P0 v2 fields
+        direct: resultData.direct || null,
+        waitingTrains: resultData.waitingTrains || [],
+        uncheckedClasses: resultData.uncheckedClasses || [],
+        alternatives: resultData.alternatives || [],
+        dateStrip: resultData.dateStrip || [],
+        partial: Boolean(resultData.partial),
+        degraded: Boolean(resultData.degraded),
+        budget: resultData.budget || null,
+        cache: resultData.cache || null,
+        actionId: params.actionId || resultData.actionId || null,
       };
     } catch (error) {
       // Create user-friendly error representation without internal leaks

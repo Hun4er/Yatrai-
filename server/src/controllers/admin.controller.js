@@ -1,4 +1,6 @@
 import { adminService } from '../services/admin.service.js';
+import apiUsageService from '../services/rail/apiUsage.service.js';
+import actionBudgetService from '../services/rail/actionBudget.service.js';
 import { successResponse, errorResponse } from '../utils/apiResponse.js';
 
 /**
@@ -135,6 +137,38 @@ export const adminController = {
     try {
       const health = await adminService.getSystemHealth();
       return res.status(200).json(successResponse('System health retrieved successfully', health));
+    } catch (err) {
+      return next(err);
+    }
+  },
+
+  /**
+   * GET /api/admin/usage
+   * Operational RailKit calls usage and recent actions ledger.
+   * Returns: calls today, calls this month, cache hit rate, and the last 50 actions with their per-phase counts.
+   */
+  async getUsage(req, res, next) {
+    try {
+      const usageStats = await apiUsageService.getUsage('railkit');
+      const ledgerStats = await actionBudgetService.getOverallStats();
+      const last50Actions = await actionBudgetService.getLastActions(50);
+
+      const data = {
+        callsToday: usageStats.callsToday,
+        callsThisMonth: usageStats.callsThisMonth,
+        monthlyLimit: usageStats.limit,
+        remaining: usageStats.remaining,
+        remainingPercent: usageStats.remainingPercent,
+        planExpiry: usageStats.planExpiry,
+        isExpired: usageStats.isExpired,
+        isDegraded: usageStats.isDegraded,
+        cacheHitRate: ledgerStats.hitRate,
+        cacheHitsTotal: ledgerStats.totalHits,
+        cacheMissesTotal: ledgerStats.totalMisses,
+        last50Actions,
+      };
+
+      return res.status(200).json(successResponse('Usage metrics retrieved successfully', data));
     } catch (err) {
       return next(err);
     }

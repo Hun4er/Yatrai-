@@ -12,6 +12,7 @@ import notificationRoutes from './notification.routes.js';
 import adminRoutes from './admin.routes.js';
 import providerRoutes from './provider.routes.js';
 import bookingRoutes from './booking.routes.js';
+import journeyV2Routes from './journeyV2.routes.js';
 import bookingController from '../controllers/booking.controller.js';
 import { optionalAuthenticate } from '../middleware/auth.middleware.js';
 
@@ -45,6 +46,12 @@ apiRouter.get('/', (req, res) => {
       journeys: {
         search: '/api/journeys/search',
         searchNatural: '/api/journeys/search/natural',
+      },
+      journeysV2: {
+        search: '/api/v2/journeys/search',
+        checkClass: '/api/v2/journeys/check-class',
+        refreshCard: '/api/v2/journeys/refresh-card',
+        moreTrains: '/api/v2/journeys/more-trains',
       },
       savedJourneys: '/api/saved-journeys',
       recentSearches: '/api/searches/recent',
@@ -110,6 +117,9 @@ apiRouter.use('/providers', providerRoutes);
 
 // Mount /api/booking
 apiRouter.use('/booking', bookingRoutes);
+
+// Mount /api/v2/journeys  (P0 v2 — budget-aware search engine)
+apiRouter.use('/v2/journeys', journeyV2Routes);
 
 // Mount convenient direct /api/pnr
 apiRouter.get('/pnr/:pnr', optionalAuthenticate, bookingController.checkPnr);

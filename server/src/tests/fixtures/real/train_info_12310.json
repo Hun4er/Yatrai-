@@ -1,0 +1,126 @@
+{
+  "success": true,
+  "data": {
+    "trainInfo": {
+      "train_no": "12310",
+      "train_name": "RJPB TEJAS RAJ",
+      "from_stn_name": "New Delhi",
+      "from_stn_code": "NDLS",
+      "to_stn_name": "Rajendranagar T",
+      "to_stn_code": "RJPB",
+      "from_time": "17:10",
+      "to_time": "05:15",
+      "travel_time": "12:05 hrs",
+      "running_days": "1111111",
+      "type": "RAJDHANI",
+      "train_id": "1834"
+    },
+    "route": [
+      {
+        "stnCode": "NDLS",
+        "stnName": "New Delhi",
+        "arrival": "--",
+        "departure": "17:10",
+        "halt": "0 min",
+        "haltMinutes": 0,
+        "distance": "0",
+        "day": "1",
+        "platform": 9,
+        "coordinates": {
+          "latitude": 28.6429164488347,
+          "longitude": 77.2196066379548
+        }
+      },
+      {
+        "stnCode": "CNB",
+        "stnName": "Kanpur Central",
+        "arrival": "21:50",
+        "departure": "21:55",
+        "halt": "5 min",
+        "haltMinutes": 5,
+        "distance": "441",
+        "day": "1",
+        "platform": 4,
+        "coordinates": {
+          "latitude": 26.4540336401929,
+          "longitude": 80.3510373830795
+        }
+      },
+      {
+        "stnCode": "PRYJ",
+        "stnName": "Prayagraj Jn",
+        "arrival": "00:01",
+        "departure": "00:03",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "636",
+        "day": "2",
+        "platform": 4,
+        "coordinates": {
+          "latitude": 25.4456046157419,
+          "longitude": 81.8251365423203
+        }
+      },
+      {
+        "stnCode": "DDU",
+        "stnName": "Dd Upadhyaya Jn",
+        "arrival": "01:53",
+        "departure": "02:00",
+        "halt": "7 min",
+        "haltMinutes": 7,
+        "distance": "788",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 25.2782289490803,
+          "longitude": 83.1198334693909
+        }
+      },
+      {
+        "stnCode": "DNR",
+        "stnName": "Danapur",
+        "arrival": "04:15",
+        "departure": "04:17",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "990",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.5821239869438,
+          "longitude": 85.0436908006668
+        }
+      },
+      {
+        "stnCode": "PNBE",
+        "stnName": "Patna Jn",
+        "arrival": "04:38",
+        "departure": "04:45",
+        "halt": "7 min",
+        "haltMinutes": 7,
+        "distance": "1000",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.6024924626833,
+          "longitude": 85.1373159885406
+        }
+      },
+      {
+        "stnCode": "RJPB",
+        "stnName": "Rajendranagar T",
+        "arrival": "05:15",
+        "departure": "--",
+        "halt": "0 min",
+        "haltMinutes": 0,
+        "distance": "1003",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.6027270911858,
+          "longitude": 85.1627218723297
+        }
+      }
+    ]
+  }
+}

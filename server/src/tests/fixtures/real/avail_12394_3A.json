@@ -1,0 +1,61 @@
+{
+  "success": true,
+  "data": {
+    "train": {
+      "trainNo": "12394",
+      "trainName": "SAMPOORAN K EXP",
+      "from": "NDLS",
+      "to": "PNBE",
+      "fromStationName": "New Delhi",
+      "toStationName": "Patna Junction",
+      "distance": 1000,
+      "travelClass": "3A",
+      "quota": "GN"
+    },
+    "fare": {
+      "baseFare": 1238,
+      "reservationCharge": 40,
+      "superfastCharge": 45,
+      "serviceTax": 67,
+      "totalFare": 1390
+    },
+    "availability": [
+      {
+        "date": "25-10-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 90",
+        "rawStatus": "GNWL156/WL90",
+        "prediction": "34% Chance",
+        "predictionPercentage": 34,
+        "canBook": true
+      },
+      {
+        "date": "26-10-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 51",
+        "rawStatus": "GNWL134/WL51",
+        "prediction": "78% Chance",
+        "predictionPercentage": 78,
+        "canBook": true
+      },
+      {
+        "date": "27-10-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 43",
+        "rawStatus": "GNWL126/WL43",
+        "prediction": "88% Chance",
+        "predictionPercentage": 88,
+        "canBook": true
+      },
+      {
+        "date": "28-10-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 64",
+        "rawStatus": "GNWL126/WL64",
+        "prediction": "54% Chance",
+        "predictionPercentage": 54,
+        "canBook": true
+      }
+    ]
+  }
+}

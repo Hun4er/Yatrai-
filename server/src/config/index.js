@@ -178,7 +178,86 @@ export const config = Object.freeze({
     usageOffset: parseInt(process.env.RAILKIT_USAGE_OFFSET || '0', 10),
     warningPercent: 80,
     criticalPercent: 95,
+    // Monthly degraded-mode threshold: under 10% of 10,000 → direct + same-train only
+    degradedThresholdPercent: parseInt(process.env.RAILKIT_DEGRADED_THRESHOLD_PERCENT || '10', 10),
+    // 10,000 plan expiration: 13 Nov 2026
+    planExpiry: process.env.RAILKIT_PLAN_EXPIRY || '2026-11-13',
+    adminSecret: process.env.ADMIN_SECRET || 'yatrai_admin_secret_key',
+  },
+
+  /**
+   * P0 v2 — Per-action budget caps and sub-caps.
+   * All values are configurable via environment variables.
+   */
+  p0v2: {
+    // ── Action-level hard caps ──────────────────────────────────────
+    defaultCap: parseInt(process.env.P0V2_DEFAULT_CAP || '40', 10),
+    alternativesButtonCap: parseInt(process.env.P0V2_ALT_BUTTON_CAP || '60', 10),
+    deepCap: parseInt(process.env.P0V2_DEEP_CAP || '100', 10),
+
+    // ── DEFAULT (40) sub-caps ──────────────────────────────────────
+    defaultSubCaps: {
+      direct: parseInt(process.env.P0V2_DEFAULT_DIRECT || '14', 10),       // getCancelledTrains + searchTrains (max 4 pairs) + availability
+      scheduleRoutes: parseInt(process.env.P0V2_DEFAULT_SCHEDULE || '6', 10),
+      sameTrain: parseInt(process.env.P0V2_DEFAULT_SAME_TRAIN || '10', 10),
+      crossTrain: parseInt(process.env.P0V2_DEFAULT_CROSS_TRAIN || '8', 10),
+      reserve: parseInt(process.env.P0V2_DEFAULT_RESERVE || '2', 10),
+    },
+
+    // ── ALTERNATIVES_BUTTON (60) sub-caps ─────────────────────────
+    altButtonSubCaps: {
+      scheduleRoutes: parseInt(process.env.P0V2_ALT_SCHEDULE || '6', 10),
+      sameTrain: parseInt(process.env.P0V2_ALT_SAME_TRAIN || '22', 10),
+      crossTrain: parseInt(process.env.P0V2_ALT_CROSS_TRAIN || '28', 10),
+      reserve: parseInt(process.env.P0V2_ALT_RESERVE || '4', 10),
+    },
+
+    // ── Direct pass algorithm constants ───────────────────────────
+    directRound1Candidates: parseInt(process.env.P0V2_ROUND1_CANDIDATES || '8', 10),
+    directRound2Candidates: parseInt(process.env.P0V2_ROUND2_CANDIDATES || '5', 10),
+    moreTrainsBatch: parseInt(process.env.P0V2_MORE_TRAINS_BATCH || '8', 10),
+    searchPairsMax: parseInt(process.env.P0V2_SEARCH_PAIRS_MAX || '4', 10),
+
+    // ── Alternatives algorithm constants ──────────────────────────
+    maxHubsDefault: parseInt(process.env.P0V2_MAX_HUBS_DEFAULT || '3', 10),
+    maxHubsButton: parseInt(process.env.P0V2_MAX_HUBS_BUTTON || '3', 10),
+    maxHubsDeep: parseInt(process.env.P0V2_MAX_HUBS_DEEP || '4', 10),
+    maxLanesDefault: parseInt(process.env.P0V2_MAX_LANES_DEFAULT || '2', 10),
+    maxLanesDeep: parseInt(process.env.P0V2_MAX_LANES_DEEP || '3', 10),
+    maxLegTrains: parseInt(process.env.P0V2_MAX_LEG_TRAINS || '2', 10),
+    earlyStopPlans: parseInt(process.env.P0V2_EARLY_STOP_PLANS || '3', 10),
+
+    // ── Valid layover window ───────────────────────────────────────
+    layoverMinMinutes: parseInt(process.env.P0V2_LAYOVER_MIN_MINUTES || '90', 10),
+    layoverMaxMinutes: parseInt(process.env.P0V2_LAYOVER_MAX_MINUTES || '600', 10),
+    layoverTightMinutes: parseInt(process.env.P0V2_LAYOVER_TIGHT_MINUTES || '180', 10),
+    maxDetourRatio: parseFloat(process.env.P0V2_MAX_DETOUR_RATIO || '1.15'),
+
+    // ── Cache TTLs (ms) ───────────────────────────────────────────
+    availabilityTtlAvailableMs: parseInt(process.env.P0V2_AVAIL_TTL_AVAILABLE_MS || '90000', 10),    // 90 s
+    availabilityTtlWaitlistMs: parseInt(process.env.P0V2_AVAIL_TTL_WAITLIST_MS || '600000', 10),    // 10 min
+    cancelledTrainsTtlMs: parseInt(process.env.P0V2_CANCELLED_TTL_MS || '3600000', 10),              // 1 h
+    searchRouteTtlMs: parseInt(process.env.P0V2_SEARCH_ROUTE_TTL_MS || '604800000', 10),             // 7 days
+    corridorHubsTtlMs: parseInt(process.env.P0V2_CORRIDOR_HUBS_TTL_MS || '604800000', 10),          // 7 days
+
+    // ── Action ledger TTL ─────────────────────────────────────────
+    actionBudgetTtlMs: parseInt(process.env.P0V2_ACTION_BUDGET_TTL_MS || '120000', 10),              // 2 min
+
+    // ── Refresh-card rate limit ───────────────────────────────────
+    refreshCardRateLimitMs: parseInt(process.env.P0V2_REFRESH_RATE_LIMIT_MS || '60000', 10),         // 1 min
+
+    // ── Warm-up job (default off) ─────────────────────────────────
+    warmupEnabled: process.env.WARMUP_ENABLED === 'true',
+    warmupTopRoutes: parseInt(process.env.WARMUP_TOP_ROUTES || '20', 10),
+    warmupWeeklyCallBudget: parseInt(process.env.WARMUP_WEEKLY_BUDGET || '300', 10),
+
+    // ── Capacity order for round-1 class selection ────────────────
+    capacityOrder: (process.env.P0V2_CAPACITY_ORDER || 'SL,3A,3E,CC,2S,2A,EC,1A').split(',').map((c) => c.trim()),
+
+    // ── check-class action cap ────────────────────────────────────
+    checkClassCap: parseInt(process.env.P0V2_CHECK_CLASS_CAP || '100', 10),
   },
 });
 
+export const p0v2Config = config.p0v2;
 export default config;
