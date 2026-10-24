@@ -44,6 +44,7 @@ To protect API quotas and guarantee fast performance, every action is governed b
 - **Shared Ledger:** A direct request and its automatic alternatives pass share the exact same `actionId` and 40 cap.
 - **Zero-Cost Caching:** Cache hits (7-day static routes, 1-hr cancelled trains, 90s/10m seat status) cost 0 and never deduct budget. Warm runs are guaranteed to make fewer or equal calls than cold runs.
 - **Degraded Mode:** If monthly plan (10,000 requests, expires 13 Nov 2026) drops under 10% remaining, cross-train splits are suspended to preserve quota for direct and same-train searches.
+- **Route Extension (Strategy A — Safe Integration):** Disabled by default (`EXTENSION_ENABLED=false`). When enabled via environment variable, discovers confirmed quota on downstream stoppages ($Y > B$) on direct trains, allowing passengers to legally book to $Y$ and deboard at $B$. Completely additive with zero impact when disabled.
 
 ### Running the RailKit Probe and Test Suites
 - **Probe RailKit (Real API verification, <= 25 calls):**
