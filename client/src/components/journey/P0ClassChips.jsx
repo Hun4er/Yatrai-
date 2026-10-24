@@ -29,10 +29,10 @@ export function P0ClassChips({
   const [loadingClass, setLoadingClass] = useState(null);
 
   const handleChipClick = async (chip) => {
-    const isError = chip.tier === 'ERROR' || chip.tier === 'UNKNOWN';
+    const isError = chip.tier === 'ERROR' || chip.tier === 'UNKNOWN' || chip.tier === 'UNAVAILABLE';
     const isUnchecked = chip.state === 'UNCHECKED' || chip.state === 'UNVERIFIED' || !chip.tier;
 
-    // Tapping a "?" or "couldn't check" chip triggers checkClass (1 call, under its own actionId)
+    // Tapping a "?", unavailable, or "couldn't check" chip triggers checkClass (1 call, under its own actionId)
     if (isUnchecked || isError) {
       if (!onCheckClass) return;
       setLoadingClass(chip.class);

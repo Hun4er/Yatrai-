@@ -172,7 +172,7 @@ export function P0ResultsView({
 
   const renderDirectSection = () => (
     <section className="space-y-4" aria-label="Direct Trains">
-      <div className="flex items-center justify-between pb-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
         <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8B04A] flex items-center gap-2">
           <span>Direct Trains</span>
           <span className="rounded-full bg-[#1F242C] border border-[#303640] px-2 py-0.5 text-[10px] text-[#A7AFBA]">
@@ -180,8 +180,14 @@ export function P0ResultsView({
           </span>
         </h2>
 
-        {/* Friendly Checked Text & Debug info */}
-        <div className="text-xs text-[#A7AFBA] flex items-center gap-2">
+        {/* Friendly Checked Text, Station Expansion indicator & Debug info */}
+        <div className="text-xs text-[#A7AFBA] flex flex-wrap items-center gap-2">
+          {features?.extension && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+              <Sparkles className="h-2.5 w-2.5" />
+              <span>Station Expansion Active</span>
+            </span>
+          )}
           <span>
             Checked <strong className="text-[#F0F1F3]">{checkedTrainsCount}</strong> of{' '}
             {totalTrainsCount} trains
@@ -363,6 +369,26 @@ export function P0ResultsView({
       {!isLoadingAlternatives && filteredAlternatives.length > 0 && !hasConfirmedAlt && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-xs text-amber-200">
           <span className="font-semibold">No confirmed seats found.</span> Closest options below.
+        </div>
+      )}
+
+      {/* Station Expansion (Strategy A) Banner */}
+      {features?.extension && (
+        <div className="flex items-start gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3.5 text-xs text-emerald-300">
+          <Sparkles className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <div className="font-semibold text-emerald-300 flex items-center gap-2">
+              <span>Station Expansion (Strategy A) Active</span>
+              <span className="text-[10px] uppercase font-bold text-emerald-400/90 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded">
+                Live Scanner
+              </span>
+            </div>
+            <p className="text-[11px] text-[#A7AFBA] leading-relaxed">
+              {filteredAlternatives.some((a) => a.type === 'EXTENSION')
+                ? `Discovered confirmed route extension plan(s) by booking beyond ${destinationName || destinationCode} to downstream stops with alight-at destination permission.`
+                : `Active scanner monitors downstream candidate stations beyond ${destinationName || destinationCode} (e.g. Rajendra Nagar, Patna Saheb) for confirmed booking-beyond options.`}
+            </p>
+          </div>
         </div>
       )}
 

@@ -130,6 +130,8 @@ export const journeyService = {
         budget: resultData.budget || null,
         cache: resultData.cache || null,
         actionId: params.actionId || resultData.actionId || null,
+        features: resultData.features || { extension: true },
+        extension: resultData.extension || null,
       };
     } catch (error) {
       // Create user-friendly error representation without internal leaks

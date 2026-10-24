@@ -36,17 +36,21 @@ const SEARCH_PAIRS_MAX = p0v2.searchPairsMax;    // 4
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+const NON_RESERVABLE = new Set(['GEN', 'GN', 'PWD', 'UR', 'GENERAL', 'DIVYANGJAN', 'UNRESERVED']);
+
 function normalizeClasses(raw) {
   if (!raw) return [];
+  let list = [];
   if (typeof raw === 'string') {
-    return raw.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+    list = raw.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+  } else if (Array.isArray(raw)) {
+    list = raw.flatMap((c) =>
+      typeof c === 'string' && c.includes(',')
+        ? c.split(',').map((x) => x.trim().toUpperCase())
+        : String(c).trim().toUpperCase()
+    ).filter(Boolean);
   }
-  if (!Array.isArray(raw)) return [];
-  return raw.flatMap((c) =>
-    typeof c === 'string' && c.includes(',')
-      ? c.split(',').map((x) => x.trim().toUpperCase())
-      : String(c).trim().toUpperCase()
-  ).filter(Boolean);
+  return list.filter((c) => !NON_RESERVABLE.has(c));
 }
 
 function pickRound1Class(offeredClasses, requestedClass) {

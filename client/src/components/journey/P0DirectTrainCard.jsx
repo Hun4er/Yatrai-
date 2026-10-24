@@ -56,7 +56,10 @@ export function P0DirectTrainCard({
 
   // Has confirmed seat in any checked class?
   const hasConfirmed = (train.classes || []).some(
-    (c) => c.state === 'CHECKED' && (c.tier === 'AVAILABLE' || /AVL|AVAILABLE/i.test(c.availabilityText || ''))
+    (c) =>
+      c.state === 'CHECKED' &&
+      !/NOT|REGRET|CANCEL/i.test(c.availabilityText || '') &&
+      (c.tier === 'AVAILABLE' || /AVL|\bAVAILABLE\b/i.test(c.availabilityText || ''))
   );
 
   const handleRefresh = async () => {

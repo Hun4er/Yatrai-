@@ -82,16 +82,22 @@ export const journeyV2Controller = {
    */
   async search(req, res, next) {
     try {
+      const body = req.body || {};
       const {
         actionId,
-        origins: rawOrigins = [],
-        destinations: rawDestinations = [],
         date,
         class: travelClass = 'ANY',
         quota = 'GN',
         mode = 'direct',
         includeRisky = false,
-      } = req.body || {};
+      } = body;
+
+      const rawOrigins = (Array.isArray(body.origins) && body.origins.length > 0)
+        ? body.origins
+        : (body.origin ? [body.origin] : (body.from ? [body.from] : []));
+      const rawDestinations = (Array.isArray(body.destinations) && body.destinations.length > 0)
+        ? body.destinations
+        : (body.destination ? [body.destination] : (body.to ? [body.to] : []));
 
       if (!actionId) {
         return res.status(400).json(errorResponse('actionId is required', 'MISSING_ACTION_ID'));
@@ -199,6 +205,13 @@ export const journeyV2Controller = {
         let extensionResult = null;
         if (shouldRunAlternatives && isExtensionEnabled) {
           try {
+            let extRefTrains = directResult?.direct || [];
+            if (extRefTrains.length === 0) {
+              const cached = await persistentCacheService.get(`demo:search:${origins[0]}:${destinations[0]}`).catch(() => null);
+              if (cached?.direct?.length) {
+                extRefTrains = cached.direct;
+              }
+            }
             extensionResult = await routeExtensionService.run({
               originCode: origins[0],
               destCode: destinations[0],
@@ -207,7 +220,7 @@ export const journeyV2Controller = {
               quota,
               actionId,
               actionType: isDeepMode ? 'deep' : 'alternatives_button',
-              referenceTrains: directResult?.direct || [],
+              referenceTrains: extRefTrains,
             });
           } catch (extErr) {
             logger.warn(`[JourneyV2] Route extension hook error: ${extErr.message}`);

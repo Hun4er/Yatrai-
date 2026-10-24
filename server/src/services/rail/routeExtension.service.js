@@ -16,6 +16,7 @@ import railKitAdapter from '../../providers/rail/railKit.adapter.js';
 import availabilityService, { AVAILABILITY_STATUS } from './availability.service.js';
 import actionBudgetService from './actionBudget.service.js';
 import persistentCacheService from './persistentCache.service.js';
+import clusterService from './cluster.service.js';
 import logger from '../../utils/logger.js';
 import { formatJourneyDate } from '../../utils/railwayTime.js';
 
@@ -139,8 +140,20 @@ export class RouteExtensionService {
       return { plans: [], metadata: { status: 'skipped', reason: 'cap_exhausted' } };
     }
 
+    let candidateTrains = referenceTrains || [];
+    if (candidateTrains.length === 0 && typeof this.railKit?.searchTrainBetweenStations === 'function') {
+      try {
+        const searchRes = await this.railKit.searchTrainBetweenStations(A, B, { date: dateStr });
+        if (searchRes?.data && Array.isArray(searchRes.data)) {
+          candidateTrains = searchRes.data.slice(0, 3);
+        }
+      } catch (err) {
+        logger.debug(`[RouteExtension] Fallback search error: ${err.message}`);
+      }
+    }
+
     // Filter reference trains: top 3 non-confirmed direct trains
-    const nonConfirmedTrains = (referenceTrains || []).filter((t) => {
+    const nonConfirmedTrains = (candidateTrains || []).filter((t) => {
       const trainNo = getTrainNumber(t);
       if (!trainNo) return false;
 
@@ -214,8 +227,17 @@ export class RouteExtensionService {
       }
 
       // 2. Validate stoppages: A and B must be in route, and A must be before B
-      const idxA = rawRoute.findIndex((s) => normalizeStationCode(s) === A);
-      const idxB = rawRoute.findIndex((s) => normalizeStationCode(s) === B);
+      const targetOrigins = [A, ...(typeof clusterService?.getClusterStationCodes === 'function' ? clusterService.getClusterStationCodes(A) : [])];
+      let idxA = rawRoute.findIndex((s) => normalizeStationCode(s) === A);
+      if (idxA === -1) {
+        idxA = rawRoute.findIndex((s) => targetOrigins.includes(normalizeStationCode(s)));
+      }
+
+      const targetDestinations = [B, ...(typeof clusterService?.getClusterStationCodes === 'function' ? clusterService.getClusterStationCodes(B) : [])];
+      let idxB = rawRoute.findIndex((s) => normalizeStationCode(s) === B);
+      if (idxB === -1) {
+        idxB = rawRoute.findIndex((s) => targetDestinations.includes(normalizeStationCode(s)));
+      }
 
       if (idxA === -1 || idxB === -1 || idxA >= idxB) {
         logger.info(`[RouteExtension] Train ${trainNo}: station B (${B}) is not a stoppage after station A (${A})`);

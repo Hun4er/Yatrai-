@@ -442,7 +442,13 @@ export class RailKitAdapter {
 
       // Find entry for the queried date; fall back to first
       const availList = Array.isArray(json.data.availability) ? json.data.availability : [];
-      const entry = availList.find((a) => a.date === rkDate) || availList[0] || null;
+      const entry = availList.find((a) => {
+        if (!a?.date || !rkDate) return false;
+        if (a.date === rkDate) return true;
+        const normA = a.date.split('-').map(Number).join('-');
+        const normB = rkDate.split('-').map(Number).join('-');
+        return normA === normB;
+      }) || availList[0] || null;
 
       // Extract the most specific IRCTC raw status string from entry:
       const rawStatus = entry?.rawStatus || entry?.availabilityText || entry?.status || entry?.currentStatus || '';

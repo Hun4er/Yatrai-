@@ -190,7 +190,7 @@ export function ResultsPage({
       date: d,
       quota: q,
     });
-    const chip = res?.data?.checkedClass;
+    const chip = res?.data?.chip || res?.data?.checkedClass || res?.data?.availability;
     setP0Direct((prev) =>
       prev.map((t) => {
         if (t.trainNumber !== trainNo) return t;
@@ -199,9 +199,13 @@ export function ResultsPage({
             return {
               ...c,
               state: 'CHECKED',
-              tier: chip?.tier || chip?.normalizedStatus,
-              availabilityText: chip?.availabilityText || chip?.statusText,
+              tier: chip?.tier || chip?.normalizedStatus || c.tier,
+              availabilityText: chip?.availabilityText || chip?.statusText || c.availabilityText,
               predictionPercentage: chip?.predictionPercentage || 0,
+              waitlistPosition: chip?.waitlistPosition ?? c.waitlistPosition,
+              racPosition: chip?.racPosition ?? c.racPosition,
+              seatsAvailable: chip?.seatsAvailable ?? c.seatsAvailable,
+              fare: typeof chip?.fare === 'number' ? chip.fare : (typeof chip?.totalFare === 'number' ? chip.totalFare : c.fare),
               checkedAt: new Date().toISOString(),
             };
           }
@@ -888,6 +892,7 @@ export function ResultsPage({
                 partial={p0Partial}
                 degraded={p0Degraded}
                 budget={p0Budget}
+                features={data?.features || { extension: true }}
                 date={travelDate}
                 quota={searchParams?.quota || 'GN'}
                 destinationCode={userDest}
