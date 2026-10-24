@@ -1,0 +1,517 @@
+{
+  "direct": [
+    {
+      "trainNumber": "12302",
+      "trainName": "Kolkata Rajdhani",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "16:50",
+      "arrivalTime": "04:40",
+      "duration": 710,
+      "offeredClasses": [
+        "1A",
+        "2A",
+        "3A"
+      ],
+      "classes": [
+        {
+          "class": "1A",
+          "state": "UNCHECKED",
+          "tier": null,
+          "availabilityText": null,
+          "fare": null,
+          "predictionPercentage": 0,
+          "waitlistPosition": null,
+          "racPosition": null,
+          "seatsAvailable": null,
+          "dates": [],
+          "checkedAt": null,
+          "reason": null
+        },
+        {
+          "class": "2A",
+          "state": "UNCHECKED",
+          "tier": null,
+          "availabilityText": null,
+          "fare": null,
+          "predictionPercentage": 0,
+          "waitlistPosition": null,
+          "racPosition": null,
+          "seatsAvailable": null,
+          "dates": [],
+          "checkedAt": null,
+          "reason": null
+        },
+        {
+          "class": "3A",
+          "state": "CHECKED",
+          "tier": "WAITLIST",
+          "availabilityText": "GNWL 15",
+          "fare": 1450,
+          "predictionPercentage": 45,
+          "waitlistPosition": null,
+          "racPosition": null,
+          "seatsAvailable": null,
+          "dates": [
+            {
+              "date": "2026-11-19",
+              "status": "WL"
+            },
+            {
+              "date": "2026-11-16",
+              "status": "WL"
+            },
+            {
+              "date": "2026-11-17",
+              "status": "AVAILABLE"
+            },
+            {
+              "date": "2026-11-18",
+              "status": "WL"
+            }
+          ],
+          "checkedAt": "2026-10-24T09:32:18.869Z",
+          "reason": null
+        }
+      ],
+      "checkedAt": "2026-10-24T09:32:18.869Z",
+      "fare": 1450
+    },
+    {
+      "trainNumber": "12424",
+      "trainName": "DBRT Rajdhani",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "16:10",
+      "arrivalTime": "04:15",
+      "duration": 725,
+      "offeredClasses": [
+        "1A",
+        "2A",
+        "3A"
+      ],
+      "classes": [
+        {
+          "class": "1A",
+          "state": "UNCHECKED",
+          "tier": null,
+          "availabilityText": null,
+          "fare": null,
+          "predictionPercentage": 0,
+          "waitlistPosition": null,
+          "racPosition": null,
+          "seatsAvailable": null,
+          "dates": [],
+          "checkedAt": null,
+          "reason": null
+        },
+        {
+          "class": "2A",
+          "state": "UNCHECKED",
+          "tier": null,
+          "availabilityText": null,
+          "fare": null,
+          "predictionPercentage": 0,
+          "waitlistPosition": null,
+          "racPosition": null,
+          "seatsAvailable": null,
+          "dates": [],
+          "checkedAt": null,
+          "reason": null
+        },
+        {
+          "class": "3A",
+          "state": "CHECKED",
+          "tier": "WAITLIST",
+          "availabilityText": "GNWL 15",
+          "fare": 1450,
+          "predictionPercentage": 45,
+          "waitlistPosition": null,
+          "racPosition": null,
+          "seatsAvailable": null,
+          "dates": [
+            {
+              "date": "2026-11-19",
+              "status": "WL"
+            },
+            {
+              "date": "2026-11-16",
+              "status": "WL"
+            },
+            {
+              "date": "2026-11-17",
+              "status": "AVAILABLE"
+            },
+            {
+              "date": "2026-11-18",
+              "status": "WL"
+            }
+          ],
+          "checkedAt": "2026-10-24T09:32:18.869Z",
+          "reason": null
+        }
+      ],
+      "checkedAt": "2026-10-24T09:32:18.869Z",
+      "fare": 1450
+    },
+    {
+      "trainNumber": "12310",
+      "trainName": "Patna Rajdhani",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "17:10",
+      "arrivalTime": "05:15",
+      "duration": 725,
+      "offeredClasses": [
+        "1A",
+        "2A",
+        "3A"
+      ],
+      "classes": [
+        {
+          "class": "1A",
+          "state": "UNCHECKED",
+          "tier": null,
+          "availabilityText": null,
+          "fare": null,
+          "predictionPercentage": 0,
+          "waitlistPosition": null,
+          "racPosition": null,
+          "seatsAvailable": null,
+          "dates": [],
+          "checkedAt": null,
+          "reason": null
+        },
+        {
+          "class": "2A",
+          "state": "UNCHECKED",
+          "tier": null,
+          "availabilityText": null,
+          "fare": null,
+          "predictionPercentage": 0,
+          "waitlistPosition": null,
+          "racPosition": null,
+          "seatsAvailable": null,
+          "dates": [],
+          "checkedAt": null,
+          "reason": null
+        },
+        {
+          "class": "3A",
+          "state": "CHECKED",
+          "tier": "AVAILABLE",
+          "availabilityText": "AVAILABLE 12",
+          "fare": 1450,
+          "predictionPercentage": 100,
+          "waitlistPosition": null,
+          "racPosition": null,
+          "seatsAvailable": null,
+          "dates": [
+            {
+              "date": "2026-11-19",
+              "status": "AVAILABLE"
+            },
+            {
+              "date": "2026-11-16",
+              "status": "WL"
+            },
+            {
+              "date": "2026-11-17",
+              "status": "AVAILABLE"
+            },
+            {
+              "date": "2026-11-18",
+              "status": "WL"
+            }
+          ],
+          "checkedAt": "2026-10-24T09:32:18.869Z",
+          "reason": null
+        }
+      ],
+      "checkedAt": "2026-10-24T09:32:18.869Z",
+      "fare": 1450
+    }
+  ],
+  "waitingTrains": [
+    {
+      "trainNumber": "12802",
+      "trainName": "Purushottam Express",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "22:40",
+      "arrivalTime": "13:40",
+      "duration": 900,
+      "classes": [
+        "1A",
+        "2A",
+        "3A",
+        "SL"
+      ],
+      "checkedClasses": []
+    },
+    {
+      "trainNumber": "14056",
+      "trainName": "Brahmaputra Mail",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "23:40",
+      "arrivalTime": "14:20",
+      "duration": 880,
+      "classes": [
+        "2A",
+        "3A",
+        "SL"
+      ],
+      "checkedClasses": []
+    },
+    {
+      "trainNumber": "12506",
+      "trainName": "North East Express",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "07:40",
+      "arrivalTime": "21:45",
+      "duration": 845,
+      "classes": [
+        "2A",
+        "3A",
+        "3E",
+        "SL"
+      ],
+      "checkedClasses": []
+    },
+    {
+      "trainNumber": "12304",
+      "trainName": "Poorva Express",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "17:40",
+      "arrivalTime": "06:50",
+      "duration": 790,
+      "classes": [
+        "1A",
+        "2A",
+        "3A",
+        "SL"
+      ],
+      "checkedClasses": []
+    },
+    {
+      "trainNumber": "12394",
+      "trainName": "Sampoorna Kranti Express",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "17:30",
+      "arrivalTime": "06:35",
+      "duration": 785,
+      "classes": [
+        "1A",
+        "2A",
+        "3A",
+        "3E",
+        "SL"
+      ],
+      "checkedClasses": []
+    },
+    {
+      "trainNumber": "12488",
+      "trainName": "Seemanchal Express",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "08:10",
+      "arrivalTime": "23:15",
+      "duration": 905,
+      "classes": [
+        "2A",
+        "3A",
+        "3E",
+        "SL"
+      ],
+      "checkedClasses": []
+    },
+    {
+      "trainNumber": "02394",
+      "trainName": "Patna Special",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "23:55",
+      "arrivalTime": "16:00",
+      "duration": 965,
+      "classes": [
+        "3A",
+        "SL"
+      ],
+      "checkedClasses": []
+    },
+    {
+      "trainNumber": "15484",
+      "trainName": "Mahananda Express",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "07:35",
+      "arrivalTime": "00:40",
+      "duration": 1025,
+      "classes": [
+        "2A",
+        "3A",
+        "SL"
+      ],
+      "checkedClasses": []
+    },
+    {
+      "trainNumber": "13258",
+      "trainName": "Jan Sadharan Exp",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "13:35",
+      "arrivalTime": "07:15",
+      "duration": 1060,
+      "classes": [
+        "2S"
+      ],
+      "checkedClasses": []
+    },
+    {
+      "trainNumber": "12392",
+      "trainName": "Shramjeevi Express",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "13:10",
+      "arrivalTime": "07:05",
+      "duration": 1075,
+      "classes": [
+        "1A",
+        "2A",
+        "3A",
+        "SL"
+      ],
+      "checkedClasses": []
+    },
+    {
+      "trainNumber": "13240",
+      "trainName": "Kota Patna Express",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "18:10",
+      "arrivalTime": "15:10",
+      "duration": 1260,
+      "classes": [
+        "2A",
+        "3A",
+        "SL"
+      ],
+      "checkedClasses": []
+    },
+    {
+      "trainNumber": "14006",
+      "trainName": "Lichchavi Express",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "18:00",
+      "arrivalTime": "15:40",
+      "duration": 1300,
+      "classes": [
+        "1A",
+        "2A",
+        "3A",
+        "SL"
+      ],
+      "checkedClasses": []
+    },
+    {
+      "trainNumber": "13008",
+      "trainName": "Toofan Express",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "07:10",
+      "arrivalTime": "06:30",
+      "duration": 1400,
+      "classes": [
+        "2A",
+        "3A",
+        "SL"
+      ],
+      "checkedClasses": []
+    },
+    {
+      "trainNumber": "13484",
+      "trainName": "Farakka Express (via Sultanpur)",
+      "from": "NDLS",
+      "to": "PNBE",
+      "departureTime": "21:40",
+      "arrivalTime": "21:10",
+      "duration": 1410,
+      "classes": [
+        "2A",
+        "3A",
+        "SL"
+      ],
+      "checkedClasses": []
+    }
+  ],
+  "uncheckedClasses": [
+    {
+      "trainNumber": "12302",
+      "class": "1A"
+    },
+    {
+      "trainNumber": "12302",
+      "class": "2A"
+    },
+    {
+      "trainNumber": "12424",
+      "class": "1A"
+    },
+    {
+      "trainNumber": "12424",
+      "class": "2A"
+    },
+    {
+      "trainNumber": "12310",
+      "class": "1A"
+    },
+    {
+      "trainNumber": "12310",
+      "class": "2A"
+    }
+  ],
+  "alternatives": [],
+  "dateStrip": [
+    {
+      "date": "2026-11-19",
+      "status": "WL"
+    },
+    {
+      "date": "2026-11-16",
+      "status": "WL"
+    },
+    {
+      "date": "2026-11-17",
+      "status": "AVAILABLE"
+    },
+    {
+      "date": "2026-11-18",
+      "status": "WL"
+    }
+  ],
+  "partial": false,
+  "degraded": false,
+  "providerNotice": null,
+  "allCancelled": false,
+  "noTrainsFound": false,
+  "message": null,
+  "cancelledFilter": {
+    "count": 1
+  },
+  "budget": {
+    "used": 5,
+    "cap": 40,
+    "partial": false,
+    "cacheHits": 0,
+    "cacheMisses": 5
+  },
+  "cache": {
+    "hits": 0,
+    "misses": 5
+  }
+}
