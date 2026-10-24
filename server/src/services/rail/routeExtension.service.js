@@ -186,10 +186,20 @@ export class RouteExtensionService {
       if (!trainNo) continue;
 
       // Pick lane/travel class
-      let targetClass = travelClass && travelClass !== 'ANY' ? String(travelClass).toUpperCase() : null;
+      let targetClass = travelClass && travelClass !== 'ANY'
+        ? (typeof travelClass === 'object' && travelClass !== null ? (travelClass.class || travelClass.travelClass || travelClass.coach) : String(travelClass)).toUpperCase()
+        : null;
       if (!targetClass && Array.isArray(train.classes)) {
-        const checked = train.classes.find((c) => c.state === 'CHECKED' || c.tier);
-        if (checked?.class) targetClass = String(checked.class).toUpperCase();
+        const checked = train.classes.find((c) => c && (c.state === 'CHECKED' || c.tier));
+        if (checked) {
+          const cls = typeof checked === 'object' ? (checked.class || checked.travelClass || checked.coach) : checked;
+          if (cls) targetClass = String(cls).toUpperCase();
+        }
+      }
+      if (!targetClass && Array.isArray(train.classes) && train.classes.length > 0) {
+        const first = train.classes[0];
+        const cls = typeof first === 'object' ? (first.class || first.travelClass || first.coach) : first;
+        if (cls) targetClass = String(cls).toUpperCase();
       }
       if (!targetClass) targetClass = '3A'; // fallback
 

@@ -533,18 +533,26 @@ export class RailKitAdapter {
         await persistentCacheService.set(fareCacheKey, fareData, 'fare', CACHE_TTL_CONFIG.fare);
       }
 
-      const dateStrip = availList.map((a) => ({
-        date: a.date,
-        status: a.status,
-        availabilityText: a.availabilityText,
-        rawStatus: a.rawStatus,
-        predictionPercentage: a.predictionPercentage ?? null,
-        canBook: a.canBook ?? false,
-        normalizedStatus: normalizeSeatAvailability(a.rawStatus || a.availabilityText || a.status, {
+      const dateStrip = availList.map((a) => {
+        const norm = normalizeSeatAvailability(a.rawStatus || a.availabilityText || a.status, {
           availabilityText: a.availabilityText,
           predictionPercentage: a.predictionPercentage,
-        }).normalizedStatus,
-      }));
+        });
+        const cleanDate = formatJourneyDate(a.date) || a.date;
+        const isConfirmed = norm.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE;
+        return {
+          date: cleanDate,
+          status: a.status,
+          availabilityText: a.availabilityText,
+          rawStatus: a.rawStatus,
+          predictionPercentage: a.predictionPercentage ?? null,
+          canBook: a.canBook ?? false,
+          normalizedStatus: norm.normalizedStatus,
+          bestTier: norm.normalizedStatus,
+          confirmed: isConfirmed,
+          class: coach,
+        };
+      });
 
       logger.debug(
         `[RailKitAdapter] Avail ${num} ${fromCode}->${toCode} ${rkDate}: raw="${rawStatus}" -> "${normalized.normalizedStatus}" (fare: ${parsedFare?.totalFare ?? 'none'})`

@@ -13,6 +13,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import api from '../../services/api.js';
+import { normalizeDate } from '../../utils/formatters.js';
 
 /**
  * Format ISO date string (YYYY-MM-DD) into editorial reference format (e.g., "Mon, 15 Jan 2024")
@@ -20,7 +21,8 @@ import api from '../../services/api.js';
 function formatDisplayDate(dateStr) {
   if (!dateStr) return '';
   try {
-    const [y, m, d] = dateStr.split('-').map(Number);
+    const ymd = normalizeDate(dateStr) || dateStr;
+    const [y, m, d] = ymd.split('-').map(Number);
     const dateObj = new Date(y, m - 1, d);
     if (Number.isNaN(dateObj.getTime())) return dateStr;
     return dateObj.toLocaleDateString('en-GB', {
@@ -93,9 +95,12 @@ export function SearchForm({
   // Calendar Month View State
   const [calendarView, setCalendarView] = useState(() => {
     if (initialDate) {
-      const parts = initialDate.split('-').map(Number);
-      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-        return { year: parts[0], month: parts[1] - 1 };
+      const ymd = normalizeDate(initialDate);
+      if (ymd) {
+        const parts = ymd.split('-').map(Number);
+        if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          return { year: parts[0], month: parts[1] - 1 };
+        }
       }
     }
     const today = new Date();
@@ -107,8 +112,9 @@ export function SearchForm({
     if (initialOrigin) setOriginText(initialOrigin);
     if (initialDestination) setDestText(initialDestination);
     if (initialDate) {
-      setDepartureDate(initialDate);
-      const parts = initialDate.split('-').map(Number);
+      const cleanDate = normalizeDate(initialDate) || initialDate;
+      setDepartureDate(cleanDate);
+      const parts = cleanDate.split('-').map(Number);
       if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1])) {
         setCalendarView({ year: parts[0], month: parts[1] - 1 });
       }

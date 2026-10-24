@@ -506,7 +506,11 @@ export class DirectPassService {
     const partial = budget.isAtCap(actionId) || hadProviderError;
 
     // Extract 4-date strip from any checked class that returned dates
-    const dateStrip = results.flatMap((r) => r.classes).find((c) => Array.isArray(c.dates) && c.dates.length > 0)?.dates || [];
+    const rawDateStrip = results.flatMap((r) => r.classes).find((c) => Array.isArray(c.dates) && c.dates.length > 0)?.dates || [];
+    const dateStrip = rawDateStrip.map((item) => ({
+      ...item,
+      date: formatJourneyDate(item.date) || item.date,
+    }));
 
     logger.info(`[DirectPass] Done. Results: ${results.length}, waitingTrains: ${waitingTrains.length}, confirmed: ${confirmedFound}, partial: ${partial}, dateStrip=${dateStrip.length}, budget: ${budgetSummary.used}/${budgetSummary.cap}`);
 

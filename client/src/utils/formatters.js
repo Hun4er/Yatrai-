@@ -100,37 +100,81 @@ export function formatTime(timeVal) {
 }
 
 /**
- * Format date string (YYYY-MM-DD or ISO timestamp) into readable display date (e.g. "01 Oct 2026").
+ * Normalizes any date value (YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, ISO timestamp, Date)
+ * into canonical "YYYY-MM-DD" string in Indian Standard Time (Asia/Kolkata).
+ */
+export function normalizeDate(dateVal) {
+  if (!dateVal) return '';
+
+  if (typeof dateVal === 'string') {
+    const trimmed = dateVal.trim();
+    if (!trimmed) return '';
+
+    // 1. If timestamp with time / ISO (e.g. 2026-10-25T14:30:00Z)
+    if (trimmed.includes('T')) {
+      const d = new Date(trimmed);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      }
+    }
+
+    // 2. YYYY-MM-DD or YYYY/MM/DD
+    const ymdMatch = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/.exec(trimmed);
+    if (ymdMatch) {
+      const [, y, m, d] = ymdMatch;
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+
+    // 3. DD-MM-YYYY or DD/MM/YYYY
+    const dmyMatch = /^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/.exec(trimmed);
+    if (dmyMatch) {
+      const [, d, m, y] = dmyMatch;
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    }
+  }
+
+  if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
+    return dateVal.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  }
+
+  if (typeof dateVal === 'number' && !isNaN(dateVal)) {
+    const d = new Date(dateVal);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Format date string (YYYY-MM-DD, DD-MM-YYYY, ISO timestamp, or Date) into readable display date (e.g. "01 Oct 2026").
  * Formats consistently in Asia/Kolkata railway context.
  */
 export function formatDateDisplay(dateVal) {
   if (!dateVal) return '';
   try {
-    if (typeof dateVal === 'string' && dateVal.includes('T')) {
-      const d = new Date(dateVal);
-      if (!isNaN(d.getTime())) {
-        return d.toLocaleDateString('en-GB', {
-          timeZone: 'Asia/Kolkata',
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-        });
-      }
-    }
-    const dateStr = String(dateVal).slice(0, 10);
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      const year = parseInt(parts[0], 10);
-      const monthIndex = parseInt(parts[1], 10) - 1;
-      const day = parseInt(parts[2], 10);
-      const d = new Date(Date.UTC(year, monthIndex, day, 12, 0, 0));
-      if (!isNaN(d.getTime())) {
-        return d.toLocaleDateString('en-GB', {
-          timeZone: 'UTC',
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-        });
+    const ymd = normalizeDate(dateVal);
+    if (ymd) {
+      const parts = ymd.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const monthIndex = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const d = new Date(Date.UTC(year, monthIndex, day, 12, 0, 0));
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('en-GB', {
+            timeZone: 'UTC',
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          });
+        }
       }
     }
     return String(dateVal);

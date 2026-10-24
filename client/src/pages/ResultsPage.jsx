@@ -29,7 +29,7 @@ import {
   getDefaultFilters,
   countActiveFilters,
 } from '../utils/journeyFilters.js';
-import { formatDateDisplay } from '../utils/formatters.js';
+import { formatDateDisplay, normalizeDate } from '../utils/formatters.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../services/api.js';
 import P0ResultsView from '../components/journey/P0ResultsView.jsx';
@@ -321,7 +321,8 @@ export function ResultsPage({
     (data?.origin?.name && data.origin.name.toLowerCase() !== userOrigin.toLowerCase()) ||
     (data?.destination?.name && data.destination.name.toLowerCase() !== userDest.toLowerCase());
 
-  const travelDate = searchParams?.departureDate || searchParams?.date || '';
+  const rawTravelDate = searchParams?.departureDate || searchParams?.date || '';
+  const travelDate = normalizeDate(rawTravelDate) || rawTravelDate;
   const formattedDate = formatDateDisplay(travelDate);
   const passengers = searchParams?.passengers || 1;
 
@@ -907,7 +908,8 @@ export function ResultsPage({
                 onCheckMoreTrains={handleP0CheckMoreTrains}
                 onSearchDeeper={handleP0SearchDeeper}
                 onSelectDate={(newDate) => {
-                  window.history.pushState(null, '', `?from=${userOrigin}&to=${userDest}&date=${newDate}`);
+                  const cleanDate = normalizeDate(newDate) || newDate;
+                  window.history.pushState(null, '', `?from=${userOrigin}&to=${userDest}&date=${cleanDate}`);
                   window.dispatchEvent(new PopStateEvent('popstate'));
                 }}
                 onBookJourney={(j) => handleBookJourney(j, isAuthenticated)}

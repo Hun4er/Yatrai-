@@ -38,14 +38,20 @@ const CAPACITY_ORDER = p0v2.capacityOrder;
 
 function normalizeClasses(raw) {
   if (!Array.isArray(raw)) return [];
-  return raw.map((c) => String(c).trim().toUpperCase()).filter(Boolean);
+  return raw.map((c) =>
+    typeof c === 'object' && c !== null
+      ? (c.class || c.travelClass || c.coach || '').toUpperCase()
+      : String(c).trim().toUpperCase()
+  ).filter(Boolean);
 }
 
 function pickLanes(requestedClass, referenceTrainClasses, maxLanes) {
   const offered = normalizeClasses(referenceTrainClasses);
   if (requestedClass && requestedClass !== 'ANY') {
-    const req = String(requestedClass).toUpperCase();
-    return [req].slice(0, maxLanes);
+    const req = typeof requestedClass === 'object' && requestedClass !== null
+      ? (requestedClass.class || requestedClass.travelClass || requestedClass.coach || '').toUpperCase()
+      : String(requestedClass).toUpperCase();
+    if (req) return [req].slice(0, maxLanes);
   }
   // Top maxLanes from CAPACITY_ORDER that appear in reference trains
   const lanes = [];

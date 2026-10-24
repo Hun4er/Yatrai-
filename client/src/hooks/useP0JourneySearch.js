@@ -7,6 +7,7 @@ import {
   getCachedP0Result,
   setCachedP0Result,
 } from '../services/p0SearchCache.js';
+import { normalizeDate } from '../utils/formatters.js';
 
 /**
  * useP0JourneySearch Hook (P0 v2)
@@ -76,7 +77,7 @@ export function useP0JourneySearch() {
 
     const origins = Array.isArray(origin) ? origin : [origin];
     const destinations = Array.isArray(destination) ? destination : [destination];
-    const dateStr = String(date || departureDate).slice(0, 10);
+    const dateStr = normalizeDate(date || departureDate) || String(date || departureDate).slice(0, 10);
 
     searchCriteriaRef.current = { origins, destinations, date: dateStr, travelClass: cls, quota };
 

@@ -1,5 +1,6 @@
 import api from './api.js';
 import { generateActionId } from './p0SearchCache.js';
+import { normalizeDate } from '../utils/formatters.js';
 
 /**
  * Journey Search Service
@@ -50,19 +51,20 @@ export const journeyService = {
     }
 
     try {
+      const cleanDate = normalizeDate(departureDate) || departureDate;
       const actionId = params.actionId || generateActionId();
       const response = await api.journeysV2.search({
         actionId,
         origins: [origin.trim()],
         destinations: [destination.trim()],
-        date: departureDate,
+        date: cleanDate,
         class: params.travelClass || params.class || 'ANY',
         quota: params.quota || 'GN',
         mode: params.mode || 'default',
         // Legacy parameters for backwards compatibility:
         origin: origin.trim(),
         destination: destination.trim(),
-        departureDate,
+        departureDate: cleanDate,
         ranking,
         passengers,
         requestedModes,

@@ -6,6 +6,7 @@ import {
   formatPrice,
   formatTime,
   formatDateDisplay,
+  normalizeDate,
   getDayOffset,
   formatDayOffsetBadge,
   getPriceLabel,
@@ -127,5 +128,27 @@ describe('ResultCard & Show Details Page/Modal Integration Tests', () => {
     const formatted = formatPrice(rawPrice, 'INR');
     assert.ok(formatted.includes('1,200') || formatted.includes('1200'));
     assert.ok(!formatted.includes('unavailable'));
+  });
+
+  it('6. normalizeDate and formatDateDisplay handle DD-MM-YYYY without 1930s year overflow', () => {
+    // DD-MM-YYYY format from RailKit API
+    assert.equal(normalizeDate('25-10-2026'), '2026-10-25');
+    assert.equal(normalizeDate('26-10-2026'), '2026-10-26');
+    assert.equal(normalizeDate('27-10-2026'), '2026-10-27');
+    assert.equal(normalizeDate('28-10-2026'), '2026-10-28');
+
+    // YYYY-MM-DD format
+    assert.equal(normalizeDate('2026-10-25'), '2026-10-25');
+
+    // Display formatting
+    assert.equal(formatDateDisplay('25-10-2026'), '25 Oct 2026');
+    assert.equal(formatDateDisplay('26-10-2026'), '26 Oct 2026');
+    assert.equal(formatDateDisplay('27-10-2026'), '27 Oct 2026');
+    assert.equal(formatDateDisplay('28-10-2026'), '28 Oct 2026');
+    assert.equal(formatDateDisplay('2026-10-25'), '25 Oct 2026');
+
+    // Verify it NEVER produces 1931, 1932, 1933, 1934
+    assert.ok(!formatDateDisplay('25-10-2026').includes('1931'));
+    assert.ok(!formatDateDisplay('26-10-2026').includes('1932'));
   });
 });

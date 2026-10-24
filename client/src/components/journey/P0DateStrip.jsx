@@ -1,6 +1,6 @@
 import React from 'react';
 import { Calendar, Sparkles } from 'lucide-react';
-import { formatDateDisplay } from '../../utils/formatters.js';
+import { formatDateDisplay, normalizeDate } from '../../utils/formatters.js';
 
 /**
  * P0DateStrip Component (P0 v2)
@@ -19,6 +19,8 @@ export function P0DateStrip({
     return null;
   }
 
+  const currentDateNorm = normalizeDate(currentDate) || currentDate;
+
   return (
     <div className="w-full overflow-x-auto pb-1" aria-label="Nearby dates availability">
       <div className="flex items-center gap-2 min-w-max py-1">
@@ -28,15 +30,25 @@ export function P0DateStrip({
         </div>
 
         {dateStrip.map((item, idx) => {
-          const isCurrent = item.date === currentDate;
-          const isConfirmed = item.bestTier === 'AVAILABLE' || item.confirmed;
-          const cached = isCachedDate(item.date);
+          const itemDateNorm = normalizeDate(item.date) || item.date;
+          const isCurrent = Boolean(
+            (itemDateNorm && currentDateNorm && itemDateNorm === currentDateNorm) ||
+            item.date === currentDate
+          );
+          const isConfirmed = Boolean(
+            item.bestTier === 'AVAILABLE' ||
+            item.confirmed ||
+            item.normalizedStatus === 'AVAILABLE' ||
+            item.status === 'AVAILABLE'
+          );
+          const cached = isCachedDate(item.date) || isCachedDate(itemDateNorm);
+          const displayDateStr = formatDateDisplay(item.date);
 
           return (
             <button
-              key={item.date || idx}
+              key={itemDateNorm || item.date || idx}
               type="button"
-              onClick={() => onSelectDate && onSelectDate(item.date)}
+              onClick={() => onSelectDate && onSelectDate(itemDateNorm || item.date)}
               className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs transition-all cursor-pointer ${
                 isCurrent
                   ? 'border border-[#E8B04A] bg-[#E8B04A]/10 text-[#F0F1F3] font-bold shadow-sm shadow-[#E8B04A]/20'
@@ -46,11 +58,11 @@ export function P0DateStrip({
               }`}
               title={
                 isConfirmed
-                  ? `Confirmed seat available on ${item.date} (${item.class || 'any class'})`
-                  : `Search ${item.date}`
+                  ? `Confirmed seat available on ${displayDateStr} (${item.class || 'any class'})`
+                  : `Search ${displayDateStr}`
               }
             >
-              <span>{formatDateDisplay(item.date)}</span>
+              <span>{displayDateStr}</span>
               {item.availabilityText && !isConfirmed && (
                 <span className="text-[11px] text-[#A7AFBA]">· {item.availabilityText}</span>
               )}
