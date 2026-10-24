@@ -46,7 +46,6 @@ export function createGoldenMockEnvironment({
   const _searchCache = new Set();
   const _availCache = new Set();
   const _infoCache = new Set();
-  let _cancelledCached = false;
 
   const trains = DELHI_PATNA_22_TRAINS;
   const cancelledTrains = ['12562'];
@@ -59,7 +58,6 @@ export function createGoldenMockEnvironment({
       return _infoCache.has(String(num));
     },
     async getCancelledTrains() {
-      _cancelledCached = true;
       cancelledCalls++;
       return { success: true, data: cancelledTrains };
     },
@@ -137,6 +135,18 @@ export function createGoldenMockEnvironment({
     },
   };
 
+  const _cancelledCache = new Set();
+  const mockCancelledTrainsService = {
+    hasCached(d) {
+      return _cancelledCache.has(d);
+    },
+    async getCancelledTrains(d) {
+      _cancelledCache.add(d);
+      cancelledCalls++;
+      return new Set(cancelledTrains);
+    },
+  };
+
   const inMemoryCorridorHubs = {
     _store: new Map(),
     async getStoredHubs(origin, dest) {
@@ -152,6 +162,7 @@ export function createGoldenMockEnvironment({
   return {
     mockRailKit,
     mockAvailabilityService,
+    mockCancelledTrainsService,
     inMemoryCorridorHubs,
     actionBudgetService,
     getCounters: () => ({ searchCalls, cancelledCalls, availCalls, scheduleCalls, total: searchCalls + cancelledCalls + availCalls + scheduleCalls }),
@@ -160,7 +171,7 @@ export function createGoldenMockEnvironment({
 
 export async function executeSearch({
   mode = 'default',
-  confirmedOnTrain = null,
+  _confirmedOnTrain = null,
   env,
   actionId = 'golden_act',
   date = '2026-11-19', // Thursday in future
@@ -177,6 +188,7 @@ export async function executeSearch({
   const directPass = new DirectPassService({
     railKit: env.mockRailKit,
     availabilityService: env.mockAvailabilityService,
+    cancelledTrainsService: env.mockCancelledTrainsService,
     actionBudgetService: env.actionBudgetService,
   });
 
@@ -279,9 +291,9 @@ async function run() {
     const coldCounters = envCold.getCounters();
 
     // Warm run on same env
-    const warmRes = await executeSearch({
+    await executeSearch({
       mode: sc.mode,
-      confirmedOnTrain: sc.confirmedOnTrain,
+      _confirmedOnTrain: sc.confirmedOnTrain,
       env: envCold,
       actionId: `warm_${sc.name}`,
     });
@@ -310,7 +322,9 @@ async function run() {
   console.log(`Saved call counts: ${countsPath}`);
 }
 
-run().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
+  run().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

@@ -56,7 +56,7 @@
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:32:18.911Z",
+          "checkedAt": "2026-10-24T09:45:08.215Z",
           "reason": null
         },
         {
@@ -87,11 +87,11 @@
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:32:18.910Z",
+          "checkedAt": "2026-10-24T09:45:08.214Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:32:18.911Z",
+      "checkedAt": "2026-10-24T09:45:08.215Z",
       "fare": 1450
     },
     {
@@ -150,7 +150,7 @@
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:32:18.911Z",
+          "checkedAt": "2026-10-24T09:45:08.215Z",
           "reason": null
         },
         {
@@ -181,11 +181,11 @@
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:32:18.910Z",
+          "checkedAt": "2026-10-24T09:45:08.214Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:32:18.911Z",
+      "checkedAt": "2026-10-24T09:45:08.215Z",
       "fare": 1450
     },
     {
@@ -244,7 +244,7 @@
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:32:18.911Z",
+          "checkedAt": "2026-10-24T09:45:08.215Z",
           "reason": null
         },
         {
@@ -275,11 +275,11 @@
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:32:18.910Z",
+          "checkedAt": "2026-10-24T09:45:08.214Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:32:18.911Z",
+      "checkedAt": "2026-10-24T09:45:08.215Z",
       "fare": 1450
     },
     {
@@ -354,7 +354,7 @@
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:32:18.911Z",
+          "checkedAt": "2026-10-24T09:45:08.215Z",
           "reason": null
         },
         {
@@ -399,11 +399,11 @@
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:32:18.910Z",
+          "checkedAt": "2026-10-24T09:45:08.214Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:32:18.911Z",
+      "checkedAt": "2026-10-24T09:45:08.215Z",
       "fare": 1450
     },
     {
@@ -477,7 +477,7 @@
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:32:18.911Z",
+          "checkedAt": "2026-10-24T09:45:08.215Z",
           "reason": null
         },
         {
@@ -508,11 +508,11 @@
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:32:18.910Z",
+          "checkedAt": "2026-10-24T09:45:08.214Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:32:18.911Z",
+      "checkedAt": "2026-10-24T09:45:08.215Z",
       "fare": 1450
     },
     {
@@ -600,11 +600,11 @@
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:32:18.910Z",
+          "checkedAt": "2026-10-24T09:45:08.214Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:32:18.910Z",
+      "checkedAt": "2026-10-24T09:45:08.214Z",
       "fare": 1450
     },
     {
@@ -677,11 +677,11 @@
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:32:18.910Z",
+          "checkedAt": "2026-10-24T09:45:08.214Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:32:18.910Z",
+      "checkedAt": "2026-10-24T09:45:08.214Z",
       "fare": 1450
     },
     {
@@ -769,11 +769,11 @@
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:32:18.910Z",
+          "checkedAt": "2026-10-24T09:45:08.214Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:32:18.910Z",
+      "checkedAt": "2026-10-24T09:45:08.214Z",
       "fare": 1450
     }
   ],
@@ -1009,14 +1009,14 @@
     "count": 1
   },
   "budget": {
-    "used": 26,
+    "used": 27,
     "cap": 40,
     "partial": false,
-    "cacheHits": 23,
-    "cacheMisses": 26
+    "cacheHits": 22,
+    "cacheMisses": 27
   },
   "cache": {
-    "hits": 23,
-    "misses": 26
+    "hits": 22,
+    "misses": 27
   }
 }

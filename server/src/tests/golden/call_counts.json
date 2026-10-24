@@ -9,10 +9,10 @@
     },
     "warm": {
       "searchCalls": 1,
-      "cancelledCalls": 0,
+      "cancelledCalls": 1,
       "availCalls": 3,
       "scheduleCalls": 0,
-      "total": 4
+      "total": 5
     }
   },
   "alternatives_confirmed": {
@@ -50,17 +50,17 @@
   "default_all_wl": {
     "cold": {
       "searchCalls": 25,
-      "cancelledCalls": 0,
+      "cancelledCalls": 1,
       "availCalls": 17,
       "scheduleCalls": 2,
-      "total": 44
+      "total": 45
     },
     "warm": {
       "searchCalls": 25,
-      "cancelledCalls": 0,
+      "cancelledCalls": 1,
       "availCalls": 17,
       "scheduleCalls": 0,
-      "total": 42
+      "total": 43
     }
   },
   "alternatives_all_wl": {

@@ -19,15 +19,7 @@ import persistentCacheService from './persistentCache.service.js';
 import logger from '../../utils/logger.js';
 import { formatJourneyDate } from '../../utils/railwayTime.js';
 
-// Short-term error cache: key -> timestamp (max 30s TTL)
-const _errorCache = new Map();
 
-function cleanExpiredErrors() {
-  const now = Date.now();
-  for (const [k, v] of _errorCache.entries()) {
-    if (now - v > 30000) _errorCache.delete(k);
-  }
-}
 
 function getTrainNumber(t) {
   return String(t.train?.number || t.train_number || t.trainNumber || t.number || t.train_no || '');
@@ -49,6 +41,14 @@ export class RouteExtensionService {
     this.availabilityService = dependencies.availabilityService || availabilityService;
     this.actionBudgetService = dependencies.actionBudgetService || actionBudgetService;
     this.persistentCacheService = dependencies.persistentCacheService || persistentCacheService;
+    this._errorCache = new Map();
+  }
+
+  _cleanExpiredErrors() {
+    const now = Date.now();
+    for (const [k, v] of this._errorCache.entries()) {
+      if (now - v > 30000) this._errorCache.delete(k);
+    }
   }
 
   /**
@@ -123,7 +123,7 @@ export class RouteExtensionService {
     _actionType,
     referenceTrains,
   }) {
-    cleanExpiredErrors();
+    this._cleanExpiredErrors();
 
     if (!originCode || !destCode || !date) {
       return { plans: [], metadata: { status: 'skipped', reason: 'missing_parameters' } };
@@ -222,8 +222,21 @@ export class RouteExtensionService {
         continue;
       }
 
-      // 3. Candidate stations Y after B (up to 3 nearest first)
-      const stationsAfterB = rawRoute.slice(idxB + 1);
+      // 3. Candidate stations Y after B (up to 3 nearest first, strictly forward downstream)
+      const distB = parseFloat(rawRoute[idxB]?.distance || '0');
+      const seen = new Set([A, B]);
+      for (let i = 0; i <= idxB; i++) {
+        seen.add(normalizeStationCode(rawRoute[i]));
+      }
+      const stationsAfterB = rawRoute.slice(idxB + 1).filter((s) => {
+        const code = normalizeStationCode(s);
+        if (!code || seen.has(code)) return false;
+        const d = parseFloat(s?.distance || '0');
+        if (d && distB && d <= distB) return false;
+        seen.add(code);
+        return true;
+      });
+
       if (stationsAfterB.length === 0) {
         // Terminus is B -> no stoppage after B
         continue;
@@ -239,7 +252,7 @@ export class RouteExtensionService {
         if (!Y) continue;
 
         const errKey = `ext:err:${trainNo}:${A}:${Y}:${targetClass}:${dateStr}`;
-        if (_errorCache.has(errKey)) {
+        if (this._errorCache.has(errKey)) {
           // Skip if errored in the last 30s
           continue;
         }
@@ -286,7 +299,7 @@ export class RouteExtensionService {
             }
           } catch (availErr) {
             logger.warn(`[RouteExtension] Availability error for ${trainNo} ${A}->${Y}: ${availErr.message}`);
-            _errorCache.set(errKey, Date.now());
+            this._errorCache.set(errKey, Date.now());
             continue;
           }
         }

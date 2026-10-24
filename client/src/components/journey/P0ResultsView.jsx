@@ -379,7 +379,7 @@ export function P0ResultsView({
         <div className="space-y-3">
           {filteredAlternatives.map((alt, idx) => {
             if (alt.type === 'EXTENSION') {
-              if (features && features.extension === false) return null;
+              if (!features || !features.extension) return null;
               return (
                 <P0ExtensionCard
                   key={`ext-${alt.trainNumber || idx}`}
