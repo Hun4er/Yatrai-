@@ -1,0 +1,61 @@
+{
+  "success": true,
+  "data": {
+    "train": {
+      "trainNo": "12394",
+      "trainName": "SAMPOORAN K EXP",
+      "from": "NDLS",
+      "to": "RJPB",
+      "fromStationName": "New Delhi",
+      "toStationName": "Rajendra Nagar Bihar",
+      "distance": 1003,
+      "travelClass": "3A",
+      "quota": "GN"
+    },
+    "fare": {
+      "baseFare": 1258,
+      "reservationCharge": 40,
+      "superfastCharge": 45,
+      "serviceTax": 67,
+      "totalFare": 1410
+    },
+    "availability": [
+      {
+        "date": "12-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "Regret",
+        "rawStatus": "REGRET",
+        "prediction": "No More Booking",
+        "predictionPercentage": 0,
+        "canBook": false
+      },
+      {
+        "date": "13-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "Regret",
+        "rawStatus": "REGRET",
+        "prediction": "No More Booking",
+        "predictionPercentage": 0,
+        "canBook": false
+      },
+      {
+        "date": "14-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 119",
+        "rawStatus": "GNWL182/WL119",
+        "prediction": "Low Chance",
+        "predictionPercentage": 23,
+        "canBook": true
+      },
+      {
+        "date": "15-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 87",
+        "rawStatus": "GNWL123/WL87",
+        "prediction": "39% Chance",
+        "predictionPercentage": 39,
+        "canBook": true
+      }
+    ]
+  }
+}

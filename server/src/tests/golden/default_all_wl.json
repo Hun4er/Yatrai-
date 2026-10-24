@@ -40,23 +40,23 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-19",
+              "date": "2026-11-12",
               "status": "WL"
             },
             {
-              "date": "2026-11-16",
+              "date": "2026-11-09",
               "status": "WL"
             },
             {
-              "date": "2026-11-17",
+              "date": "2026-11-10",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-18",
+              "date": "2026-11-11",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:45:08.215Z",
+          "checkedAt": "2026-10-24T10:34:17.216Z",
           "reason": null
         },
         {
@@ -71,27 +71,27 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-19",
+              "date": "2026-11-12",
               "status": "WL"
             },
             {
-              "date": "2026-11-16",
+              "date": "2026-11-09",
               "status": "WL"
             },
             {
-              "date": "2026-11-17",
+              "date": "2026-11-10",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-18",
+              "date": "2026-11-11",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:45:08.214Z",
+          "checkedAt": "2026-10-24T10:34:17.213Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:45:08.215Z",
+      "checkedAt": "2026-10-24T10:34:17.216Z",
       "fare": 1450
     },
     {
@@ -134,23 +134,23 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-19",
+              "date": "2026-11-12",
               "status": "WL"
             },
             {
-              "date": "2026-11-16",
+              "date": "2026-11-09",
               "status": "WL"
             },
             {
-              "date": "2026-11-17",
+              "date": "2026-11-10",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-18",
+              "date": "2026-11-11",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:45:08.215Z",
+          "checkedAt": "2026-10-24T10:34:17.216Z",
           "reason": null
         },
         {
@@ -165,27 +165,27 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-19",
+              "date": "2026-11-12",
               "status": "WL"
             },
             {
-              "date": "2026-11-16",
+              "date": "2026-11-09",
               "status": "WL"
             },
             {
-              "date": "2026-11-17",
+              "date": "2026-11-10",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-18",
+              "date": "2026-11-11",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:45:08.214Z",
+          "checkedAt": "2026-10-24T10:34:17.213Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:45:08.215Z",
+      "checkedAt": "2026-10-24T10:34:17.216Z",
       "fare": 1450
     },
     {
@@ -228,58 +228,58 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-19",
+              "date": "2026-11-12",
               "status": "WL"
             },
             {
-              "date": "2026-11-16",
+              "date": "2026-11-09",
               "status": "WL"
             },
             {
-              "date": "2026-11-17",
+              "date": "2026-11-10",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-18",
+              "date": "2026-11-11",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:45:08.215Z",
+          "checkedAt": "2026-10-24T10:34:17.216Z",
           "reason": null
         },
         {
           "class": "3A",
           "state": "CHECKED",
           "tier": "WAITLIST",
-          "availabilityText": "GNWL 15",
-          "fare": 1450,
+          "availabilityText": "Regret",
+          "fare": 2545,
           "predictionPercentage": 45,
           "waitlistPosition": null,
           "racPosition": null,
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-19",
+              "date": "2026-11-12",
               "status": "WL"
             },
             {
-              "date": "2026-11-16",
+              "date": "2026-11-09",
               "status": "WL"
             },
             {
-              "date": "2026-11-17",
+              "date": "2026-11-10",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-18",
+              "date": "2026-11-11",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:45:08.214Z",
+          "checkedAt": "2026-10-24T10:34:17.214Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:45:08.215Z",
+      "checkedAt": "2026-10-24T10:34:17.216Z",
       "fare": 1450
     },
     {
@@ -330,31 +330,31 @@
           "class": "3A",
           "state": "CHECKED",
           "tier": "WAITLIST",
-          "availabilityText": "GNWL 15",
-          "fare": 1450,
+          "availabilityText": "Regret",
+          "fare": 1390,
           "predictionPercentage": 45,
           "waitlistPosition": null,
           "racPosition": null,
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-19",
+              "date": "2026-11-12",
               "status": "WL"
             },
             {
-              "date": "2026-11-16",
+              "date": "2026-11-09",
               "status": "WL"
             },
             {
-              "date": "2026-11-17",
+              "date": "2026-11-10",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-18",
+              "date": "2026-11-11",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:45:08.215Z",
+          "checkedAt": "2026-10-24T10:34:17.217Z",
           "reason": null
         },
         {
@@ -383,28 +383,28 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-19",
+              "date": "2026-11-12",
               "status": "WL"
             },
             {
-              "date": "2026-11-16",
+              "date": "2026-11-09",
               "status": "WL"
             },
             {
-              "date": "2026-11-17",
+              "date": "2026-11-10",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-18",
+              "date": "2026-11-11",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:45:08.214Z",
+          "checkedAt": "2026-10-24T10:34:17.214Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:45:08.215Z",
-      "fare": 1450
+      "checkedAt": "2026-10-24T10:34:17.217Z",
+      "fare": 1390
     },
     {
       "trainNumber": "12304",
@@ -453,31 +453,31 @@
           "class": "3A",
           "state": "CHECKED",
           "tier": "WAITLIST",
-          "availabilityText": "GNWL 15",
-          "fare": 1450,
+          "availabilityText": "WL 140",
+          "fare": 1390,
           "predictionPercentage": 45,
           "waitlistPosition": null,
           "racPosition": null,
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-19",
+              "date": "2026-11-12",
               "status": "WL"
             },
             {
-              "date": "2026-11-16",
+              "date": "2026-11-09",
               "status": "WL"
             },
             {
-              "date": "2026-11-17",
+              "date": "2026-11-10",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-18",
+              "date": "2026-11-11",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:45:08.215Z",
+          "checkedAt": "2026-10-24T10:34:17.217Z",
           "reason": null
         },
         {
@@ -492,28 +492,28 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-19",
+              "date": "2026-11-12",
               "status": "WL"
             },
             {
-              "date": "2026-11-16",
+              "date": "2026-11-09",
               "status": "WL"
             },
             {
-              "date": "2026-11-17",
+              "date": "2026-11-10",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-18",
+              "date": "2026-11-11",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:45:08.214Z",
+          "checkedAt": "2026-10-24T10:34:17.214Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:45:08.215Z",
-      "fare": 1450
+      "checkedAt": "2026-10-24T10:34:17.217Z",
+      "fare": 1390
     },
     {
       "trainNumber": "12506",
@@ -584,27 +584,27 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-19",
+              "date": "2026-11-12",
               "status": "WL"
             },
             {
-              "date": "2026-11-16",
+              "date": "2026-11-09",
               "status": "WL"
             },
             {
-              "date": "2026-11-17",
+              "date": "2026-11-10",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-18",
+              "date": "2026-11-11",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:45:08.214Z",
+          "checkedAt": "2026-10-24T10:34:17.214Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:45:08.214Z",
+      "checkedAt": "2026-10-24T10:34:17.214Z",
       "fare": 1450
     },
     {
@@ -661,27 +661,27 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-19",
+              "date": "2026-11-12",
               "status": "WL"
             },
             {
-              "date": "2026-11-16",
+              "date": "2026-11-09",
               "status": "WL"
             },
             {
-              "date": "2026-11-17",
+              "date": "2026-11-10",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-18",
+              "date": "2026-11-11",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:45:08.214Z",
+          "checkedAt": "2026-10-24T10:34:17.215Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:45:08.214Z",
+      "checkedAt": "2026-10-24T10:34:17.215Z",
       "fare": 1450
     },
     {
@@ -753,27 +753,27 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-19",
+              "date": "2026-11-12",
               "status": "WL"
             },
             {
-              "date": "2026-11-16",
+              "date": "2026-11-09",
               "status": "WL"
             },
             {
-              "date": "2026-11-17",
+              "date": "2026-11-10",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-18",
+              "date": "2026-11-11",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T09:45:08.214Z",
+          "checkedAt": "2026-10-24T10:34:17.215Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T09:45:08.214Z",
+      "checkedAt": "2026-10-24T10:34:17.215Z",
       "fare": 1450
     }
   ],
@@ -983,19 +983,19 @@
   "alternatives": [],
   "dateStrip": [
     {
-      "date": "2026-11-19",
+      "date": "2026-11-12",
       "status": "WL"
     },
     {
-      "date": "2026-11-16",
+      "date": "2026-11-09",
       "status": "WL"
     },
     {
-      "date": "2026-11-17",
+      "date": "2026-11-10",
       "status": "AVAILABLE"
     },
     {
-      "date": "2026-11-18",
+      "date": "2026-11-11",
       "status": "WL"
     }
   ],

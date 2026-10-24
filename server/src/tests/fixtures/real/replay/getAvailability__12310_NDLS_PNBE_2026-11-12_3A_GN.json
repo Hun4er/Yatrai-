@@ -1,0 +1,61 @@
+{
+  "success": true,
+  "data": {
+    "train": {
+      "trainNo": "12310",
+      "trainName": "RJPB TEJAS RAJ",
+      "from": "NDLS",
+      "to": "PNBE",
+      "fromStationName": "New Delhi",
+      "toStationName": "Patna Junction",
+      "distance": 1000,
+      "travelClass": "3A",
+      "quota": "GN"
+    },
+    "fare": {
+      "baseFare": 1482,
+      "reservationCharge": 40,
+      "superfastCharge": 45,
+      "serviceTax": 108,
+      "totalFare": 2545
+    },
+    "availability": [
+      {
+        "date": "12-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "Regret",
+        "rawStatus": "REGRET",
+        "prediction": "No More Booking",
+        "predictionPercentage": 0,
+        "canBook": false
+      },
+      {
+        "date": "13-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "Regret",
+        "rawStatus": "REGRET",
+        "prediction": "No More Booking",
+        "predictionPercentage": 0,
+        "canBook": false
+      },
+      {
+        "date": "14-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 205",
+        "rawStatus": "GNWL346/WL205",
+        "prediction": "Low Chance",
+        "predictionPercentage": 16,
+        "canBook": true
+      },
+      {
+        "date": "15-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 116",
+        "rawStatus": "GNWL183/WL116",
+        "prediction": "Low Chance",
+        "predictionPercentage": 25,
+        "canBook": true
+      }
+    ]
+  }
+}

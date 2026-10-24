@@ -1,0 +1,61 @@
+{
+  "success": true,
+  "data": {
+    "train": {
+      "trainNo": "12310",
+      "trainName": "RJPB TEJAS RAJ",
+      "from": "NDLS",
+      "to": "CNB",
+      "fromStationName": "New Delhi",
+      "toStationName": "Kanpur Central",
+      "distance": 441,
+      "travelClass": "3A",
+      "quota": "GN"
+    },
+    "fare": {
+      "baseFare": 814,
+      "reservationCharge": 40,
+      "superfastCharge": 45,
+      "serviceTax": 62,
+      "totalFare": 1565
+    },
+    "availability": [
+      {
+        "date": "12-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "Regret",
+        "rawStatus": "REGRET",
+        "prediction": "No More Booking",
+        "predictionPercentage": 0,
+        "canBook": false
+      },
+      {
+        "date": "13-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "Regret",
+        "rawStatus": "REGRET",
+        "prediction": "No More Booking",
+        "predictionPercentage": 0,
+        "canBook": false
+      },
+      {
+        "date": "14-11-2026",
+        "status": "AVAILABLE",
+        "availabilityText": "AVL 6",
+        "rawStatus": "AVAILABLE-0006",
+        "prediction": "Available",
+        "predictionPercentage": 100,
+        "canBook": true
+      },
+      {
+        "date": "15-11-2026",
+        "status": "AVAILABLE",
+        "availabilityText": "AVL 16",
+        "rawStatus": "AVAILABLE-0016",
+        "prediction": "Available",
+        "predictionPercentage": 100,
+        "canBook": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "success": true,
+  "data": {
+    "train": {
+      "trainNo": "12310",
+      "trainName": "RJPB TEJAS RAJ",
+      "from": "NDLS",
+      "to": "RJPB",
+      "fromStationName": "New Delhi",
+      "toStationName": "Rajendra Nagar Bihar",
+      "distance": 1003,
+      "travelClass": "3A",
+      "quota": "GN"
+    },
+    "fare": {
+      "baseFare": 1505,
+      "reservationCharge": 40,
+      "superfastCharge": 45,
+      "serviceTax": 110,
+      "totalFare": 2580
+    },
+    "availability": [
+      {
+        "date": "12-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "Regret",
+        "rawStatus": "REGRET",
+        "prediction": "No More Booking",
+        "predictionPercentage": 0,
+        "canBook": false
+      },
+      {
+        "date": "13-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "Regret",
+        "rawStatus": "REGRET",
+        "prediction": "No More Booking",
+        "predictionPercentage": 0,
+        "canBook": false
+      },
+      {
+        "date": "14-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 204",
+        "rawStatus": "GNWL345/WL204",
+        "prediction": "Low Chance",
+        "predictionPercentage": 16,
+        "canBook": true
+      },
+      {
+        "date": "15-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 117",
+        "rawStatus": "GNWL181/WL117",
+        "prediction": "Low Chance",
+        "predictionPercentage": 26,
+        "canBook": true
+      }
+    ]
+  }
+}

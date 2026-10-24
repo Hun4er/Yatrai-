@@ -1,0 +1,538 @@
+{
+  "success": true,
+  "data": {
+    "trainInfo": {
+      "train_no": "12424",
+      "train_name": "DBRT RAJDHANI",
+      "from_stn_name": "NEW DELHI",
+      "from_stn_code": "NDLS",
+      "to_stn_name": "DIBRUGARH",
+      "to_stn_code": "DBRG",
+      "from_time": "16:20",
+      "to_time": "06:20",
+      "travel_time": "38:00 hrs",
+      "running_days": "1111111",
+      "type": "RAJDHANI",
+      "train_name_hindi": "राजधानि",
+      "type_code": "RAJ",
+      "subtype": "RAJDHANI",
+      "owning_railway": "NR",
+      "gauge": "BG",
+      "total_distance": 2432,
+      "destination_day": 3,
+      "classes": [
+        "1A",
+        "2A",
+        "3A"
+      ],
+      "prs_classes": [
+        "1A",
+        "2A",
+        "3A"
+      ],
+      "pantry_type": "PC"
+    },
+    "route": [
+      {
+        "stnCode": "NDLS",
+        "stnName": "NEW DELHI",
+        "arrival": "--",
+        "departure": "16:20",
+        "halt": "0 min",
+        "haltMinutes": 0,
+        "distance": "0",
+        "day": "1",
+        "platform": 15,
+        "coordinates": {
+          "latitude": 28.642464,
+          "longitude": 77.220154
+        },
+        "stationNameHindi": "नई दिल्ली",
+        "division": "DLI",
+        "zone": "NR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "CNB",
+        "stnName": "KANPUR CENTRAL",
+        "arrival": "21:00",
+        "departure": "21:05",
+        "halt": "5 min",
+        "haltMinutes": 5,
+        "distance": "441",
+        "day": "1",
+        "platform": 6,
+        "coordinates": {
+          "latitude": 26.45436,
+          "longitude": 80.351086
+        },
+        "stationNameHindi": "कानपुर सैंट्रल",
+        "division": "PRYJ",
+        "zone": "NCR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "PRYJ",
+        "stnName": "PRAYAGRAJ JN",
+        "arrival": "23:08",
+        "departure": "23:10",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "635",
+        "day": "1",
+        "platform": 4,
+        "coordinates": {
+          "latitude": 25.445871,
+          "longitude": 81.828446
+        },
+        "stationNameHindi": "प्रयागराज जं.",
+        "division": "PRYJ",
+        "zone": "NCR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "DDU",
+        "stnName": "PT.DEEN DAYAL UPADHYAYA JN",
+        "arrival": "01:13",
+        "departure": "01:20",
+        "halt": "7 min",
+        "haltMinutes": 7,
+        "distance": "788",
+        "day": "2",
+        "platform": 3,
+        "coordinates": {
+          "latitude": 25.278539,
+          "longitude": 83.11964
+        },
+        "stationNameHindi": "पं. दीन दयाल उपाध्याय जं",
+        "division": "DDU",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "DNR",
+        "stnName": "DANAPUR",
+        "arrival": "03:38",
+        "departure": "03:40",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "986",
+        "day": "2",
+        "platform": "1A",
+        "coordinates": {
+          "latitude": 25.582201,
+          "longitude": 85.044909
+        },
+        "stationNameHindi": "दानापुर",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "PPTA",
+        "stnName": "PATLIPUTRA",
+        "arrival": "04:00",
+        "departure": "04:10",
+        "halt": "10 min",
+        "haltMinutes": 10,
+        "distance": "992",
+        "day": "2",
+        "platform": 4,
+        "coordinates": {
+          "latitude": 25.62155,
+          "longitude": 85.068892
+        },
+        "stationNameHindi": "पाटलिपुत्र",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "BJU",
+        "stnName": "BARAUNI JN",
+        "arrival": "06:35",
+        "departure": "06:45",
+        "halt": "10 min",
+        "haltMinutes": 10,
+        "distance": "1100",
+        "day": "2",
+        "platform": 4,
+        "coordinates": {
+          "latitude": 25.462088,
+          "longitude": 85.989068
+        },
+        "stationNameHindi": "बरौनी जं.",
+        "division": "SEE",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "MNE",
+        "stnName": "MANSI JN",
+        "arrival": "07:38",
+        "departure": "07:40",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1165",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 25.509408,
+          "longitude": 86.554456
+        },
+        "stationNameHindi": "मानसी जं",
+        "division": "SEE",
+        "zone": "",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "NNA",
+        "stnName": "NAUGACHIA",
+        "arrival": "08:24",
+        "departure": "08:26",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1223",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.3848,
+          "longitude": 87.0934
+        },
+        "stationNameHindi": "नौगछिया",
+        "division": "SEE",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "KIR",
+        "stnName": "KATIHAR JN",
+        "arrival": "09:35",
+        "departure": "09:45",
+        "halt": "10 min",
+        "haltMinutes": 10,
+        "distance": "1280",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.548637,
+          "longitude": 87.566099
+        },
+        "stationNameHindi": "कटिहार जं",
+        "division": "KIR",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "KNE",
+        "stnName": "KISHANGANJ",
+        "arrival": "11:00",
+        "departure": "11:02",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1378",
+        "day": "2",
+        "platform": "",
+        "coordinates": {
+          "latitude": 26.098066,
+          "longitude": 87.949977
+        },
+        "stationNameHindi": "किशनगंज",
+        "division": "KIR",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "NJP",
+        "stnName": "NEW JALPAIGURI",
+        "arrival": "12:30",
+        "departure": "12:40",
+        "halt": "10 min",
+        "haltMinutes": 10,
+        "distance": "1465",
+        "day": "2",
+        "platform": 4,
+        "coordinates": {
+          "latitude": 26.682665,
+          "longitude": 88.443031
+        },
+        "stationNameHindi": "न्यू जलपाईगुड़ी",
+        "division": "KIR",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "NCB",
+        "stnName": "NEW COOCH BEHAR",
+        "arrival": "14:15",
+        "departure": "14:17",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1591",
+        "day": "2",
+        "platform": 4,
+        "coordinates": {
+          "latitude": 26.352959,
+          "longitude": 89.469566
+        },
+        "stationNameHindi": "न्यू कूच बिहार",
+        "division": "APDJ",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "KOJ",
+        "stnName": "KOKRAJHAR",
+        "arrival": "15:15",
+        "departure": "15:17",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1688",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 26.4052,
+          "longitude": 90.2743
+        },
+        "stationNameHindi": "कोकराझार",
+        "division": "APDJ",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "NBQ",
+        "stnName": "NEW BONGAIGAON",
+        "arrival": "16:15",
+        "departure": "16:25",
+        "halt": "10 min",
+        "haltMinutes": 10,
+        "distance": "1719",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 26.474415,
+          "longitude": 90.536098
+        },
+        "stationNameHindi": "न्यू बोंगाईगांव",
+        "division": "RNY",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "RNY",
+        "stnName": "RANGIYA JN",
+        "arrival": "17:40",
+        "departure": "17:42",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1829",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 26.447521,
+          "longitude": 91.605549
+        },
+        "stationNameHindi": "रंगिया ज",
+        "division": "RNY",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "GHY",
+        "stnName": "GUWAHATI",
+        "arrival": "19:10",
+        "departure": "19:25",
+        "halt": "15 min",
+        "haltMinutes": 15,
+        "distance": "1876",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 26.182245,
+          "longitude": 91.751461
+        },
+        "stationNameHindi": "गुवाहाटी",
+        "division": "LMG",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "CPK",
+        "stnName": "CHAPARMUKH JN",
+        "arrival": "20:43",
+        "departure": "20:45",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1967",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 26.202732,
+          "longitude": 92.512178
+        },
+        "stationNameHindi": "चम्पारमुख जं",
+        "division": "LMG",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "LMG",
+        "stnName": "LUMDING JN",
+        "arrival": "22:15",
+        "departure": "22:20",
+        "halt": "5 min",
+        "haltMinutes": 5,
+        "distance": "2057",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.750116,
+          "longitude": 93.17668
+        },
+        "stationNameHindi": "लमडिंग जं.",
+        "division": "LMG",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "DPU",
+        "stnName": "DIPHU",
+        "arrival": "22:50",
+        "departure": "22:52",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "2089",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 25.8369,
+          "longitude": 93.438034
+        },
+        "stationNameHindi": "दिफू",
+        "division": "LMG",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "DMV",
+        "stnName": "DIMAPUR",
+        "arrival": "23:30",
+        "departure": "23:37",
+        "halt": "7 min",
+        "haltMinutes": 7,
+        "distance": "2126",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 25.905942,
+          "longitude": 93.728056
+        },
+        "stationNameHindi": "दिमापुर",
+        "division": "LMG",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "FKG",
+        "stnName": "FURKATING JN",
+        "arrival": "00:58",
+        "departure": "01:00",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "2196",
+        "day": "3",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 26.465502,
+          "longitude": 94.002542
+        },
+        "stationNameHindi": "फुर्केटिंग जं",
+        "division": "TSK",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "MXN",
+        "stnName": "MARIANI JN",
+        "arrival": "02:10",
+        "departure": "02:15",
+        "halt": "5 min",
+        "haltMinutes": 5,
+        "distance": "2234",
+        "day": "3",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 26.652675,
+          "longitude": 94.308443
+        },
+        "stationNameHindi": "मरियानी जं",
+        "division": "TSK",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "NTSK",
+        "stnName": "NEW TINSUKIA",
+        "arrival": "04:20",
+        "departure": "04:30",
+        "halt": "10 min",
+        "haltMinutes": 10,
+        "distance": "2390",
+        "day": "3",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 27.479568,
+          "longitude": 95.333948
+        },
+        "stationNameHindi": "न्यू तिनसुकिया",
+        "division": "TSK",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "DBRG",
+        "stnName": "DIBRUGARH",
+        "arrival": "06:20",
+        "departure": "--",
+        "halt": "0 min",
+        "haltMinutes": 0,
+        "distance": "2432",
+        "day": "3",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 27.477959,
+          "longitude": 94.901329
+        },
+        "stationNameHindi": "डिब्रूगढ़",
+        "division": "TSK",
+        "zone": "NFR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      }
+    ]
+  }
+}

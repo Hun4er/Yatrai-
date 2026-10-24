@@ -1,0 +1,204 @@
+{
+  "success": true,
+  "data": {
+    "trainInfo": {
+      "train_no": "12394",
+      "train_name": "SAMPOORAN K EXP",
+      "from_stn_name": "NEW DELHI",
+      "from_stn_code": "NDLS",
+      "to_stn_name": "RAJENDRA NAGAR TERMINAL",
+      "to_stn_code": "RJPB",
+      "from_time": "17:30",
+      "to_time": "07:15",
+      "travel_time": "13:45 hrs",
+      "running_days": "1111111",
+      "type": "SUPERFAST",
+      "train_name_hindi": "सम्पूर्ण क्रान्ति एक्सप्रेस",
+      "type_code": "SUF",
+      "subtype": "SUPERFAST",
+      "owning_railway": "ECR",
+      "gauge": "BG",
+      "total_distance": 997,
+      "destination_day": 2,
+      "classes": [
+        "1A",
+        "2A",
+        "3A",
+        "3E",
+        "SL",
+        "GEN",
+        "PWD"
+      ],
+      "prs_classes": [
+        "1A",
+        "2A",
+        "3A",
+        "3E",
+        "SL"
+      ],
+      "pantry_type": "PC"
+    },
+    "route": [
+      {
+        "stnCode": "NDLS",
+        "stnName": "NEW DELHI",
+        "arrival": "--",
+        "departure": "17:30",
+        "halt": "0 min",
+        "haltMinutes": 0,
+        "distance": "0",
+        "day": "1",
+        "platform": 16,
+        "coordinates": {
+          "latitude": 28.642464,
+          "longitude": 77.220154
+        },
+        "stationNameHindi": "नई दिल्ली",
+        "division": "DLI",
+        "zone": "NR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "CNB",
+        "stnName": "KANPUR CENTRAL",
+        "arrival": "22:22",
+        "departure": "22:30",
+        "halt": "8 min",
+        "haltMinutes": 8,
+        "distance": "441",
+        "day": "1",
+        "platform": 4,
+        "coordinates": {
+          "latitude": 26.45436,
+          "longitude": 80.351086
+        },
+        "stationNameHindi": "कानपुर सैंट्रल",
+        "division": "PRYJ",
+        "zone": "NCR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "MZP",
+        "stnName": "MIRZAPUR",
+        "arrival": "01:43",
+        "departure": "01:45",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "725",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 25.1342,
+          "longitude": 82.5698
+        },
+        "stationNameHindi": "मिर्जापुर",
+        "division": "PRYJ",
+        "zone": "NCR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "DDU",
+        "stnName": "PT.DEEN DAYAL UPADHYAYA JN",
+        "arrival": "03:18",
+        "departure": "03:25",
+        "halt": "7 min",
+        "haltMinutes": 7,
+        "distance": "788",
+        "day": "2",
+        "platform": 3,
+        "coordinates": {
+          "latitude": 25.278539,
+          "longitude": 83.11964
+        },
+        "stationNameHindi": "पं. दीन दयाल उपाध्याय जं",
+        "division": "DDU",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "ARA",
+        "stnName": "ARA",
+        "arrival": "05:13",
+        "departure": "05:15",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "946",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.5488,
+          "longitude": 84.6625
+        },
+        "stationNameHindi": "आरा",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "DNR",
+        "stnName": "DANAPUR",
+        "arrival": "05:48",
+        "departure": "05:50",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "986",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.582201,
+          "longitude": 85.044909
+        },
+        "stationNameHindi": "दानापुर",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "PNBE",
+        "stnName": "PATNA JN",
+        "arrival": "06:38",
+        "departure": "06:45",
+        "halt": "7 min",
+        "haltMinutes": 7,
+        "distance": "995",
+        "day": "2",
+        "platform": 5,
+        "coordinates": {
+          "latitude": 25.60287,
+          "longitude": 85.137134
+        },
+        "stationNameHindi": "पटना जं",
+        "division": "DNR",
+        "zone": "",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "RJPB",
+        "stnName": "RAJENDRA NAGAR TERMINAL",
+        "arrival": "07:15",
+        "departure": "--",
+        "halt": "0 min",
+        "haltMinutes": 0,
+        "distance": "998",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 25.603141,
+          "longitude": 85.162239
+        },
+        "stationNameHindi": "राजेंद्र नगर टर्मिनल",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      }
+    ]
+  }
+}

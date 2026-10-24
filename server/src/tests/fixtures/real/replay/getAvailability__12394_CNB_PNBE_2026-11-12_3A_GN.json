@@ -1,0 +1,61 @@
+{
+  "success": true,
+  "data": {
+    "train": {
+      "trainNo": "12394",
+      "trainName": "SAMPOORAN K EXP",
+      "from": "CNB",
+      "to": "PNBE",
+      "fromStationName": "Kanpur Central",
+      "toStationName": "Patna Junction",
+      "distance": 560,
+      "travelClass": "3A",
+      "quota": "GN"
+    },
+    "fare": {
+      "baseFare": 824,
+      "reservationCharge": 40,
+      "superfastCharge": 45,
+      "serviceTax": 46,
+      "totalFare": 955
+    },
+    "availability": [
+      {
+        "date": "12-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "Regret",
+        "rawStatus": "REGRET",
+        "prediction": "No More Booking",
+        "predictionPercentage": 0,
+        "canBook": false
+      },
+      {
+        "date": "13-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "Regret",
+        "rawStatus": "REGRET",
+        "prediction": "No More Booking",
+        "predictionPercentage": 0,
+        "canBook": false
+      },
+      {
+        "date": "14-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "Regret",
+        "rawStatus": "REGRET",
+        "prediction": "No More Booking",
+        "predictionPercentage": 0,
+        "canBook": false
+      },
+      {
+        "date": "15-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 7",
+        "rawStatus": "RLWL7/WL7",
+        "prediction": "59% Chance",
+        "predictionPercentage": 59,
+        "canBook": true
+      }
+    ]
+  }
+}

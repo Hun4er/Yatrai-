@@ -1,0 +1,61 @@
+{
+  "success": true,
+  "data": {
+    "train": {
+      "trainNo": "12392",
+      "trainName": "SHRAMJIVI EXP",
+      "from": "NDLS",
+      "to": "PNBE",
+      "fromStationName": "New Delhi",
+      "toStationName": "Patna Junction",
+      "distance": 1004,
+      "travelClass": "3A",
+      "quota": "GN"
+    },
+    "fare": {
+      "baseFare": 1258,
+      "reservationCharge": 40,
+      "superfastCharge": 45,
+      "serviceTax": 67,
+      "totalFare": 1410
+    },
+    "availability": [
+      {
+        "date": "12-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "Regret",
+        "rawStatus": "REGRET",
+        "prediction": "No More Booking",
+        "predictionPercentage": 0,
+        "canBook": false
+      },
+      {
+        "date": "13-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 155",
+        "rawStatus": "GNWL225/WL155",
+        "prediction": "Low Chance",
+        "predictionPercentage": 15,
+        "canBook": true
+      },
+      {
+        "date": "14-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 75",
+        "rawStatus": "GNWL113/WL75",
+        "prediction": "56% Chance",
+        "predictionPercentage": 56,
+        "canBook": true
+      },
+      {
+        "date": "15-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 46",
+        "rawStatus": "GNWL93/WL46",
+        "prediction": "84% Chance",
+        "predictionPercentage": 84,
+        "canBook": true
+      }
+    ]
+  }
+}

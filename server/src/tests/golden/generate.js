@@ -3,8 +3,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DirectPassService } from '../../services/rail/directPass.service.js';
 import { AlternativesEngineService } from '../../services/rail/alternativesEngine.service.js';
+import { RouteExtensionService } from '../../services/rail/routeExtension.service.js';
 import { ActionBudgetService } from '../../services/rail/actionBudget.service.js';
 import { AVAILABILITY_STATUS } from '../../services/rail/availabilityNorm.js';
+import { getTestThursday, getRelativeDate } from '../testDateUtils.js';
+
+export const TEST_DATE = getTestThursday(14);
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const GOLDEN_DIR = __dirname;
+const REPLAY_DIR = path.resolve(__dirname, '../fixtures/real/replay');
+
 const DELHI_PATNA_22_TRAINS = [
   { trainNumber: '12302', trainName: 'Kolkata Rajdhani', from: 'NDLS', to: 'PNBE', departureTime: '16:50', arrivalTime: '04:40', duration: 710, classes: ['1A', '2A', '3A'], runsOnDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Sat', 'Sun'] },
   { trainNumber: '12304', trainName: 'Poorva Express', from: 'NDLS', to: 'PNBE', departureTime: '17:40', arrivalTime: '06:50', duration: 790, classes: ['1A', '2A', '3A', 'SL'], runsOnDays: ['Wed', 'Thu', 'Sat', 'Sun'] },
@@ -29,10 +39,6 @@ const DELHI_PATNA_22_TRAINS = [
   { trainNumber: '22466', trainName: 'Deoghar SF Express', from: 'ANVT', to: 'PNBE', departureTime: '12:45', arrivalTime: '05:35', duration: 1010, classes: ['2A', '3A', '3E', 'SL'], runsOnDays: ['Wed'] },
   { trainNumber: '02394', trainName: 'Patna Special', from: 'NDLS', to: 'PNBE', departureTime: '23:55', arrivalTime: '16:00', duration: 965, classes: ['3A', 'SL'], runsOnDays: ['Thu'] },
 ];
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const GOLDEN_DIR = __dirname;
 
 export function createGoldenMockEnvironment({
   confirmedOnTrain = null,
@@ -59,6 +65,18 @@ export function createGoldenMockEnvironment({
     },
     async getCancelledTrains() {
       cancelledCalls++;
+      const replayCancelled = path.join(REPLAY_DIR, `getCancelledTrains__${TEST_DATE}.json`);
+      if (fs.existsSync(replayCancelled)) {
+        try {
+          const cJson = JSON.parse(fs.readFileSync(replayCancelled, 'utf8'));
+          if (Array.isArray(cJson.data?.fullyCancelledTrains)) {
+            const set = cJson.data.fullyCancelledTrains.map((t) => String(t.trainNo || t.train_no));
+            return { success: true, data: set.length > 0 ? set : cancelledTrains };
+          }
+        } catch {
+          // fallback
+        }
+      }
       return { success: true, data: cancelledTrains };
     },
     async searchTrainBetweenStations(from, to) {
@@ -92,6 +110,28 @@ export function createGoldenMockEnvironment({
     async trainSchedule(trainNo) {
       _infoCache.add(String(trainNo));
       scheduleCalls++;
+      const replaySchedPath = path.join(REPLAY_DIR, `trainSchedule__${trainNo}.json`);
+      if (fs.existsSync(replaySchedPath)) {
+        try {
+          const schedJson = JSON.parse(fs.readFileSync(replaySchedPath, 'utf8'));
+          if (Array.isArray(schedJson.data?.route) && schedJson.data.route.length > 0) {
+            return {
+              success: true,
+              data: {
+                train_number: trainNo,
+                route: schedJson.data.route.map((s) => ({
+                  station_code: s.stnCode || s.station_code,
+                  distance: Number(s.distance || 0),
+                  arrival: s.arrival,
+                  departure: s.departure,
+                })),
+              },
+            };
+          }
+        } catch {
+          // fallback
+        }
+      }
       return {
         success: true,
         data: {
@@ -119,17 +159,35 @@ export function createGoldenMockEnvironment({
       _availCache.add(`${trainNumber}:${fromCode}:${toCode}:${travelClass}`);
       availCalls++;
       const isConfirmed = trainNumber === confirmedOnTrain && (!confirmedClass || travelClass === confirmedClass);
+      
+      let realFare = 1450;
+      let statusText = isConfirmed ? 'AVAILABLE 12' : 'GNWL 15';
+      const replayAvailPath = path.join(REPLAY_DIR, `getAvailability__${trainNumber}_${fromCode}_${toCode}_${TEST_DATE}_${travelClass}_GN.json`);
+      if (fs.existsSync(replayAvailPath)) {
+        try {
+          const aJson = JSON.parse(fs.readFileSync(replayAvailPath, 'utf8'));
+          if (aJson.data?.fare?.totalFare) {
+            realFare = aJson.data.fare.totalFare;
+          }
+          if (!isConfirmed && aJson.data?.availability?.[0]?.availabilityText) {
+            statusText = aJson.data.availability[0].availabilityText;
+          }
+        } catch {
+          // fallback
+        }
+      }
+
       return {
         normalizedStatus: isConfirmed ? AVAILABILITY_STATUS.AVAILABLE : AVAILABILITY_STATUS.WAITLIST,
-        statusText: isConfirmed ? 'AVAILABLE 12' : 'GNWL 15',
+        statusText,
         predictionPercentage: isConfirmed ? 100 : 45,
-        fare: 1450,
-        totalFare: 1450,
+        fare: realFare,
+        totalFare: realFare,
         dates: [
           { date, status: isConfirmed ? 'AVAILABLE' : 'WL' },
-          { date: '2026-11-16', status: 'WL' },
-          { date: '2026-11-17', status: 'AVAILABLE' },
-          { date: '2026-11-18', status: 'WL' },
+          { date: getRelativeDate(date, -3), status: 'WL' },
+          { date: getRelativeDate(date, -2), status: 'AVAILABLE' },
+          { date: getRelativeDate(date, -1), status: 'WL' },
         ],
       };
     },
@@ -174,7 +232,7 @@ export async function executeSearch({
   _confirmedOnTrain = null,
   env,
   actionId = 'golden_act',
-  date = '2026-11-19', // Thursday in future
+  date = TEST_DATE,
 }) {
   const normalizedMode = String(mode || 'default').toLowerCase().trim();
   const isAlternativesMode = normalizedMode === 'alternatives';
@@ -219,6 +277,8 @@ export async function executeSearch({
     isDeepMode ||
     (isAutoOrDefault && directResult && !directResult.confirmedFound);
 
+  let extensionPlans = [];
+
   if (shouldRunAlternatives) {
     const altActionType = isDeepMode ? 'deep' : 'alternatives_button';
     let refTrains = directResult?.direct || [];
@@ -226,6 +286,26 @@ export async function executeSearch({
       const searchRes = await env.mockRailKit.searchTrainBetweenStations('NDLS', 'PNBE');
       refTrains = searchRes?.data || [];
     }
+
+    const isExtensionEnabled = process.env.EXTENSION_ENABLED === 'true';
+    if (isExtensionEnabled) {
+      const extService = new RouteExtensionService({
+        railKit: env.mockRailKit,
+        availabilityService: env.mockAvailabilityService,
+        actionBudgetService: env.actionBudgetService,
+      });
+      const extRes = await extService.run({
+        originCode: 'NDLS',
+        destCode: 'PNBE',
+        date,
+        travelClass: 'ANY',
+        actionId,
+        actionType: altActionType,
+        referenceTrains: refTrains,
+      });
+      extensionPlans = extRes?.plans || [];
+    }
+
     alternativesResult = await altEngine.run({
       originCode: 'NDLS',
       destCode: 'PNBE',
@@ -246,7 +326,10 @@ export async function executeSearch({
     direct: directResult?.direct || [],
     waitingTrains: directResult?.waitingTrains || [],
     uncheckedClasses: directResult?.uncheckedClasses || [],
-    alternatives: alternativesResult?.alternatives || [],
+    alternatives: [
+      ...extensionPlans,
+      ...(alternativesResult?.alternatives || []),
+    ],
     dateStrip: directResult?.dateStrip || [],
     partial: isPartial,
     degraded: false,
@@ -293,7 +376,7 @@ async function run() {
     // Warm run on same env
     await executeSearch({
       mode: sc.mode,
-      _confirmedOnTrain: sc.confirmedOnTrain,
+      confirmedOnTrain: sc.confirmedOnTrain,
       env: envCold,
       actionId: `warm_${sc.name}`,
     });

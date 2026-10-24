@@ -1,0 +1,43 @@
+{
+  "query": {
+    "origin": "NDLS",
+    "destination": "PNBE",
+    "trainNumber": "12310",
+    "date": "2026-11-12",
+    "travelClass": "3A"
+  },
+  "directAvailability": {
+    "status": "UNAVAILABLE",
+    "statusText": "Regret",
+    "rawStatus": "REGRET",
+    "fare": 2545
+  },
+  "extensionEvaluated": {
+    "candidateStationsAfterPNBE": [
+      "RJPB"
+    ],
+    "planFound": false,
+    "plan": null,
+    "metadata": {
+      "status": "skipped",
+      "reason": "no_extension_found",
+      "count": 0
+    }
+  },
+  "callsUsed": 3,
+  "callsList": [
+    {
+      "callNumber": 1,
+      "endpoint": "/api/v1/seats/12310/NDLS/PNBE/12-11-2026/3A/GN"
+    },
+    {
+      "callNumber": 2,
+      "endpoint": "/api/v1/trains/12310/info"
+    },
+    {
+      "callNumber": 3,
+      "endpoint": "/api/v1/seats/12310/NDLS/RJPB/12-11-2026/3A/GN"
+    }
+  ],
+  "recordedAt": "2026-10-24T10:30:24.411Z"
+}
