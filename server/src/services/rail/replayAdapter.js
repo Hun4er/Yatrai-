@@ -46,7 +46,7 @@ function sanitize(val) {
   return String(val || '')
     .toUpperCase()
     .trim()
-    .replace(/[^A-Z0-9.\-]/g, '_');
+    .replace(/[^A-Z0-9.-]/g, '_');
 }
 
 /**
@@ -139,6 +139,35 @@ export function createReplayAdapter(replayDir) {
         // Station validation: allow through with warning if no fixture
         logger.debug(`[ReplayAdapter] No fixture for validateStationCode(${code}) — returning valid=true`);
         return { valid: true, code: String(code).toUpperCase().trim(), fromReplay: true };
+      }
+      return data;
+    },
+
+    hasCachedSearch(from, to) {
+      const fp = fixturePathFor(dir, 'searchTrainBetweenStations', [from, to]);
+      return fs.existsSync(fp);
+    },
+
+    hasCachedInfo(trainNo) {
+      const fp = fixturePathFor(dir, 'trainSchedule', [trainNo]);
+      return fs.existsSync(fp);
+    },
+
+    async trainSchedule(trainNo) {
+      const fp = fixturePathFor(dir, 'trainSchedule', [trainNo]);
+      const data = loadFixture(fp);
+      if (!data) {
+        logger.debug(`[ReplayAdapter] No fixture for trainSchedule(${trainNo})`);
+        return { success: false, data: null, fromReplay: true };
+      }
+      return data;
+    },
+
+    async getCancelledTrains(date) {
+      const fp = fixturePathFor(dir, 'getCancelledTrains', [date]);
+      const data = loadFixture(fp);
+      if (!data) {
+        return { success: true, data: [] };
       }
       return data;
     },

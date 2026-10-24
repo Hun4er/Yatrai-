@@ -21,8 +21,12 @@ import { ActionBudgetService, getCapForActionType } from '../services/rail/actio
 import { WarmupService } from '../services/rail/warmup.service.js';
 import { AVAILABILITY_STATUS, normalizeSeatAvailability as normalizeAvailabilityStatus } from '../services/rail/availabilityNorm.js';
 import { p0v2Config } from '../config/index.js';
+import { getTestThursday, getRelativeDate } from './testDateUtils.js';
 
-// ── 22-Row Delhi-Patna Fixture (Date: 22 Oct 2026 - Thursday) ─────────────────
+export { getTestThursday, getRelativeDate };
+export const TEST_DATE = getTestThursday(14);
+
+// ── 22-Row Delhi-Patna Fixture (Date: Thursday) ─────────────────
 export const DELHI_PATNA_22_TRAINS = [
   { trainNumber: '12302', trainName: 'Kolkata Rajdhani', from: 'NDLS', to: 'PNBE', departureTime: '16:50', arrivalTime: '04:40', duration: 710, classes: ['1A', '2A', '3A'], runsOnDays: ['Mon', 'Tue', 'Wed', 'Thu', 'Sat', 'Sun'] },
   { trainNumber: '12304', trainName: 'Poorva Express', from: 'NDLS', to: 'PNBE', departureTime: '17:40', arrivalTime: '06:50', duration: 790, classes: ['1A', '2A', '3A', 'SL'], runsOnDays: ['Wed', 'Thu', 'Sat', 'Sun'] },
@@ -134,15 +138,17 @@ function createMockEnvironment({
       _availCache.add(`${trainNumber}:${fromCode}:${toCode}:${travelClass}`);
       availCalls++;
       const isConfirmed = trainNumber === confirmedOnTrain && (!confirmedClass || travelClass === confirmedClass);
+      const curDate = new Date(date);
+      const nextDate = (days) => new Date(curDate.getTime() + days * 86400000).toISOString().slice(0, 10);
       return {
         normalizedStatus: isConfirmed ? AVAILABILITY_STATUS.AVAILABLE : AVAILABILITY_STATUS.WAITLIST,
         statusText: isConfirmed ? 'AVAILABLE 12' : 'GNWL 15',
         predictionPercentage: isConfirmed ? 100 : Math.floor(Math.random() * 60) + 20,
         dates: [
           { date, status: isConfirmed ? 'AVAILABLE' : 'WL' },
-          { date: '2026-10-23', status: 'WL' },
-          { date: '2026-10-24', status: 'AVAILABLE' },
-          { date: '2026-10-25', status: 'WL' },
+          { date: nextDate(1), status: 'WL' },
+          { date: nextDate(2), status: 'AVAILABLE' },
+          { date: nextDate(3), status: 'WL' },
         ],
       };
     },
@@ -182,7 +188,7 @@ test('1. ANY direct pass round 1 makes at most 1 search + 8 availability calls (
   const res = await directPass.run({
     origins: ['NDLS'],
     destinations: ['PNBE'],
-    date: '2026-10-22',
+    date: TEST_DATE,
     travelClass: 'ANY',
     actionId: 'test1_action',
   });
@@ -208,7 +214,7 @@ test('2. All-WL round 2 makes at most 5 more calls; waitingTrains count equals t
   const res = await directPass.run({
     origins: ['NDLS'],
     destinations: ['PNBE'],
-    date: '2026-10-22',
+    date: TEST_DATE,
     travelClass: 'ANY',
     actionId: 'test2_action',
   });
@@ -266,7 +272,7 @@ test('3. Same-train reach search on a mock train with 5 hubs: <= 4 calls for the
     destCode: 'DEST',
     hubs,
     laneClass: '3A',
-    dateStr: '2026-10-22',
+    dateStr: TEST_DATE,
     quota: 'GN',
     actionId: 'reach_act',
     budget: actionBudget,
@@ -304,7 +310,7 @@ test('3. Same-train reach search on a mock train with 5 hubs: <= 4 calls for the
     destCode: 'DEST',
     hubs,
     laneClass: '3A',
-    dateStr: '2026-10-22',
+    dateStr: TEST_DATE,
     quota: 'GN',
     actionId: 'reach_act',
     budget: actionBudget,
@@ -335,7 +341,7 @@ test('4. Auto flow, all WL, cold cache: never exceeds 40 calls and returns parti
   const dirRes = await directPass.run({
     origins: ['NDLS'],
     destinations: ['PNBE'],
-    date: '2026-10-22',
+    date: TEST_DATE,
     travelClass: 'ANY',
     actionId,
   });
@@ -344,7 +350,7 @@ test('4. Auto flow, all WL, cold cache: never exceeds 40 calls and returns parti
   const altRes = await altEngine.run({
     originCode: 'NDLS',
     destCode: 'PNBE',
-    date: '2026-10-22',
+    date: TEST_DATE,
     travelClass: 'ANY',
     actionId,
     referenceTrains: dirRes.direct,
@@ -360,7 +366,7 @@ test('4. Auto flow, all WL, cold cache: never exceeds 40 calls and returns parti
   const dirResWarm = await directPass.run({
     origins: ['NDLS'],
     destinations: ['PNBE'],
-    date: '2026-10-22',
+    date: TEST_DATE,
     travelClass: 'ANY',
     actionId: warmActionId,
   });
@@ -368,7 +374,7 @@ test('4. Auto flow, all WL, cold cache: never exceeds 40 calls and returns parti
   const altResWarm = await altEngine.run({
     originCode: 'NDLS',
     destCode: 'PNBE',
-    date: '2026-10-22',
+    date: TEST_DATE,
     travelClass: 'ANY',
     actionId: warmActionId,
     referenceTrains: dirResWarm.direct,
@@ -496,7 +502,7 @@ test('8. Cached corridor hubs skip hub discovery (0 route calls on the second id
   await engine.run({
     originCode: 'NDLS',
     destCode: 'PNBE',
-    date: '2026-10-22',
+    date: TEST_DATE,
     travelClass: '3A',
     referenceTrains: refTrains,
     actionId: 'test_act_1',
@@ -507,7 +513,7 @@ test('8. Cached corridor hubs skip hub discovery (0 route calls on the second id
   await engine.run({
     originCode: 'NDLS',
     destCode: 'PNBE',
-    date: '2026-10-22',
+    date: TEST_DATE,
     travelClass: '3A',
     referenceTrains: refTrains,
     actionId: 'test_act_2',

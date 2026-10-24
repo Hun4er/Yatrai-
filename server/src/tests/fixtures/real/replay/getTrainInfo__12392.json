@@ -1,0 +1,722 @@
+{
+  "success": true,
+  "data": {
+    "trainInfo": {
+      "train_no": "12392",
+      "train_name": "SHRAMJIVI EXP",
+      "from_stn_name": "NEW DELHI",
+      "from_stn_code": "NDLS",
+      "to_stn_name": "RAJGIR",
+      "to_stn_code": "RGD",
+      "from_time": "13:10",
+      "to_time": "10:40",
+      "travel_time": "21:30 hrs",
+      "running_days": "1111111",
+      "type": "SUPERFAST",
+      "train_name_hindi": "नयी दिल्ली राजगीर श्रमजीवी एक्सप्रेस",
+      "type_code": "SUF",
+      "subtype": "SUPERFAST",
+      "owning_railway": "ECR",
+      "gauge": "BG",
+      "total_distance": 1097,
+      "destination_day": 2,
+      "classes": [
+        "1A",
+        "2A",
+        "3A",
+        "SL",
+        "GEN",
+        "PWD"
+      ],
+      "prs_classes": [
+        "1A",
+        "2A",
+        "3A",
+        "SL"
+      ],
+      "pantry_type": "PC"
+    },
+    "route": [
+      {
+        "stnCode": "NDLS",
+        "stnName": "NEW DELHI",
+        "arrival": "--",
+        "departure": "13:10",
+        "halt": "0 min",
+        "haltMinutes": 0,
+        "distance": "0",
+        "day": "1",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 28.642464,
+          "longitude": 77.220154
+        },
+        "stationNameHindi": "नई दिल्ली",
+        "division": "DLI",
+        "zone": "NR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "GZB",
+        "stnName": "GHAZIABAD",
+        "arrival": "13:51",
+        "departure": "13:53",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "26",
+        "day": "1",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 28.650072,
+          "longitude": 77.431469
+        },
+        "stationNameHindi": "गाजियाबाद",
+        "division": "DLI",
+        "zone": "NR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "MB",
+        "stnName": "MORADABAD",
+        "arrival": "15:52",
+        "departure": "15:57",
+        "halt": "5 min",
+        "haltMinutes": 5,
+        "distance": "167",
+        "day": "1",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 28.8314,
+          "longitude": 78.7656
+        },
+        "stationNameHindi": "मुरादाबाद",
+        "division": "MB",
+        "zone": "NR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "BE",
+        "stnName": "BAREILLY(NR)",
+        "arrival": "17:16",
+        "departure": "17:18",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "257",
+        "day": "1",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 28.337134,
+          "longitude": 79.410824
+        },
+        "stationNameHindi": "बरेली",
+        "division": "MB",
+        "zone": "NR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "SPN",
+        "stnName": "SHAHJAHANPUR JN",
+        "arrival": "18:23",
+        "departure": "18:25",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "328",
+        "day": "1",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 27.893784,
+          "longitude": 79.904165
+        },
+        "stationNameHindi": "शाहजहान पुर",
+        "division": "MB",
+        "zone": "NR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "LKO",
+        "stnName": "LUCKNOW JN",
+        "arrival": "21:20",
+        "departure": "21:30",
+        "halt": "10 min",
+        "haltMinutes": 10,
+        "distance": "492",
+        "day": "1",
+        "platform": 5,
+        "coordinates": {
+          "latitude": 26.830505,
+          "longitude": 80.925121
+        },
+        "stationNameHindi": "लखनऊ जं",
+        "division": "LKO",
+        "zone": "NR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "MBLP",
+        "stnName": "MAHARAJA BIJLI PASI",
+        "arrival": "22:46",
+        "departure": "22:48",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "581",
+        "day": "1",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 26.460431,
+          "longitude": 81.632881
+        },
+        "stationNameHindi": "महाराजा बिजली पासी",
+        "division": "LKO",
+        "zone": "",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "MFKA",
+        "stnName": "MUSAFIR KHANA",
+        "arrival": "23:04",
+        "departure": "23:05",
+        "halt": "1 min",
+        "haltMinutes": 1,
+        "distance": "600",
+        "day": "1",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 26.3793,
+          "longitude": 81.7996
+        },
+        "stationNameHindi": "मुसाफिर खाना",
+        "division": "LKO",
+        "zone": "NR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "SLN",
+        "stnName": "SULTANPUR",
+        "arrival": "23:33",
+        "departure": "23:35",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "632",
+        "day": "1",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 26.2632,
+          "longitude": 82.0663
+        },
+        "stationNameHindi": "सुल्तानपुर",
+        "division": "LKO",
+        "zone": "NR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "JOP",
+        "stnName": "JAUNPUR CITY",
+        "arrival": "00:36",
+        "departure": "00:38",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "718",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.762662,
+          "longitude": 82.699302
+        },
+        "stationNameHindi": "जौनपुर सिटी",
+        "division": "LKO",
+        "zone": "NR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "BSB",
+        "stnName": "VARANASI",
+        "arrival": "02:10",
+        "departure": "02:20",
+        "halt": "10 min",
+        "haltMinutes": 10,
+        "distance": "775",
+        "day": "2",
+        "platform": 9,
+        "coordinates": {
+          "latitude": 25.326901,
+          "longitude": 82.986088
+        },
+        "stationNameHindi": "वाराणसी जं",
+        "division": "LKO",
+        "zone": "NR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "DDU",
+        "stnName": "PT.DEEN DAYAL UPADHYAYA JN",
+        "arrival": "03:30",
+        "departure": "03:35",
+        "halt": "5 min",
+        "haltMinutes": 5,
+        "distance": "793",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 25.278539,
+          "longitude": 83.11964
+        },
+        "stationNameHindi": "पं. दीन दयाल उपाध्याय जं",
+        "division": "DDU",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "DLN",
+        "stnName": "DILDARNAGAR JN",
+        "arrival": "04:18",
+        "departure": "04:20",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "847",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 25.4192,
+          "longitude": 83.6681
+        },
+        "stationNameHindi": "दिलदार नगर",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "GMR",
+        "stnName": "GAHMAR",
+        "arrival": "04:31",
+        "departure": "04:33",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "863",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.4889,
+          "longitude": 83.8047
+        },
+        "stationNameHindi": "गहमर",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "BXR",
+        "stnName": "BUXAR",
+        "arrival": "04:52",
+        "departure": "04:54",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "883",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.5616,
+          "longitude": 83.9817
+        },
+        "stationNameHindi": "बक्सर",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "DURE",
+        "stnName": "DUMRAON",
+        "arrival": "05:11",
+        "departure": "05:13",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "900",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.571634,
+          "longitude": 84.143515
+        },
+        "stationNameHindi": "डुमराँव",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "BEA",
+        "stnName": "BIHIYA",
+        "arrival": "05:32",
+        "departure": "05:34",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "930",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.5587,
+          "longitude": 84.4488
+        },
+        "stationNameHindi": "बिहिया",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "ARA",
+        "stnName": "ARA",
+        "arrival": "06:00",
+        "departure": "06:05",
+        "halt": "5 min",
+        "haltMinutes": 5,
+        "distance": "952",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.5488,
+          "longitude": 84.6625
+        },
+        "stationNameHindi": "आरा",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "BTA",
+        "stnName": "BIHTA",
+        "arrival": "06:21",
+        "departure": "06:23",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "974",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.5611,
+          "longitude": 84.8743
+        },
+        "stationNameHindi": "बिहता",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "DNR",
+        "stnName": "DANAPUR",
+        "arrival": "06:48",
+        "departure": "06:50",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "991",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.582201,
+          "longitude": 85.044909
+        },
+        "stationNameHindi": "दानापुर",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "PWS",
+        "stnName": "PHULWARI SHARIF",
+        "arrival": "06:57",
+        "departure": "06:59",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "994",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 25.5865,
+          "longitude": 85.0796
+        },
+        "stationNameHindi": "फुलवानी शरीफ",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "PNBE",
+        "stnName": "PATNA JN",
+        "arrival": "07:18",
+        "departure": "07:25",
+        "halt": "7 min",
+        "haltMinutes": 7,
+        "distance": "1001",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 25.60287,
+          "longitude": 85.137134
+        },
+        "stationNameHindi": "पटना जं",
+        "division": "DNR",
+        "zone": "",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "RJPB",
+        "stnName": "RAJENDRA NAGAR TERMINAL",
+        "arrival": "07:33",
+        "departure": "07:35",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1003",
+        "day": "2",
+        "platform": 4,
+        "coordinates": {
+          "latitude": 25.603141,
+          "longitude": 85.162239
+        },
+        "stationNameHindi": "राजेंद्र नगर टर्मिनल",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "PNC",
+        "stnName": "PATNA SAHEB",
+        "arrival": "07:48",
+        "departure": "07:53",
+        "halt": "5 min",
+        "haltMinutes": 5,
+        "distance": "1011",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.5856,
+          "longitude": 85.2307
+        },
+        "stationNameHindi": "पटना साहेब",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "FUT",
+        "stnName": "FATUHA",
+        "arrival": "08:03",
+        "departure": "08:05",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1023",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 25.5017,
+          "longitude": 85.305748
+        },
+        "stationNameHindi": "फतुहा",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "KOO",
+        "stnName": "KHUSROPUR",
+        "arrival": "08:14",
+        "departure": "08:16",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1031",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.485,
+          "longitude": 85.3874
+        },
+        "stationNameHindi": "खुसरोपुर",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "BKP",
+        "stnName": "BAKHTIYARPUR JN",
+        "arrival": "08:44",
+        "departure": "08:46",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1046",
+        "day": "2",
+        "platform": 3,
+        "coordinates": {
+          "latitude": 25.45614,
+          "longitude": 85.529594
+        },
+        "stationNameHindi": "बख्तियारपुर जं",
+        "division": "DNR",
+        "zone": "",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "HRT",
+        "stnName": "HARNAUT",
+        "arrival": "09:00",
+        "departure": "09:02",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1057",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 25.4133,
+          "longitude": 85.5447
+        },
+        "stationNameHindi": "हरनौट",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "WENA",
+        "stnName": "WENA",
+        "arrival": "09:16",
+        "departure": "09:18",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1062",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 25.3713,
+          "longitude": 85.54
+        },
+        "stationNameHindi": "वेना",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "BEHS",
+        "stnName": "BIHAR SHARIF",
+        "arrival": "09:32",
+        "departure": "09:36",
+        "halt": "4 min",
+        "haltMinutes": 4,
+        "distance": "1076",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 25.2065,
+          "longitude": 85.5394
+        },
+        "stationNameHindi": "बिहार शरीफ",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "POE",
+        "stnName": "PAWAPURI ROAD",
+        "arrival": "09:41",
+        "departure": "09:43",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1082",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.159735,
+          "longitude": 85.512428
+        },
+        "stationNameHindi": "पवापुरी रोड",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "NLD",
+        "stnName": "NALANDA",
+        "arrival": "09:50",
+        "departure": "09:52",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1086",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.1227,
+          "longitude": 85.4632
+        },
+        "stationNameHindi": "नालंदा",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "SILO",
+        "stnName": "SILAO",
+        "arrival": "09:58",
+        "departure": "10:00",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1091",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.0783,
+          "longitude": 85.4344
+        },
+        "stationNameHindi": "सिलाव",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "RGD",
+        "stnName": "RAJGIR",
+        "arrival": "10:40",
+        "departure": "--",
+        "halt": "0 min",
+        "haltMinutes": 0,
+        "distance": "1097",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.033,
+          "longitude": 85.4146
+        },
+        "stationNameHindi": "राजगीर",
+        "division": "DNR",
+        "zone": "ECR",
+        "daysOfArrival": "DAILY",
+        "directionChangeCount": 0
+      }
+    ]
+  }
+}

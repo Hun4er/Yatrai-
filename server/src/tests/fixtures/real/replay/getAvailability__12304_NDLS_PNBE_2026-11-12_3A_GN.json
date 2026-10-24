@@ -1,0 +1,61 @@
+{
+  "success": true,
+  "data": {
+    "train": {
+      "trainNo": "12304",
+      "trainName": "POORVA EXPRESS",
+      "from": "NDLS",
+      "to": "PNBE",
+      "fromStationName": "New Delhi",
+      "toStationName": "Patna Junction",
+      "distance": 1000,
+      "travelClass": "3A",
+      "quota": "GN"
+    },
+    "fare": {
+      "baseFare": 1238,
+      "reservationCharge": 40,
+      "superfastCharge": 45,
+      "serviceTax": 67,
+      "totalFare": 1390
+    },
+    "availability": [
+      {
+        "date": "12-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 140",
+        "rawStatus": "PQWL253/WL140",
+        "prediction": "Low Chance",
+        "predictionPercentage": 23,
+        "canBook": true
+      },
+      {
+        "date": "14-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 98",
+        "rawStatus": "PQWL147/WL98",
+        "prediction": "50% Chance",
+        "predictionPercentage": 50,
+        "canBook": true
+      },
+      {
+        "date": "15-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 61",
+        "rawStatus": "PQWL102/WL61",
+        "prediction": "68% Chance",
+        "predictionPercentage": 68,
+        "canBook": true
+      },
+      {
+        "date": "18-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 59",
+        "rawStatus": "PQWL115/WL59",
+        "prediction": "73% Chance",
+        "predictionPercentage": 73,
+        "canBook": true
+      }
+    ]
+  }
+}

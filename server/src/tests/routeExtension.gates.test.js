@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { RouteExtensionService } from '../services/rail/routeExtension.service.js';
 import { ActionBudgetService } from '../services/rail/actionBudget.service.js';
 import { AVAILABILITY_STATUS } from '../services/rail/availabilityNorm.js';
-import { createGoldenMockEnvironment, executeSearch } from './golden/generate.js';
+import { createGoldenMockEnvironment, executeSearch, TEST_DATE } from './golden/generate.js';
 import logger from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -153,7 +153,7 @@ describe('PHASE 2 — GATES SUITE', () => {
       const res = await service.run({
         originCode: 'NDLS',
         destCode: 'PNBE',
-        date: '2026-11-19',
+        date: TEST_DATE,
         actionId: 'fault_1',
         referenceTrains: [{ trainNumber: '12310', classes: [{ class: '3A', state: 'CHECKED', tier: 'WAITLIST' }] }],
       });
@@ -175,7 +175,7 @@ describe('PHASE 2 — GATES SUITE', () => {
       const res = await service.run({
         originCode: 'NDLS',
         destCode: 'PNBE',
-        date: '2026-11-19',
+        date: TEST_DATE,
         actionId: 'fault_2',
         referenceTrains: [{ trainNumber: '12310', classes: [] }],
       });
@@ -205,7 +205,7 @@ describe('PHASE 2 — GATES SUITE', () => {
       const res = await service.run({
         originCode: 'NDLS',
         destCode: 'PNBE',
-        date: '2026-11-19',
+        date: TEST_DATE,
         actionId: 'fault_3',
         referenceTrains: [{ trainNumber: '12310', classes: [] }],
       });
@@ -234,7 +234,7 @@ describe('PHASE 2 — GATES SUITE', () => {
       const res = await service.run({
         originCode: 'NDLS',
         destCode: 'PNBE',
-        date: '2026-11-19',
+        date: TEST_DATE,
         actionId: 'fault_4',
         referenceTrains: [{ trainNumber: '12310', classes: [] }],
       });
@@ -259,7 +259,7 @@ describe('PHASE 2 — GATES SUITE', () => {
       const res = await service.run({
         originCode: 'NDLS',
         destCode: 'PNBE',
-        date: '2026-11-19',
+        date: TEST_DATE,
         actionId: 'fault_5',
         referenceTrains: [{ trainNumber: '12310', classes: [] }],
       });
@@ -282,7 +282,7 @@ describe('PHASE 2 — GATES SUITE', () => {
       const res = await service.run({
         originCode: 'NDLS',
         destCode: 'PNBE',
-        date: '2026-11-19',
+        date: TEST_DATE,
         actionId: 'fault_6',
         referenceTrains: [{ trainNumber: '12310', classes: [] }],
       });
@@ -313,7 +313,7 @@ describe('PHASE 2 — GATES SUITE', () => {
       const res = await service.run({
         originCode: 'NDLS',
         destCode: 'PNBE',
-        date: '2026-11-19',
+        date: TEST_DATE,
         actionId: 'fault_7',
         referenceTrains: [{ trainNumber: '12310', classes: [] }],
       });
@@ -345,7 +345,7 @@ describe('PHASE 2 — GATES SUITE', () => {
       const res = await service.run({
         originCode: 'NDLS',
         destCode: 'PNBE',
-        date: '2026-11-19',
+        date: TEST_DATE,
         actionId: 'fault_8',
         referenceTrains: [{ trainNumber: '12310', classes: [] }],
       });
@@ -409,7 +409,7 @@ describe('PHASE 2 — GATES SUITE', () => {
       const res = await service.run({
         originCode: 'NDLS',
         destCode: 'PNBE',
-        date: '2026-11-19',
+        date: TEST_DATE,
         travelClass: '3A',
         actionId: 'spec_1',
         referenceTrains: [
@@ -476,7 +476,7 @@ describe('PHASE 2 — GATES SUITE', () => {
       const res = await service.run({
         originCode: 'NDLS',
         destCode: 'PNBE',
-        date: '2026-11-19',
+        date: TEST_DATE,
         actionId: 'spec_2',
         referenceTrains: [
           { trainNumber: '12310', classes: [{ class: '3A', fare: 1450 }] },
@@ -516,7 +516,7 @@ describe('PHASE 2 — GATES SUITE', () => {
       const res = await service.run({
         originCode: 'NDLS',
         destCode: 'PNBE',
-        date: '2026-11-19',
+        date: TEST_DATE,
         actionId: 'spec_3',
         referenceTrains: [
           { trainNumber: '12310', classes: [{ class: '3A', fare: 1450 }] },
@@ -565,7 +565,7 @@ describe('PHASE 2 — GATES SUITE', () => {
         await service.run({
           originCode: 'NDLS',
           destCode: 'PNBE',
-          date: '2026-11-19',
+          date: TEST_DATE,
           actionId: 'spec_4',
           referenceTrains: [
             { trainNumber: '12310', classes: [{ class: '3A', fare: 1450 }] },

@@ -1,0 +1,61 @@
+{
+  "success": true,
+  "data": {
+    "train": {
+      "trainNo": "12310",
+      "trainName": "RJPB TEJAS RAJ",
+      "from": "CNB",
+      "to": "PNBE",
+      "fromStationName": "Kanpur Central",
+      "toStationName": "Patna Junction",
+      "distance": 560,
+      "travelClass": "3A",
+      "quota": "GN"
+    },
+    "fare": {
+      "baseFare": 994,
+      "reservationCharge": 40,
+      "superfastCharge": 45,
+      "serviceTax": 74,
+      "totalFare": 1555
+    },
+    "availability": [
+      {
+        "date": "12-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "Regret",
+        "rawStatus": "REGRET",
+        "prediction": "No More Booking",
+        "predictionPercentage": 0,
+        "canBook": false
+      },
+      {
+        "date": "13-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "Regret",
+        "rawStatus": "REGRET",
+        "prediction": "No More Booking",
+        "predictionPercentage": 0,
+        "canBook": false
+      },
+      {
+        "date": "14-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 9",
+        "rawStatus": "RLWL16/WL9",
+        "prediction": "62% Chance",
+        "predictionPercentage": 62,
+        "canBook": true
+      },
+      {
+        "date": "15-11-2026",
+        "status": "WAITLIST",
+        "availabilityText": "WL 4",
+        "rawStatus": "RLWL5/WL4",
+        "prediction": "89% Chance",
+        "predictionPercentage": 89,
+        "canBook": true
+      }
+    ]
+  }
+}

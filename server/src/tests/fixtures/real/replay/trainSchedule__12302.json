@@ -1,0 +1,218 @@
+{
+  "success": true,
+  "data": {
+    "trainInfo": {
+      "train_no": "12302",
+      "train_name": "HWH RAJDHANI",
+      "from_stn_name": "NEW DELHI",
+      "from_stn_code": "NDLS",
+      "to_stn_name": "HOWRAH JN",
+      "to_stn_code": "HWH",
+      "from_time": "16:50",
+      "to_time": "09:55",
+      "travel_time": "17:05 hrs",
+      "running_days": "1111011",
+      "type": "RAJDHANI",
+      "train_name_hindi": "नुदिल्ली हाबरा राजधानी इक्सप्रेस",
+      "type_code": "RAJ",
+      "subtype": "RAJDHANI",
+      "owning_railway": "ER",
+      "gauge": "BG",
+      "total_distance": 1448,
+      "destination_day": 2,
+      "classes": [
+        "1A",
+        "2A",
+        "3A"
+      ],
+      "prs_classes": [
+        "1A",
+        "2A",
+        "3A"
+      ],
+      "pantry_type": ""
+    },
+    "route": [
+      {
+        "stnCode": "NDLS",
+        "stnName": "NEW DELHI",
+        "arrival": "--",
+        "departure": "16:50",
+        "halt": "0 min",
+        "haltMinutes": 0,
+        "distance": "0",
+        "day": "1",
+        "platform": 14,
+        "coordinates": {
+          "latitude": 28.642464,
+          "longitude": 77.220154
+        },
+        "stationNameHindi": "नई दिल्ली",
+        "division": "DLI",
+        "zone": "NR",
+        "daysOfArrival": "MON,TUE,WED,THU,SAT,SUN",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "CNB",
+        "stnName": "KANPUR CENTRAL",
+        "arrival": "21:30",
+        "departure": "21:35",
+        "halt": "5 min",
+        "haltMinutes": 5,
+        "distance": "441",
+        "day": "1",
+        "platform": 6,
+        "coordinates": {
+          "latitude": 26.45436,
+          "longitude": 80.351086
+        },
+        "stationNameHindi": "कानपुर सैंट्रल",
+        "division": "PRYJ",
+        "zone": "NCR",
+        "daysOfArrival": "MON,TUE,WED,THU,SAT,SUN",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "PRYJ",
+        "stnName": "PRAYAGRAJ JN",
+        "arrival": "23:41",
+        "departure": "23:43",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "635",
+        "day": "1",
+        "platform": 4,
+        "coordinates": {
+          "latitude": 25.445871,
+          "longitude": 81.828446
+        },
+        "stationNameHindi": "प्रयागराज जं.",
+        "division": "PRYJ",
+        "zone": "NCR",
+        "daysOfArrival": "MON,TUE,WED,THU,SAT,SUN",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "DDU",
+        "stnName": "PT.DEEN DAYAL UPADHYAYA JN",
+        "arrival": "01:33",
+        "departure": "01:40",
+        "halt": "7 min",
+        "haltMinutes": 7,
+        "distance": "788",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 25.278539,
+          "longitude": 83.11964
+        },
+        "stationNameHindi": "पं. दीन दयाल उपाध्याय जं",
+        "division": "DDU",
+        "zone": "ECR",
+        "daysOfArrival": "MON,TUE,WED,THU,FRI,SUN",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "GAYA",
+        "stnName": "GAYA JN",
+        "arrival": "03:57",
+        "departure": "04:00",
+        "halt": "3 min",
+        "haltMinutes": 3,
+        "distance": "992",
+        "day": "2",
+        "platform": 3,
+        "coordinates": {
+          "latitude": 24.804188,
+          "longitude": 84.999504
+        },
+        "stationNameHindi": "गया जं",
+        "division": "DDU",
+        "zone": "ECR",
+        "daysOfArrival": "MON,TUE,WED,THU,FRI,SUN",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "PNME",
+        "stnName": "PARASNATH",
+        "arrival": "05:43",
+        "departure": "05:45",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1143",
+        "day": "2",
+        "platform": 2,
+        "coordinates": {
+          "latitude": 23.9878,
+          "longitude": 86.0377
+        },
+        "stationNameHindi": "पारसनाथ",
+        "division": "DHN",
+        "zone": "ECR",
+        "daysOfArrival": "MON,TUE,WED,THU,FRI,SUN",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "DHN",
+        "stnName": "DHANBAD JN",
+        "arrival": "06:33",
+        "departure": "06:38",
+        "halt": "5 min",
+        "haltMinutes": 5,
+        "distance": "1191",
+        "day": "2",
+        "platform": 1,
+        "coordinates": {
+          "latitude": 23.791196,
+          "longitude": 86.429186
+        },
+        "stationNameHindi": "धनबाद जं",
+        "division": "DHN",
+        "zone": "ECR",
+        "daysOfArrival": "MON,TUE,WED,THU,FRI,SUN",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "ASN",
+        "stnName": "ASANSOL JN",
+        "arrival": "07:18",
+        "departure": "07:20",
+        "halt": "2 min",
+        "haltMinutes": 2,
+        "distance": "1248",
+        "day": "2",
+        "platform": 5,
+        "coordinates": {
+          "latitude": 23.691101,
+          "longitude": 86.974812
+        },
+        "stationNameHindi": "आसनसोल जं",
+        "division": "ASN",
+        "zone": "ER",
+        "daysOfArrival": "MON,TUE,WED,THU,FRI,SUN",
+        "directionChangeCount": 0
+      },
+      {
+        "stnCode": "HWH",
+        "stnName": "HOWRAH JN",
+        "arrival": "09:55",
+        "departure": "--",
+        "halt": "0 min",
+        "haltMinutes": 0,
+        "distance": "1449",
+        "day": "2",
+        "platform": 9,
+        "coordinates": {
+          "latitude": 22.584058,
+          "longitude": 88.340979
+        },
+        "stationNameHindi": "हावड़ा जं",
+        "division": "HWH",
+        "zone": "",
+        "daysOfArrival": "MON,TUE,WED,THU,FRI,SUN",
+        "directionChangeCount": 0
+      }
+    ]
+  }
+}
