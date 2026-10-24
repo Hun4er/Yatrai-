@@ -42,16 +42,31 @@ export function JourneyDetailModal({ journey, onClose }) {
   const originCode = parsed?.reqOriginCode || '';
   const destinationCode = parsed?.reqDestCode || '';
 
-  const depTime = parsed?.trainStage?.departureTime || formatTime(journey.departureTime);
-  const arrTime = parsed?.trainStage?.arrivalTime || formatTime(journey.arrivalTime);
-  const depDate = parsed?.trainStage?.departureDate || formatDateDisplay(journey.departureTime?.split('T')?.[0]);
-  const arrDate = parsed?.trainStage?.arrivalDate || formatDateDisplay(journey.arrivalTime?.split('T')?.[0]);
+  const trainFromName = parsed?.trainFromName || originName;
+  const trainFromCode = parsed?.trainFromCode || originCode;
+  const trainToName = parsed?.trainToName || destinationName;
+  const trainToCode = parsed?.trainToCode || destinationCode;
 
-  const dayOffset = parsed?.trainStage?.dayOffset ?? getDayOffset(journey.departureTime, journey.arrivalTime);
+  const rawDuration = journey.duration ?? journey.durationMinutes ?? parsed?.trainStage?.duration ?? null;
+  const durationText = formatDuration(rawDuration);
+
+  const depTime = parsed?.trainStage?.departureTime || journey.departureTimeFormatted || formatTime(journey.departureTime);
+  const arrTime = parsed?.trainStage?.arrivalTime || journey.arrivalTimeFormatted || formatTime(journey.arrivalTime);
+  const depDate = parsed?.trainStage?.departureDate || (journey.departureDateFormatted ? formatDateDisplay(journey.departureDateFormatted) : formatDateDisplay(journey.departureTime));
+  const arrDate = parsed?.trainStage?.arrivalDate || (journey.arrivalDateFormatted ? formatDateDisplay(journey.arrivalDateFormatted) : formatDateDisplay(journey.arrivalTime));
+
+  const dayOffset = parsed?.trainStage?.dayOffset ?? (journey.dayOffset !== undefined ? journey.dayOffset : getDayOffset(journey.departureTime, journey.arrivalTime, rawDuration));
   const dayOffsetBadge = formatDayOffsetBadge(dayOffset);
 
-  const durationText = formatDuration(journey.duration);
-  const priceText = formatPrice(journey.totalPrice, journey.currency);
+  const rawPrice =
+    journey.totalPrice ??
+    journey.pricing?.totalFare ??
+    journey.pricing?.mainTrainFare ??
+    journey.fare ??
+    journey.price ??
+    parsed?.costs?.knownCostSum ??
+    null;
+  const priceText = formatPrice(rawPrice, journey.currency);
   const priceLabel = parsed?.costs?.hasMissingCosts ? 'Total Estimated Cost (Partial)' : getPriceLabel(journey);
   const transferText = formatTransfers(journey.numberOfTransfers);
   const modesText = formatTransportModes(journey.transportModes);
@@ -113,6 +128,53 @@ export function JourneyDetailModal({ journey, onClose }) {
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
+        </div>
+
+        {/* Timetable Schedule Summary */}
+        <div className="rounded-xl border border-[#232830] bg-[#12151A] p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            {/* Departure */}
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#6B7480]">Departure</div>
+              <div className="text-2xl sm:text-3xl font-extrabold text-[#EDEFF2] font-mono tabular-nums">{depTime}</div>
+              <div className="text-sm font-semibold text-[#EDEFF2] leading-snug mt-0.5">
+                {trainFromName}
+                {trainFromCode && <span className="text-[#6B7480] font-mono text-xs ml-1">({trainFromCode})</span>}
+              </div>
+              {depDate && <div className="text-xs text-[#6B7480] mt-0.5">{depDate}</div>}
+            </div>
+
+            {/* Route & Duration Line */}
+            <div className="flex flex-col items-center justify-center px-2 py-1 w-full sm:w-auto">
+              <div className="flex items-center gap-1 text-xs font-bold font-mono text-[#EDEFF2]">
+                <Clock className="h-3.5 w-3.5 text-[#E8B04A]" />
+                <span>{durationText}</span>
+              </div>
+              <div className="relative my-2 w-32 sm:w-40 flex items-center justify-center">
+                <div className="h-px w-full bg-[#232830]" />
+                <div className="absolute flex h-2 w-2 rounded-full bg-[#E8B04A] ring-4 ring-[#12151A]" />
+              </div>
+              <div className="text-[11px] text-[#6B7480]">{transferText}</div>
+            </div>
+
+            {/* Arrival */}
+            <div className="min-w-0 sm:text-right">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#6B7480]">Arrival</div>
+              <div className="text-2xl sm:text-3xl font-extrabold text-[#EDEFF2] font-mono tabular-nums flex items-baseline sm:justify-end gap-1.5">
+                <span>{arrTime}</span>
+                {dayOffsetBadge && (
+                  <span className="rounded-md bg-[#E8B04A]/10 px-1.5 py-0.5 text-[11px] font-bold text-[#E8B04A] border border-[#E8B04A]/30">
+                    {dayOffsetBadge}
+                  </span>
+                )}
+              </div>
+              <div className="text-sm font-semibold text-[#EDEFF2] leading-snug mt-0.5">
+                {trainToName}
+                {trainToCode && <span className="text-[#6B7480] font-mono text-xs ml-1">({trainToCode})</span>}
+              </div>
+              {arrDate && <div className="text-xs text-[#6B7480] mt-0.5">{arrDate}</div>}
+            </div>
+          </div>
         </div>
 
         {/* Journey Map Route Visualization */}

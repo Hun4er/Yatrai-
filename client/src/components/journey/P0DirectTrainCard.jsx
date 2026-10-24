@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Clock, RotateCcw, ArrowRight, Train, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import P0ClassChips from './P0ClassChips.jsx';
-import { formatDuration } from '../../utils/formatters.js';
+import { formatDuration, getDayOffset, formatDayOffsetBadge } from '../../utils/formatters.js';
 
 /**
  * Calculates a friendly "checked N min ago" string from ISO timestamp.
@@ -47,8 +47,12 @@ export function P0DirectTrainCard({
   const to = train.to;
   const depTime = train.departureTime;
   const arrTime = train.arrivalTime;
-  const duration = train.duration ? formatDuration(train.duration) : '';
+  const rawDuration = train.duration || train.durationMinutes;
+  const duration = rawDuration ? formatDuration(rawDuration) : '';
   const checkedAt = train.checkedAt;
+
+  const rawDayOffset = train.dayOffset ?? getDayOffset(depTime, arrTime, rawDuration);
+  const dayOffsetBadge = formatDayOffsetBadge(rawDayOffset);
 
   // Has confirmed seat in any checked class?
   const hasConfirmed = (train.classes || []).some(
@@ -147,9 +151,16 @@ export function P0DirectTrainCard({
           <span className="text-[10px] text-emerald-400 font-medium">Direct Train</span>
         </div>
 
-        {/* Arrival */}
+        {/* Arrival with optional day offset */}
         <div className="sm:text-right">
-          <div className="text-lg sm:text-xl font-bold text-[#F0F1F3]">{arrTime || '--:--'}</div>
+          <div className="text-lg sm:text-xl font-bold text-[#F0F1F3] flex items-baseline justify-center sm:justify-end gap-1.5">
+            <span>{arrTime || '--:--'}</span>
+            {dayOffsetBadge && (
+              <span className="rounded-md bg-[#E8B04A]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#E8B04A] border border-[#E8B04A]/30">
+                {dayOffsetBadge}
+              </span>
+            )}
+          </div>
           <div className="text-xs font-semibold text-[#A7AFBA]">{to}</div>
         </div>
       </div>

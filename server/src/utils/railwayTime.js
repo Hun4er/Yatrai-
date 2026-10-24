@@ -227,13 +227,20 @@ export function calculateJourneyTiming(
   if (explicitDayOffset !== null && explicitDayOffset !== undefined && !isNaN(Number(explicitDayOffset))) {
     dayOffset = Math.max(0, Number(explicitDayOffset));
   } else {
-    // If arrival is only time-of-day, compare hours to detect midnight rollover
+    // If arrival is only time-of-day, compare hours to detect midnight rollover or duration offset
     const depTimeMatch = /^(\d{1,2}):(\d{2})/.exec(String(departureVal).trim());
     const arrTimeMatch = /^(\d{1,2}):(\d{2})/.exec(String(arrivalVal).trim());
     if (depTimeMatch && arrTimeMatch) {
       const depHour = parseInt(depTimeMatch[1], 10);
       const arrHour = parseInt(arrTimeMatch[1], 10);
-      if (arrHour < depHour) {
+      const depMin = parseInt(depTimeMatch[2], 10);
+      const arrMin = parseInt(arrTimeMatch[2], 10);
+      const depTotalMins = depHour * 60 + depMin;
+      const reportedMins = Number(reportedDurationMinutes) || 0;
+
+      if (reportedMins > 0) {
+        dayOffset = Math.floor((depTotalMins + reportedMins) / 1440);
+      } else if (arrHour < depHour || (arrHour === depHour && arrMin < depMin)) {
         dayOffset = 1;
       }
     }

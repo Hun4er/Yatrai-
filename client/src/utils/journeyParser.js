@@ -315,16 +315,75 @@ export function parseJourneyStages(journey) {
     }
   }
 
+/**
+ * Helper to extract minutes from ISO timestamp or HH:mm time string.
+ */
+function parseTimeMinutes(val) {
+  if (!val) return null;
+  const str = String(val).trim();
+  const d = new Date(str);
+  if (!isNaN(d.getTime()) && str.length > 8) {
+    return Math.round(d.getTime() / 60000);
+  }
+  const match = /(\d{1,2}):(\d{2})/.exec(str);
+  if (match) {
+    return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+  }
+  return null;
+}
+
   // 6. Stage 2 (and subsequent) — Actual Train Journey(s)
   const railLegs = legs.filter((l) => l.mode === 'rail' && !l.metadata?.isFeeder && !l.metadata?.isStationTransfer);
   const effectiveRailLegs =
     railLegs.length > 0
-      ? railLegs
+      ? [...railLegs]
       : legs.filter((l) => l.mode === 'rail').length > 0
-      ? legs.filter((l) => l.mode === 'rail')
+      ? [...legs.filter((l) => l.mode === 'rail')]
       : mainTrainLeg
       ? [mainTrainLeg]
       : [];
+
+  if (
+    effectiveRailLegs.length === 0 &&
+    (journey.trainNumber || journey.isDirectTrain || journey.from || journey.origin || journey.title || journey.metadata?.trainNumber)
+  ) {
+    const rawPrice =
+      journey.totalPrice ??
+      journey.pricing?.totalFare ??
+      journey.pricing?.mainTrainFare ??
+      journey.fare ??
+      journey.price ??
+      null;
+    const syntheticLeg = {
+      id: journey.id || 'direct-leg-1',
+      sequence: 1,
+      mode: 'rail',
+      origin: journey.origin || { code: journey.from || trainFrom.code, name: journey.fromName || trainFrom.name },
+      destination: journey.destination || { code: journey.to || trainTo.code, name: journey.toName || trainTo.name },
+      departureTime: journey.departureTime,
+      arrivalTime: journey.arrivalTime,
+      departureTimeFormatted: journey.departureTimeFormatted,
+      arrivalTimeFormatted: journey.arrivalTimeFormatted,
+      departureDateFormatted: journey.departureDateFormatted,
+      arrivalDateFormatted: journey.arrivalDateFormatted,
+      duration: journey.duration || journey.durationMinutes,
+      distance: journey.totalDistance,
+      price: rawPrice,
+      isEstimated: Boolean(journey.pricing?.isEstimated || journey.metadata?.isEstimatedPrice || journey.isEstimated),
+      service: {
+        number: journey.trainNumber || journey.metadata?.trainNumber || journey.vehicle?.identifier || '',
+        name: journey.trainName || journey.metadata?.trainName || journey.service?.name || journey.title || 'Direct Train',
+        class: journey.travelClass || journey.service?.class || journey.classes?.[0]?.class || '3A',
+        operator: journey.provider || 'Indian Railways',
+      },
+      availability: journey.availability || {
+        status: journey.tier || journey.availabilityStatus || 'AVAILABLE',
+        normalizedStatus: journey.tier || journey.availabilityStatus || 'AVAILABLE',
+        rawStatus: '',
+      },
+    };
+    effectiveRailLegs.push(syntheticLeg);
+  }
 
   const trainStages = effectiveRailLegs.map((leg, idx) => {
     const rawAvail = leg.availability || (idx === 0 ? journey.availability : {}) || {};
@@ -340,7 +399,7 @@ export function parseJourneyStages(journey) {
       leg.price != null && leg.price > 0
         ? leg.price
         : effectiveRailLegs.length === 1
-        ? journey.pricing?.mainTrainFare || journey.totalPrice || null
+        ? journey.pricing?.mainTrainFare || journey.pricing?.totalFare || journey.totalPrice || journey.fare || journey.price || null
         : null;
     const isEstimatedFare = Boolean(
       leg.isEstimated ||
@@ -389,11 +448,12 @@ export function parseJourneyStages(journey) {
         nextLeg.origin?.name ||
         legTo.name;
       let bufferMinutes = null;
-      if (leg.arrivalTime && nextLeg.departureTime) {
-        const arrMs = new Date(leg.arrivalTime).getTime();
-        const depMs = new Date(nextLeg.departureTime).getTime();
-        if (!isNaN(arrMs) && !isNaN(depMs) && depMs >= arrMs) {
-          bufferMinutes = Math.round((depMs - arrMs) / 60000);
+      const legArrMins = parseTimeMinutes(leg.arrivalTime);
+      const nextDepMins = parseTimeMinutes(nextLeg.departureTime);
+      if (legArrMins !== null && nextDepMins !== null) {
+        const diff = nextDepMins >= legArrMins ? nextDepMins - legArrMins : (nextDepMins + 1440) - legArrMins;
+        if (diff >= 0 && diff < 2880) {
+          bufferMinutes = diff;
         }
       }
       transferBuffer = {
@@ -430,16 +490,19 @@ export function parseJourneyStages(journey) {
         leg.service?.name ||
         leg.trainName ||
         (idx === 0 ? journey.metadata?.trainName : null) ||
+        journey.trainName ||
         'Express Train',
       trainNumber:
         leg.service?.number ||
         leg.vehicle?.identifier ||
         leg.trainNumber ||
         (idx === 0 ? journey.metadata?.trainNumber : '') ||
+        journey.trainNumber ||
         '',
       travelClass:
         leg.service?.class ||
         journey.service?.class ||
+        journey.travelClass ||
         '3A',
       departureTime:
         leg.departureTimeFormatted || formatTime(leg.departureTime),
@@ -450,8 +513,8 @@ export function parseJourneyStages(journey) {
       arrivalDate:
         leg.arrivalDateFormatted || formatDateDisplay(leg.arrivalTime),
       dayOffset:
-        leg.dayOffset ?? getDayOffset(leg.departureTime, leg.arrivalTime),
-      duration: leg.duration || (idx === 0 ? journey.duration : null),
+        leg.dayOffset ?? getDayOffset(leg.departureTime, leg.arrivalTime, leg.duration),
+      duration: leg.duration || (idx === 0 ? (journey.duration || journey.durationMinutes) : null),
       distance: leg.distance || (idx === 0 ? journey.totalDistance : null),
       fare: legFare,
       isEstimatedFare,
@@ -542,28 +605,40 @@ export function parseJourneyStages(journey) {
   // 8. Connection buffers between connected stages
   let accessToTrainBuffer = null;
   if (accessStage?.type === 'connected' && trainStages[0]?.leg) {
-    const accArr = new Date(accessStage.leg.arrivalTime).getTime();
-    const trnDep = new Date(trainStages[0].leg.departureTime).getTime();
-    if (!isNaN(accArr) && !isNaN(trnDep) && trnDep >= accArr) {
-      accessToTrainBuffer = Math.round((trnDep - accArr) / 60000);
+    const accArr = parseTimeMinutes(accessStage.leg.arrivalTime);
+    const trnDep = parseTimeMinutes(trainStages[0].leg.departureTime);
+    if (accArr !== null && trnDep !== null) {
+      const diff = trnDep >= accArr ? trnDep - accArr : (trnDep + 1440) - accArr;
+      if (diff > 0 && diff < 1440) {
+        accessToTrainBuffer = diff;
+      }
     }
   }
 
   let trainToOnwardBuffer = null;
   const lastTrainStage = trainStages[trainStages.length - 1];
   if (onwardStage?.type === 'connected' && lastTrainStage?.leg) {
-    const trnArr = new Date(lastTrainStage.leg.arrivalTime).getTime();
-    const onwDep = new Date(onwardStage.leg.departureTime).getTime();
-    if (!isNaN(trnArr) && !isNaN(onwDep) && onwDep >= trnArr) {
-      trainToOnwardBuffer = Math.round((onwDep - trnArr) / 60000);
+    const trnArr = parseTimeMinutes(lastTrainStage.leg.arrivalTime);
+    const onwDep = parseTimeMinutes(onwardStage.leg.departureTime);
+    if (trnArr !== null && onwDep !== null) {
+      const diff = onwDep >= trnArr ? onwDep - trnArr : (onwDep + 1440) - trnArr;
+      if (diff > 0 && diff < 1440) {
+        trainToOnwardBuffer = diff;
+      }
     }
   }
 
   // 9. Cost breakdown
   const accessFare = accessStage?.fare ?? null;
   const trainFare =
-    trainStages.reduce((sum, s) => (s.fare != null ? sum + s.fare : sum), 0) ||
-    (trainStage?.fare ?? journey.totalPrice ?? null);
+    (trainStages.reduce((sum, s) => (s.fare != null ? sum + s.fare : sum), 0)) ||
+    trainStage?.fare ||
+    journey.totalPrice ||
+    journey.pricing?.totalFare ||
+    journey.pricing?.mainTrainFare ||
+    journey.fare ||
+    journey.price ||
+    null;
   const onwardFare = onwardStage?.fare ?? null;
 
   const hasMissingCosts =

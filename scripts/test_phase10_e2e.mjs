@@ -19,13 +19,14 @@ describe('Phase 10 — End-to-End Search & Filtering with Real Backend Candidate
   let backendJourneys = [];
 
   it('1. Fetches canonical journeys for Sonipat -> Patna on 2026-10-01', async () => {
+    const futureDate = new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 10);
     const res = await fetch('http://localhost:5000/api/journeys/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         origin: 'Sonipat',
         destination: 'Patna',
-        departureDate: '2026-10-01',
+        departureDate: futureDate,
       }),
     });
 

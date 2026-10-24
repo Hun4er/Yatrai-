@@ -70,7 +70,8 @@ export function CompleteJourneyTimeline({
     costs,
   } = parsed;
 
-  const totalDurationText = formatDuration(journey.duration);
+  const rawDuration = journey.duration ?? journey.durationMinutes ?? trainStage?.duration ?? null;
+  const totalDurationText = formatDuration(rawDuration);
   const effectiveTrainStages = Array.isArray(trainStages) && trainStages.length > 0
     ? trainStages
     : (trainStage ? [trainStage] : []);
@@ -252,7 +253,7 @@ export function CompleteJourneyTimeline({
                 )}
 
                 {/* Transfer / buffer gap to main train */}
-                {accessToTrainBuffer !== null && (
+                {accessToTrainBuffer !== null && accessToTrainBuffer > 0 && (
                   <div className="my-2 flex items-center gap-2 text-xs text-[#9AA3AF] bg-[#181C22] rounded-lg px-3 py-1.5 border border-[#232830]">
                     <Clock className="h-3.5 w-3.5 text-[#E8B04A]" />
                     <span>
@@ -432,7 +433,7 @@ export function CompleteJourneyTimeline({
                 )}
 
                 {/* Transfer / buffer gap to onward journey (only on final train stage) */}
-                {idx === effectiveTrainStages.length - 1 && trainToOnwardBuffer !== null && (
+                {idx === effectiveTrainStages.length - 1 && trainToOnwardBuffer !== null && trainToOnwardBuffer > 0 && (
                   <div className="my-2 flex items-center gap-2 text-xs text-[#9AA3AF] bg-[#181C22] rounded-lg px-3 py-1.5 border border-[#232830]">
                     <Clock className="h-3.5 w-3.5 text-[#E8B04A]" />
                     <span>

@@ -48,7 +48,22 @@ export function formatTransportModes(modes) {
  * Format numeric duration in minutes into "Xh Ym" or "Xh" or "Ym".
  */
 export function formatDuration(minutes) {
-  if (minutes === undefined || minutes === null || isNaN(minutes) || minutes <= 0) {
+  if (minutes === undefined || minutes === null) {
+    return '0m';
+  }
+  if (typeof minutes === 'string') {
+    const trimmed = minutes.trim();
+    if (/^\d+\s*h(\s*\d+\s*m)?$/i.test(trimmed) || /^\d+\s*m$/i.test(trimmed)) {
+      return trimmed;
+    }
+    const parsedNum = Number(trimmed);
+    if (!isNaN(parsedNum) && parsedNum > 0) {
+      minutes = parsedNum;
+    } else {
+      return '0m';
+    }
+  }
+  if (isNaN(minutes) || minutes <= 0) {
     return '0m';
   }
   const totalMins = Math.round(Number(minutes));
@@ -159,28 +174,58 @@ export function formatTransfers(count) {
   return `${num} transfers`;
 }
 
-/**
- * Calculates calendar day difference between departure and arrival timestamps in Asia/Kolkata.
- * Returns 0 if same day, 1 if next day, 2 if two days later, etc.
- */
-export function getDayOffset(departureVal, arrivalVal) {
-  if (!departureVal || !arrivalVal) return 0;
+export function getDayOffset(departureVal, arrivalVal, durationMinutes = null) {
+  if (!departureVal || !arrivalVal) {
+    if (durationMinutes && Number(durationMinutes) >= 1440) {
+      return Math.floor(Number(durationMinutes) / 1440);
+    }
+    return 0;
+  }
   try {
-    const dep = new Date(departureVal);
-    const arr = new Date(arrivalVal);
-    if (isNaN(dep.getTime()) || isNaN(arr.getTime())) return 0;
+    const depStr = String(departureVal).trim();
+    const arrStr = String(arrivalVal).trim();
 
-    const depDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(dep);
-    const arrDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(arr);
+    // 1. Try parsing full ISO or Date timestamps
+    const dep = new Date(depStr);
+    const arr = new Date(arrStr);
+    const depValid = !isNaN(dep.getTime()) && depStr.length > 8;
+    const arrValid = !isNaN(arr.getTime()) && arrStr.length > 8;
 
-    const [dy, dm, dd] = depDateStr.split('-').map(Number);
-    const [ay, am, ad] = arrDateStr.split('-').map(Number);
+    if (depValid && arrValid) {
+      const depDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(dep);
+      const arrDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(arr);
 
-    const depUtc = Date.UTC(dy, dm - 1, dd);
-    const arrUtc = Date.UTC(ay, am - 1, ad);
+      const [dy, dm, dd] = depDateStr.split('-').map(Number);
+      const [ay, am, ad] = arrDateStr.split('-').map(Number);
 
-    const diffDays = Math.round((arrUtc - depUtc) / (1000 * 60 * 60 * 24));
-    return Math.max(0, diffDays);
+      const depUtc = Date.UTC(dy, dm - 1, dd);
+      const arrUtc = Date.UTC(ay, am - 1, ad);
+
+      const diffDays = Math.round((arrUtc - depUtc) / (1000 * 60 * 60 * 24));
+      if (diffDays > 0) return diffDays;
+    }
+
+    // 2. Check if departure and arrival are times (e.g. "16:50" and "04:40") or duration rollover
+    const depTimeMatch = /(\d{1,2}):(\d{2})/.exec(depStr);
+    const arrTimeMatch = /(\d{1,2}):(\d{2})/.exec(arrStr);
+    if (depTimeMatch && arrTimeMatch) {
+      const depMins = parseInt(depTimeMatch[1], 10) * 60 + parseInt(depTimeMatch[2], 10);
+      const arrMins = parseInt(arrTimeMatch[1], 10) * 60 + parseInt(arrTimeMatch[2], 10);
+      const durMins = Number(durationMinutes) || 0;
+
+      if (durMins > 0) {
+        return Math.floor((depMins + durMins) / 1440);
+      }
+      if (arrMins < depMins) {
+        return 1;
+      }
+    }
+
+    if (durationMinutes && Number(durationMinutes) >= 1440) {
+      return Math.floor(Number(durationMinutes) / 1440);
+    }
+
+    return 0;
   } catch {
     return 0;
   }

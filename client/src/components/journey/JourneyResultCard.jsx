@@ -165,13 +165,23 @@ export function JourneyResultCard({
   const depDate = trainStage?.departureDate || (journey.departureDateFormatted ? formatDateDisplay(journey.departureDateFormatted) : formatDateDisplay(journey.departureTime));
   const arrDate = trainStage?.arrivalDate || (journey.arrivalDateFormatted ? formatDateDisplay(journey.arrivalDateFormatted) : formatDateDisplay(journey.arrivalTime));
 
-  const dayOffset = trainStage?.dayOffset ?? (journey.dayOffset !== undefined ? journey.dayOffset : getDayOffset(journey.departureTime, journey.arrivalTime));
+  const rawDuration = journey.duration ?? journey.durationMinutes ?? trainStage?.duration ?? null;
+  const durationText = formatDuration(rawDuration);
+
+  const dayOffset = trainStage?.dayOffset ?? (journey.dayOffset !== undefined ? journey.dayOffset : getDayOffset(journey.departureTime, journey.arrivalTime, rawDuration));
   const dayOffsetBadge = formatDayOffsetBadge(dayOffset);
 
-  const durationText = formatDuration(journey.duration);
+  const rawPrice =
+    journey.totalPrice ??
+    journey.pricing?.totalFare ??
+    journey.pricing?.mainTrainFare ??
+    journey.fare ??
+    journey.price ??
+    parsed?.costs?.knownCostSum ??
+    null;
   const isEstimated = Boolean(journey.pricing?.isEstimated || journey.metadata?.isEstimatedPrice || journey.isEstimated);
   const fareSource = journey.pricing?.fareSource || journey.metadata?.fareSource || (isEstimated ? 'estimate' : null);
-  const priceText = formatPrice(journey.totalPrice, journey.currency, { isEstimated, fareSource });
+  const priceText = formatPrice(rawPrice, journey.currency, { isEstimated, fareSource });
   const priceLabel = parsed?.costs?.hasMissingCosts
     ? 'Total Estimated Cost (Partial)'
     : getPriceLabel(journey);
@@ -187,7 +197,7 @@ export function JourneyResultCard({
     : ['rail'];
 
   const PrimaryModeIcon = getModeIcon(transportModes[0] || 'rail');
-  const actualTrainName = trainStage?.trainName || journey.metadata?.trainName || legs[0]?.service?.name || 'Express';
+  const actualTrainName = trainStage?.trainName || journey.metadata?.trainName || journey.trainName || legs[0]?.service?.name || journey.service?.name || 'Express';
 
   const isBestOverall = Boolean(isTopPick);
   const rankingLabel = isTopPick ? 'Best Overall' : (journey.ranking?.label !== 'Best Overall' ? journey.ranking?.label : null);
@@ -200,6 +210,7 @@ export function JourneyResultCard({
     journey.availability?.normalizedStatus === 'UNRESERVED' ||
     journey.legs?.some((l) => l.booking?.status === 'unreserved' || l.availability?.normalizedStatus === 'UNRESERVED') ||
     /unreserved/i.test(journey.service?.class || '') ||
+    /passenger|memu|demu|emu/i.test(actualTrainName || '') ||
     /passenger|memu|demu|emu/i.test(journey.service?.name || '')
   );
 
@@ -566,7 +577,14 @@ export function JourneyResultCard({
 
             {/* Leg breakdown list */}
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {legs.map((leg, i) => {
+              {(legs.length > 0 ? legs : (trainStage ? [trainStage.leg || {
+                sequence: 1,
+                originStation: { code: trainFromCode, name: trainFromName },
+                destinationStation: { code: trainToCode, name: trainToName },
+                price: rawPrice,
+                service: { number: trainStage.trainNumber, name: trainStage.trainName, class: trainStage.travelClass },
+                availability: trainStage.availability
+              }] : [])).map((leg, i) => {
                 const isTransfer = Boolean(leg.metadata?.isStationTransfer || leg.mode === 'road');
                 const isFeeder = Boolean(leg.metadata?.isFeeder);
                 const legFare = leg.price != null && leg.price > 0 ? leg.price : null;

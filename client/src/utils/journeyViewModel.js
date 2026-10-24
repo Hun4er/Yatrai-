@@ -37,6 +37,28 @@ export function toJourneyViewModel(newResponse) {
     const arrTime = t.arrivalTime || t.arrival || '18:00';
     const duration = t.durationMinutes || t.duration || 720;
 
+    const directLeg = {
+      id: `${t.trainNumber}-leg-1`,
+      sequence: 1,
+      mode: 'rail',
+      origin: { code: t.from, name: t.fromName || t.from },
+      destination: { code: t.to, name: t.toName || t.to },
+      departureTime: depTime,
+      arrivalTime: arrTime,
+      duration,
+      price: minFare,
+      service: {
+        number: t.trainNumber,
+        name: t.trainName,
+        class: checkedClasses[0]?.class || t.classes?.[0]?.class || '3A',
+        operator: 'Indian Railways',
+      },
+      availability: {
+        status: tier,
+        normalizedStatus: tier,
+      },
+    };
+
     list.push({
       id: String(t.trainNumber),
       trainNumber: t.trainNumber,
@@ -61,6 +83,7 @@ export function toJourneyViewModel(newResponse) {
       fromName: t.fromName || t.from,
       toName: t.toName || t.to,
       classes: t.classes || [],
+      legs: [directLeg],
       raw: t,
     });
   }
