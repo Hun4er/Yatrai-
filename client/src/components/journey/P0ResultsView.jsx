@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import P0DirectTrainCard from './P0DirectTrainCard.jsx';
 import P0AlternativeCard from './P0AlternativeCard.jsx';
+import P0ExtensionCard from './P0ExtensionCard.jsx';
 import P0DateStrip from './P0DateStrip.jsx';
 import { computeEmptyStateFacts } from '../../utils/journeyViewModel.js';
 
@@ -40,6 +41,7 @@ export function P0ResultsView({
   partial = false,
   degraded = false,
   budget = { used: 0, cap: 40 },
+  features = null,
   date,
   quota = 'GN',
   destinationCode = '',
@@ -375,13 +377,33 @@ export function P0ResultsView({
       {/* Alternatives List */}
       {!isLoadingAlternatives && filteredAlternatives.length > 0 && (
         <div className="space-y-3">
-          {filteredAlternatives.map((alt, idx) => (
-            <P0AlternativeCard
-              key={idx}
-              alternative={alt}
-              onBook={onBookJourney}
-            />
-          ))}
+          {filteredAlternatives.map((alt, idx) => {
+            if (alt.type === 'EXTENSION') {
+              if (!features || !features.extension) return null;
+              return (
+                <P0ExtensionCard
+                  key={`ext-${alt.trainNumber || idx}`}
+                  plan={alt}
+                  destinationCode={destinationCode}
+                  destinationName={destinationName}
+                  onBook={onBookJourney}
+                />
+              );
+            }
+            if (alt.type === 'same_train' || alt.type === 'cross_train' || !alt.type) {
+              return (
+                <P0AlternativeCard
+                  key={idx}
+                  alternative={alt}
+                  onBook={onBookJourney}
+                />
+              );
+            }
+            if (typeof console !== 'undefined' && console.debug) {
+              console.debug('[P0ResultsView] Unknown alternative plan type:', alt.type);
+            }
+            return null;
+          })}
         </div>
       )}
 

@@ -1,0 +1,98 @@
+{
+  "default_confirmed": {
+    "cold": {
+      "searchCalls": 1,
+      "cancelledCalls": 1,
+      "availCalls": 3,
+      "scheduleCalls": 0,
+      "total": 5
+    },
+    "warm": {
+      "searchCalls": 1,
+      "cancelledCalls": 1,
+      "availCalls": 3,
+      "scheduleCalls": 0,
+      "total": 5
+    }
+  },
+  "alternatives_confirmed": {
+    "cold": {
+      "searchCalls": 25,
+      "cancelledCalls": 0,
+      "availCalls": 15,
+      "scheduleCalls": 2,
+      "total": 42
+    },
+    "warm": {
+      "searchCalls": 25,
+      "cancelledCalls": 0,
+      "availCalls": 15,
+      "scheduleCalls": 0,
+      "total": 40
+    }
+  },
+  "deep_confirmed": {
+    "cold": {
+      "searchCalls": 49,
+      "cancelledCalls": 0,
+      "availCalls": 26,
+      "scheduleCalls": 2,
+      "total": 77
+    },
+    "warm": {
+      "searchCalls": 49,
+      "cancelledCalls": 0,
+      "availCalls": 26,
+      "scheduleCalls": 0,
+      "total": 75
+    }
+  },
+  "default_all_wl": {
+    "cold": {
+      "searchCalls": 25,
+      "cancelledCalls": 1,
+      "availCalls": 17,
+      "scheduleCalls": 2,
+      "total": 45
+    },
+    "warm": {
+      "searchCalls": 25,
+      "cancelledCalls": 1,
+      "availCalls": 17,
+      "scheduleCalls": 0,
+      "total": 43
+    }
+  },
+  "alternatives_all_wl": {
+    "cold": {
+      "searchCalls": 25,
+      "cancelledCalls": 0,
+      "availCalls": 15,
+      "scheduleCalls": 2,
+      "total": 42
+    },
+    "warm": {
+      "searchCalls": 25,
+      "cancelledCalls": 0,
+      "availCalls": 15,
+      "scheduleCalls": 0,
+      "total": 40
+    }
+  },
+  "deep_all_wl": {
+    "cold": {
+      "searchCalls": 49,
+      "cancelledCalls": 0,
+      "availCalls": 26,
+      "scheduleCalls": 2,
+      "total": 77
+    },
+    "warm": {
+      "searchCalls": 49,
+      "cancelledCalls": 0,
+      "availCalls": 26,
+      "scheduleCalls": 0,
+      "total": 75
+    }
+  }
+}

@@ -10,6 +10,7 @@
 
 import directPassService from '../services/rail/directPass.service.js';
 import alternativesEngineService from '../services/rail/alternativesEngine.service.js';
+import routeExtensionService from '../services/rail/routeExtension.service.js';
 import actionBudgetService, { getCapForActionType } from '../services/rail/actionBudget.service.js';
 import availabilityService from '../services/rail/availability.service.js';
 import clusterService from '../services/rail/cluster.service.js';
@@ -193,6 +194,27 @@ export const journeyV2Controller = {
           });
         }
 
+        // ── Route Extension Hook (Strategy A) ─────────────────────────
+        const isExtensionEnabled = process.env.EXTENSION_ENABLED === 'true';
+        let extensionResult = null;
+        if (shouldRunAlternatives && isExtensionEnabled) {
+          try {
+            extensionResult = await routeExtensionService.run({
+              originCode: origins[0],
+              destCode: destinations[0],
+              date: formattedDate,
+              travelClass,
+              quota,
+              actionId,
+              actionType: isDeepMode ? 'deep' : 'alternatives_button',
+              referenceTrains: directResult?.direct || [],
+            });
+          } catch (extErr) {
+            logger.warn(`[JourneyV2] Route extension hook error: ${extErr.message}`);
+            extensionResult = { plans: [], metadata: { status: 'skipped', reason: extErr.message } };
+          }
+        }
+
         const budgetSummary = await actionBudgetService.getBudgetSummary(actionId);
         const isPartial = budgetSummary.partial || Boolean(directResult?.partial) || Boolean(alternativesResult?.partial);
         const providerNotice = initialNotice || directResult?.providerNotice || alternativesResult?.providerNotice || null;
@@ -234,7 +256,10 @@ export const journeyV2Controller = {
           direct: directResult?.direct || [],
           waitingTrains: directResult?.waitingTrains || [],
           uncheckedClasses: directResult?.uncheckedClasses || [],
-          alternatives: alternativesResult?.alternatives || [],
+          alternatives: [
+            ...((isExtensionEnabled && extensionResult?.plans) || []),
+            ...(alternativesResult?.alternatives || []),
+          ],
           dateStrip: directResult?.dateStrip || [],
           partial: isPartial,
           degraded: isDegraded,
@@ -248,6 +273,12 @@ export const journeyV2Controller = {
             hits: budgetSummary.cacheHits,
             misses: budgetSummary.cacheMisses,
           },
+          features: {
+            extension: isExtensionEnabled,
+          },
+          ...(isExtensionEnabled
+            ? { extension: extensionResult?.metadata || { status: 'skipped', reason: 'no_extension_found' } }
+            : {}),
         };
       });
 

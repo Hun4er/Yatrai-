@@ -110,3 +110,28 @@ If live PRS/RailKit APIs experience downtime, high load (HTTP 429), or 5xx provi
      - `same-train-split.png`: "Stay on this train" card with leg details and fares.
      - `class-chips-tap.png`: Live check-class dynamic chip verification.
      - `admin-usage.png`: Real-time call quota tracking.
+
+---
+
+## Route Extension (Strategy A) Demo Guide
+
+Route Extension discovers confirmed quota on downstream stations (Y > B) on direct trains that are waitlisted to destination B. Passengers can legally book to Y and deboard early at B.
+
+### How to Enable for Demo
+1. In server/.env, set:
+   EXTENSION_ENABLED=true
+2. Restart the backend service:
+   cd server && npm run dev
+
+### Demonstration Route & Behavior
+- Default (Flag OFF): EXTENSION_ENABLED=false (or omitted). The API response returns features: { extension: false }. Extension plans are neither fetched nor returned; non-extension plans, order, and counts are 100% identical to baseline.
+- Enabled (Flag ON): When direct trains to destination B are waitlisted, Strategy A queries up to 3 candidate downstream stoppages (Y > B) on the top 3 direct trains, stopping at the first confirmed seat.
+- Verified Corridor:
+  - On corridors where downstream seats exist (e.g., booking to a terminal station Y), an extension card renders at the top of the Alternative Journeys list with:
+    - ROUTE EXTENSION emerald badge
+    - CONFIRMED berth status
+    - Explanatory banner: Book to [Y] — Deboard at [B]
+    - Breakdown of any extra fare paid for the extension berth.
+  - On corridors where downstream stations are waitlisted or the train terminates at destination B (such as PUNE -> NGP verified in live testing), the engine fails open, consumes minimal budget, and returns existing alternatives without errors.
+- Rollback:
+  - Instantly disable by setting EXTENSION_ENABLED=false in server/.env and restarting the server (no code redeploy required).

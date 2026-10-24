@@ -1,0 +1,25 @@
+{
+  "direct": [],
+  "waitingTrains": [],
+  "uncheckedClasses": [],
+  "alternatives": [],
+  "dateStrip": [],
+  "partial": false,
+  "degraded": false,
+  "providerNotice": null,
+  "allCancelled": false,
+  "noTrainsFound": false,
+  "message": null,
+  "cancelledFilter": null,
+  "budget": {
+    "used": 23,
+    "cap": 60,
+    "partial": false,
+    "cacheHits": 29,
+    "cacheMisses": 23
+  },
+  "cache": {
+    "hits": 29,
+    "misses": 23
+  }
+}
