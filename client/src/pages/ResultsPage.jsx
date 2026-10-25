@@ -893,11 +893,15 @@ export function ResultsPage({
                 partial={p0Partial}
                 degraded={p0Degraded}
                 budget={p0Budget}
-                features={data?.features || { extension: true }}
+                features={data?.features || { extension: false }}
+                extension={data?.extension || null}
                 date={travelDate}
                 quota={searchParams?.quota || 'GN'}
                 destinationCode={userDest}
                 destinationName={exactDestName}
+                requestedDestination={data?.requestedDestination || null}
+                requestedDestinationName={data?.requestedDestinationName || null}
+                destinationCluster={data?.destinationCluster || []}
                 isLoadingAlternatives={isLoadingAlternatives}
                 isLoadingMoreTrains={isLoadingMoreTrains}
                 isSearchingDeeper={isSearchingDeeper}

@@ -22,6 +22,8 @@ import railKitAdapter from '../../providers/rail/railKit.adapter.js';
 import availabilityService, { AVAILABILITY_STATUS } from './availability.service.js';
 import cancelledTrainsService from './cancelledTrains.service.js';
 import actionBudgetService from './actionBudget.service.js';
+import circuitBreakerService from './circuitBreaker.service.js';
+import { classifyError, ERROR_CLASS, NOT_BOOKABLE_REASONS } from '../../utils/errorClassifier.js';
 import { formatJourneyDate } from '../../utils/railwayTime.js';
 import { calculateJourneyTiming } from '../../utils/railwayTime.js';
 import config from '../../config/index.js';
@@ -94,7 +96,7 @@ function isRunningOnDate(train, departureDateStr) {
     if (runDays === '1111111') return true;
     if (/^[01]{7}$/.test(runDays)) {
       const monIdx = (dayIndex + 6) % 7;
-      return runDays[dayIndex] === '1' || runDays[monIdx] === '1';
+      return runDays[monIdx] === '1';
     }
     return true;
   }
@@ -150,7 +152,7 @@ function departureMinutes(train) {
 function buildClassChip(cls, state, availResult) {
   const chip = {
     class: cls,
-    state, // 'CHECKED' | 'UNCHECKED' | 'UNVERIFIED'
+    state, // 'CHECKED' | 'UNCHECKED' | 'UNVERIFIED' | 'STALE'
     tier: null,
     availabilityText: null,
     fare: null,
@@ -163,11 +165,34 @@ function buildClassChip(cls, state, availResult) {
     reason: null,
   };
   if (availResult) {
-    const isErr = availResult.status === 'error' || availResult.isError || availResult.normalizedStatus === 'ERROR' || availResult.normalizedStatus === 'UNKNOWN';
-    chip.tier = isErr ? 'ERROR' : availResult.normalizedStatus;
-    chip.availabilityText = isErr && !availResult.statusText?.includes('retry')
-      ? "couldn't check — tap to retry"
-      : (availResult.statusText || availResult.availabilityText || availResult.originalStatus || null);
+    if (availResult.isStale || availResult.state === 'STALE' || availResult.tier === 'OLDER_RESULT') {
+      chip.state = 'STALE';
+      chip.tier = 'OLDER_RESULT';
+      chip.availabilityText = availResult.statusText || availResult.availabilityText || 'older result';
+      chip.checkedAt = availResult.checkedAt || new Date().toISOString();
+      chip.errorClass = availResult.errorClass || ERROR_CLASS.TRANSIENT;
+    } else if (
+      availResult.isNotBookable ||
+      availResult.errorClass === ERROR_CLASS.NOT_BOOKABLE ||
+      availResult.normalizedStatus === 'NOT_BOOKABLE'
+    ) {
+      chip.tier = 'NOT_BOOKABLE';
+      chip.reason = availResult.reason || 'NOT_BOOKABLE';
+      chip.availabilityText = availResult.statusText || availResult.userMessage || 'Not bookable';
+      chip.checkedAt = new Date().toISOString();
+      chip.errorClass = ERROR_CLASS.NOT_BOOKABLE;
+    } else {
+      const isErr = availResult.status === 'error' || availResult.isError || availResult.normalizedStatus === 'ERROR' || availResult.normalizedStatus === 'UNKNOWN';
+      chip.tier = isErr ? 'ERROR' : availResult.normalizedStatus;
+      chip.availabilityText = isErr
+        ? "couldn't check — tap to retry"
+        : (availResult.statusText || availResult.availabilityText || availResult.originalStatus || null);
+      chip.reason = isErr ? (availResult.reason || 'CALL_FAILED') : null;
+      chip.checkedAt = new Date().toISOString();
+      if (isErr) {
+        chip.errorClass = availResult.errorClass || ERROR_CLASS.TRANSIENT;
+      }
+    }
     chip.predictionPercentage = availResult.predictionPercentage || 0;
     chip.waitlistPosition = availResult.waitlistPosition ?? null;
     chip.racPosition = availResult.racPosition ?? null;
@@ -176,8 +201,6 @@ function buildClassChip(cls, state, availResult) {
       ? availResult.fare.totalFare
       : (typeof availResult.totalFare === 'number' ? availResult.totalFare : (typeof availResult.fare === 'number' ? availResult.fare : null));
     chip.dates = availResult.dates || [];
-    chip.checkedAt = new Date().toISOString();
-    chip.reason = availResult.reason || null;
   }
   return chip;
 }
@@ -190,6 +213,7 @@ export class DirectPassService {
     this.availabilityService = dependencies.availabilityService || availabilityService;
     this.cancelledTrainsService = dependencies.cancelledTrainsService || cancelledTrainsService;
     this.actionBudgetService = dependencies.actionBudgetService || actionBudgetService;
+    this.circuitBreakerService = dependencies.circuitBreakerService || circuitBreakerService;
   }
 
   /**
@@ -276,7 +300,9 @@ export class DirectPassService {
 
         if (res?.success && Array.isArray(res.data)) {
           for (const t of res.data) {
-            allTrains.push({ ...t, _from: from, _to: to });
+            const actualFrom = t.from_stn_code || t.from_station_code || t.fromCode || t.from || from;
+            const actualTo = t.to_stn_code || t.to_station_code || t.toCode || t.to || to;
+            allTrains.push({ ...t, _from: actualFrom, _to: actualTo });
           }
         }
       } catch (err) {
@@ -369,9 +395,17 @@ export class DirectPassService {
         continue;
       }
 
+      // Check circuit breaker before this availability call
+      if (this.circuitBreakerService?.isOpen(actionId)) {
+        trainResult.classes = offered.map((c) => buildClassChip(c, 'UNCHECKED', null));
+        results.push(trainResult);
+        hadProviderError = true;
+        continue;
+      }
+
       // Check budget before this availability call
       const isAvailCached = typeof this.availabilityService.hasCached === 'function' &&
-        this.availabilityService.hasCached(num, train._from, train._to, dateStr, round1Class, quota);
+        this.availabilityService.hasCached(num, fromStn, toStn, dateStr, round1Class, quota);
       const okAvail = await budget.recordCall({
         actionId,
         phase: 'direct',
@@ -392,8 +426,8 @@ export class DirectPassService {
       try {
         availResult = await this.availabilityService.checkLegAvailability({
           trainNumber: num,
-          fromCode: train._from,
-          toCode: train._to,
+          fromCode: fromStn,
+          toCode: toStn,
           date: dateStr,
           travelClass: round1Class,
           quota,
@@ -405,6 +439,14 @@ export class DirectPassService {
         if (err.status === 429 || (err.status >= 500 && err.status < 600) || /429|5\d\d/.test(err.message)) {
           hadProviderError = true;
         }
+      }
+
+      // Record outcome to circuit breaker
+      if (this.circuitBreakerService) {
+        const isSuccess = availResult && availResult.normalizedStatus !== 'ERROR' && availResult.normalizedStatus !== 'UNKNOWN';
+        const errClass = availResult?.errorClass || (isSuccess ? null : ERROR_CLASS.TRANSIENT);
+        const { isOpen } = this.circuitBreakerService.recordCallOutcome(actionId, { errorClass: errClass, success: isSuccess });
+        if (isOpen) hadProviderError = true;
       }
 
       // Build class chips
@@ -453,6 +495,11 @@ export class DirectPassService {
       const top5 = withPred.slice(0, ROUND2_MAX);
 
       for (const trainResult of top5) {
+        if (this.circuitBreakerService?.isOpen(actionId)) {
+          hadProviderError = true;
+          break;
+        }
+
         const r1Chip = trainResult.classes.find((c) => c.state === 'CHECKED');
         if (!r1Chip) continue;
         const r2Class = pickRound2Class(trainResult.offeredClasses, r1Chip.class);
@@ -486,6 +533,13 @@ export class DirectPassService {
           }
         }
 
+        if (this.circuitBreakerService) {
+          const isSuccess = r2Avail && r2Avail.normalizedStatus !== 'ERROR' && r2Avail.normalizedStatus !== 'UNKNOWN';
+          const errClass = r2Avail?.errorClass || (isSuccess ? null : ERROR_CLASS.TRANSIENT);
+          const { isOpen } = this.circuitBreakerService.recordCallOutcome(actionId, { errorClass: errClass, success: isSuccess });
+          if (isOpen) hadProviderError = true;
+        }
+
         // Add or update the chip for r2Class
         const existingIdx = trainResult.classes.findIndex((c) => c.class === r2Class);
         const newChip = buildClassChip(r2Class, 'CHECKED', r2Avail);
@@ -503,7 +557,9 @@ export class DirectPassService {
     const noTrainsFound = allTrains.length === 0 && !hadProviderError;
 
     const budgetSummary = await budget.getBudgetSummary(actionId);
-    const partial = budget.isAtCap(actionId) || hadProviderError;
+    const cbNotice = this.circuitBreakerService?.getProviderNotice(actionId) || null;
+    const isCbOpen = Boolean(this.circuitBreakerService?.isOpen(actionId));
+    const partial = budget.isAtCap(actionId) || hadProviderError || isCbOpen;
 
     // Extract 4-date strip from any checked class that returned dates
     const rawDateStrip = results.flatMap((r) => r.classes).find((c) => Array.isArray(c.dates) && c.dates.length > 0)?.dates || [];
@@ -524,9 +580,9 @@ export class DirectPassService {
       confirmedFound,
       partial,
       hadProviderError,
-      providerNotice: hadProviderError
+      providerNotice: cbNotice || (hadProviderError
         ? 'Live rail provider is currently experiencing high traffic or temporary delay. Some direct options or availability may be partial.'
-        : null,
+        : null),
       allCancelled,
       noTrainsFound,
       message: allCancelled

@@ -117,7 +117,7 @@ describe('PHASE 2 — GATES SUITE', () => {
       assert.ok(summary.used <= 40, `Used ${summary.used} <= 40`);
 
       // Warm <= cold
-      const envWarm = createGoldenMockEnvironment({ confirmedOnTrain: null });
+      const envWarm = createGoldenMockEnvironment({ confirmedOnTrain: '12310' });
       await executeSearch({ mode: 'default', env: envWarm, actionId: 'warm_c' });
       const count1 = envWarm.getCounters().total;
       await executeSearch({ mode: 'default', env: envWarm, actionId: 'warm_w' });

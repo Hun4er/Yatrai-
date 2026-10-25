@@ -26,12 +26,34 @@ function formatCheckedAgo(isoStr) {
  * - "checked N min ago" + refresh icon (POST /api/v2/journeys/refresh-card)
  * - Transparent status indicators and booking button
  */
+const KNOWN_CODES = {
+  'NEW DELHI': 'NDLS',
+  'DELHI': 'NDLS',
+  'PATNA': 'PNBE',
+  'PATNA JN': 'PNBE',
+  'PATNA JUNCTION': 'PNBE',
+};
+
+const STATION_DISPLAY_NAMES = {
+  'NDLS': 'New Delhi',
+  'DLI': 'Old Delhi',
+  'NZM': 'Hazrat Nizamuddin',
+  'ANVT': 'Anand Vihar',
+  'PNBE': 'Patna Jn',
+  'DNR': 'Danapur',
+  'RJPB': 'Rajendra Nagar',
+  'PNC': 'Patna Saheb',
+  'PPTA': 'Patliputra',
+};
+
 export function P0DirectTrainCard({
   train,
   date,
   quota = 'GN',
   destinationCode = '',
   destinationName = '',
+  requestedDestination = '',
+  requestedDestinationName = '',
   onCheckClass,
   onRefreshCard,
   onBook,
@@ -102,11 +124,23 @@ export function P0DirectTrainCard({
             </div>
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#7E8794]">
               <span>{from} → {to}</span>
-              {destinationCode && to && to.toUpperCase() !== destinationCode.toUpperCase() && (
-                <span className="rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
-                  Arrives at {train.toName || to} ({to}), not {destinationName || destinationCode}
-                </span>
-              )}
+              {(() => {
+                const resolvedTarget = (
+                  requestedDestination ||
+                  KNOWN_CODES[String(destinationCode || '').toUpperCase().trim()] ||
+                  (String(destinationCode || '').length <= 5 ? String(destinationCode || '').toUpperCase().trim() : null)
+                );
+                const trainToCode = String(to || '').toUpperCase().trim();
+                const showNotice = Boolean(resolvedTarget && trainToCode && trainToCode !== resolvedTarget);
+                if (!showNotice) return null;
+                const targetName = requestedDestinationName || STATION_DISPLAY_NAMES[resolvedTarget] || destinationName || resolvedTarget;
+                const arrivingAtName = train.toName || STATION_DISPLAY_NAMES[trainToCode] || trainToCode;
+                return (
+                  <span className="rounded bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                    Arrives at {arrivingAtName}, not {targetName}
+                  </span>
+                );
+              })()}
             </div>
           </div>
         </div>

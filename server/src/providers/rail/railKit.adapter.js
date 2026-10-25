@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { toRailKitDate, formatJourneyDate, isIrctcMaintenanceWindow } from '../../utils/railwayTime.js';
 import { normalizeSeatAvailability, AVAILABILITY_STATUS } from '../../services/rail/availabilityNorm.js';
+import { classifyError, ERROR_CLASS } from '../../utils/errorClassifier.js';
 import logger from '../../utils/logger.js';
 import config from '../../config/index.js';
 import persistentCacheService, { CACHE_TTL_CONFIG } from '../../services/rail/persistentCache.service.js';
@@ -22,20 +23,20 @@ import { getCurrentBudgetTracker } from '../../services/rail/requestBudget.js';
  * Budget:
  *   - In-memory cache per [trainNo:from:to:date:class:quota], 5-min TTL
  *   - In-flight deduplication (same key -> single HTTP request)
- *   - Max concurrent requests: RAILKIT_MAX_CONCURRENT (default 3)
+ *   - Max concurrent requests: adaptive starting at 4; halves on 429 down to min 1
  *   - Monthly usage counter logged at INFO level
- *   - Retry once on 5xx / timeout; never on 4xx
+ *   - Retry up to 2 times on TRANSIENT errors with backoff + jitter; never on 4xx/auth
  */
 
 // Config constants
 const BASE_URL = (process.env.RAILKIT_API_URL || 'https://api.railkit.in').replace(/\/$/, '');
 const TIMEOUT_MS = parseInt(process.env.RAILKIT_TIMEOUT_MS || '8000', 10);
 const CACHE_TTL_MS = parseInt(process.env.RAILKIT_CACHE_TTL_MS || '300000', 10); // 5 min
-const MAX_CONCURRENT = parseInt(process.env.RAILKIT_MAX_CONCURRENT || '3', 10);
+const DEFAULT_MAX_CONCURRENT = 4;
 // Station code validation cache (24-h TTL)
 const STATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-  // Station code format: 2-5 uppercase letters only
+// Station code format: 2-5 uppercase letters only
 const STATION_CODE_RE = /^[A-Z]{2,5}$/;
 
 export class RailKitAdapter {
@@ -52,7 +53,8 @@ export class RailKitAdapter {
     // Station validation cache: stationCode -> { valid, reason, expiresAt }
     this._stationCache = new Map();
 
-    // Concurrency semaphore
+    // Adaptive concurrency semaphore (starts at 4; on 429 halves down to min 1)
+    this._maxConcurrent = options?.maxConcurrent || DEFAULT_MAX_CONCURRENT;
     this._activeRequests = 0;
     this._concurrencyQueue = [];
 
@@ -205,7 +207,7 @@ export class RailKitAdapter {
 
   _acquireSlot() {
     return new Promise((resolve) => {
-      if (this._activeRequests < MAX_CONCURRENT) {
+      if (this._activeRequests < this._maxConcurrent) {
         this._activeRequests++;
         resolve();
       } else {
@@ -224,10 +226,10 @@ export class RailKitAdapter {
   }
 
   /**
-   * Fetch with timeout + one retry on 5xx/network error.
-   * Never retries on 400/404/429.
+   * Fetch with timeout + retry up to 2 times on TRANSIENT error.
+   * Never retries on 400/404/AUTH_QUOTA/NOT_BOOKABLE.
    */
-  async _fetch(url, attempt = 1) {
+  async _fetch(url, attempt = 1, options = {}) {
     const redactedUrl = url.replace(/X-API-Key=[^&]+/i, 'X-API-Key=[REDACTED]');
     logger.info(`[DIAGNOSTIC - RAILKIT REQUEST] Attempt ${attempt} | URL: ${redactedUrl}`);
 
@@ -270,6 +272,8 @@ export class RailKitAdapter {
     let res;
     let resBodyText = '';
     const fetchFunc = this._fetchFn || globalThis.fetch;
+    let fetchErr = null;
+
     try {
       res = await fetchFunc(url, { headers: this._headers(), signal: controller.signal });
       if (typeof res.text === 'function') {
@@ -277,28 +281,69 @@ export class RailKitAdapter {
       }
       logger.info(`[DIAGNOSTIC - RAILKIT RESPONSE] URL: ${redactedUrl} | HTTP Status: ${res.status} | Body: ${resBodyText}`);
     } catch (err) {
-      clearTimeout(timer);
+      fetchErr = err;
       logger.error(`[DIAGNOSTIC - RAILKIT FETCH ERROR] URL: ${redactedUrl} | Attempt ${attempt} | Error: ${err.message}`);
-      if (err.status === 429 || err.status === 400 || err.status === 404 || err.code === 'LIVE_REQUESTS_BLOCKED') {
-        throw err;
-      }
-      if (attempt === 1) {
-        logger.debug(`[RailKitAdapter] Network error attempt 1, retrying: ${err.message}`);
-        return this._fetch(url, 2);
-      }
-      throw new Error(`RailKit network error: ${err.message}`);
     } finally {
       clearTimeout(timer);
     }
 
-    if (res.status >= 500 && attempt === 1) {
-      logger.debug(`[RailKitAdapter] HTTP ${res.status} attempt 1, retrying`);
-      return this._fetch(url, 2);
-    }
+    // Classify error using canonical classifier
+    const statusCode = res?.status || fetchErr?.status || null;
+    const classified = classifyError({
+      status: statusCode,
+      error: fetchErr,
+      body: resBodyText,
+    });
 
-    if (!res.ok) {
-      const err = Object.assign(new Error(`RailKit HTTP ${res.status}`), { status: res.status, body: resBodyText });
-      logger.error(`[DIAGNOSTIC - RAILKIT NON-OK RESPONSE] URL: ${redactedUrl} | Status: ${res.status} | Body: ${resBodyText}`);
+    // Check if error state
+    const isErrorState = fetchErr || !res?.ok;
+    if (isErrorState) {
+      // Only TRANSIENT is retried, max 2 retries (attempt 1 and 2)
+      if (classified.errorClass === ERROR_CLASS.TRANSIENT && attempt <= 2) {
+        if (statusCode === 429) {
+          this._maxConcurrent = Math.max(1, Math.floor(this._maxConcurrent / 2));
+          logger.warn(`[RailKitAdapter] HTTP 429 Rate Limit. Halving adaptive concurrency to ${this._maxConcurrent}`);
+        }
+
+        let delayMs = attempt === 1 ? 500 : 1500;
+        const jitter = Math.floor(Math.random() * (attempt === 1 ? 200 : 300));
+        delayMs += jitter;
+
+        if (statusCode === 429 && res?.headers?.get) {
+          const retryAfter = res.headers.get('retry-after');
+          if (retryAfter) {
+            const sec = parseInt(retryAfter, 10);
+            if (!isNaN(sec) && sec > 0) delayMs = Math.max(delayMs, sec * 1000);
+          }
+        }
+
+        // Every attempt goes through the ledger / reserve
+        const tracker = options?.budgetTracker || getCurrentBudgetTracker();
+        if (tracker && typeof tracker.reserve === 'function') {
+          const ok = tracker.reserve('recovery', options);
+          if (!ok) {
+            logger.warn(`[RailKitAdapter] Reserve or cap empty for retry. Stopping retry for ${redactedUrl}`);
+            const err = Object.assign(new Error(`RailKit retry halted: budget cap/reserve empty`), {
+              status: statusCode,
+              errorClass: classified.errorClass,
+              body: resBodyText,
+            });
+            throw err;
+          }
+        }
+
+        logger.info(`[RailKitAdapter] TRANSIENT error (attempt ${attempt}), retrying in ${delayMs}ms...`);
+        await new Promise((r) => setTimeout(r, delayMs));
+        return this._fetch(url, attempt + 1, options);
+      }
+
+      const err = Object.assign(new Error(`RailKit HTTP ${statusCode || 'Error'}: ${classified.reason || fetchErr?.message}`), {
+        status: statusCode,
+        body: resBodyText,
+        errorClass: classified.errorClass,
+        reason: classified.reason,
+      });
+      logger.error(`[DIAGNOSTIC - RAILKIT NON-OK RESPONSE] URL: ${redactedUrl} | Status: ${statusCode} | Body: ${resBodyText}`);
       throw err;
     }
 
@@ -420,7 +465,7 @@ export class RailKitAdapter {
       const json = await this._cachedFetch(
         cacheKey,
         CACHE_TTL_CONFIG.availability,
-        () => this._fetch(url),
+        () => this._fetch(url, 1, { ...options, budgetTracker: tracker }),
         'availability',
         { ...options, budgetTracker: tracker }
       );

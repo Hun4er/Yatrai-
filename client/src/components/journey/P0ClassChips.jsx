@@ -82,18 +82,56 @@ export function P0ClassChips({
 
     const tier = (chip.tier || '').toUpperCase();
 
-    // 1. Error / Couldn't check
+    // 1. Error / Couldn't check -> Neutral grey "tap to retry" (calm failure state)
     if (tier === 'ERROR' || tier === 'UNKNOWN') {
       return (
-        <span className="flex items-center gap-1 text-rose-300">
+        <span className="flex items-center gap-1 text-[#9CA3AF]">
           <span>{cls}</span>
           <span>·</span>
-          <span>couldn't check</span>
+          <span>tap to retry</span>
         </span>
       );
     }
 
-    // 2. Unavailable
+    // 2. Stale availability -> "older · 14:02"
+    if (chip.state === 'STALE' || tier === 'OLDER_RESULT') {
+      let timeStr = '14:02';
+      if (chip.checkedAt) {
+        try {
+          const d = new Date(chip.checkedAt);
+          if (!isNaN(d.getTime())) {
+            timeStr = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+          }
+        } catch {}
+      }
+      return (
+        <span className="flex items-center gap-1 text-[#C5A880]">
+          <span>{cls}</span>
+          <span>·</span>
+          <span>older · {timeStr}</span>
+        </span>
+      );
+    }
+
+    // 3. Not Bookable (Chart prepared, departed, booking closed, class not offered)
+    if (tier === 'NOT_BOOKABLE' || chip.isNotBookable) {
+      let reasonText = chip.availabilityText || 'Not available';
+      if (chip.reason === 'CHART_PREPARED') reasonText = 'Chart prepared';
+      else if (chip.reason === 'TRAIN_DEPARTED') reasonText = 'Departed';
+      else if (chip.reason === 'BOOKING_CLOSED' || chip.reason === 'REGRET') reasonText = 'Booking closed';
+      else if (chip.reason === 'BOOKING_NOT_OPEN') reasonText = 'Booking not open';
+      else if (chip.reason === 'CLASS_NOT_OFFERED') reasonText = 'Not offered on this train';
+
+      return (
+        <span className="flex items-center gap-1 text-[#9CA3AF]">
+          <span>{cls}</span>
+          <span>·</span>
+          <span>{reasonText}</span>
+        </span>
+      );
+    }
+
+    // 4. Unavailable
     if (tier === 'UNAVAILABLE') {
       return (
         <span className="flex items-center gap-1 text-[#9CA3AF]">
@@ -109,7 +147,7 @@ export function P0ClassChips({
       ? ` · ₹${chip.fare.toLocaleString('en-IN')}`
       : '';
 
-    // 3. Available
+    // 5. Available
     if (tier === 'AVAILABLE') {
       let count = chip.seatsAvailable;
       if (count === null || count === undefined) {
@@ -127,7 +165,7 @@ export function P0ClassChips({
       );
     }
 
-    // 4. RAC
+    // 6. RAC
     if (tier === 'RAC') {
       let racPos = chip.racPosition ?? chip.seatsAvailable;
       if (!racPos) {
@@ -145,7 +183,7 @@ export function P0ClassChips({
       );
     }
 
-    // 5. WAITLIST
+    // 7. WAITLIST
     if (tier === 'WAITLIST' || tier === 'WL') {
       let wlPos = chip.waitlistPosition;
       if (!wlPos) {
@@ -185,9 +223,12 @@ export function P0ClassChips({
 
     const tier = (chip.tier || '').toUpperCase();
     if (tier === 'ERROR' || tier === 'UNKNOWN') {
-      return 'border border-dashed border-rose-500/50 bg-rose-950/20 text-rose-300 hover:border-rose-400 hover:bg-rose-900/30 cursor-pointer';
+      return 'border border-dashed border-[#4B5563] bg-[#1A1F26] text-[#9CA3AF] hover:border-[#6B7280] hover:text-[#D1D5DB] hover:bg-[#202731] cursor-pointer';
     }
-    if (tier === 'UNAVAILABLE') {
+    if (chip.state === 'STALE' || tier === 'OLDER_RESULT') {
+      return 'border border-[#4B443B] bg-[#1A1815] text-[#C5A880] hover:border-[#6B5E4F] cursor-pointer';
+    }
+    if (tier === 'NOT_BOOKABLE' || chip.isNotBookable || tier === 'UNAVAILABLE') {
       return 'border border-[#303640] bg-[#12151A] text-[#7E8794] opacity-80 cursor-default';
     }
     if (tier === 'AVAILABLE') {

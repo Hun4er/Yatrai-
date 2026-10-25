@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   AlertTriangle,
   RotateCcw,
@@ -42,10 +42,14 @@ export function P0ResultsView({
   degraded = false,
   budget = { used: 0, cap: 40 },
   features = null,
+  extension = null,
   date,
   quota = 'GN',
   destinationCode = '',
   destinationName = '',
+  requestedDestination = '',
+  requestedDestinationName = '',
+  destinationCluster = [],
   providerNotice = null,
   allCancelled = false,
   message = null,
@@ -155,6 +159,87 @@ export function P0ResultsView({
     return filteredDirect.slice(0, 3);
   }, [filteredDirect, hasConfirmedDirectSeat, showAllDirectTrains]);
 
+  // Calculate failed checks and whether >= 50% failed with TRANSIENT / AUTH_QUOTA
+  const { failedChecksList, isSlowSeatData } = useMemo(() => {
+    const failed = [];
+    let totalCheckedOrFailed = 0;
+    (direct || []).forEach((train) => {
+      (train.classes || []).forEach((c) => {
+        if (c.state === 'CHECKED' || c.tier === 'ERROR' || c.tier === 'UNKNOWN' || c.state === 'STALE') {
+          totalCheckedOrFailed++;
+          const isFailed = c.tier === 'ERROR' || c.tier === 'UNKNOWN' || c.errorClass === 'TRANSIENT' || c.errorClass === 'AUTH_QUOTA';
+          if (isFailed) {
+            failed.push({
+              trainNo: train.trainNumber || train.train_number,
+              from: train.from,
+              to: train.to,
+              class: c.class,
+              date,
+              quota,
+            });
+          }
+        }
+      });
+    });
+    const isSlow = totalCheckedOrFailed > 0 && failed.length >= Math.ceil(totalCheckedOrFailed / 2);
+    return { failedChecksList: failed, isSlowSeatData: isSlow };
+  }, [direct, date, quota]);
+
+  const [isRetryingFailed, setIsRetryingFailed] = useState(false);
+  const hasAutoRetriedRef = useRef(false);
+
+  // Manual retry handler (cap 40, new actionId, only failed keys, most useful trains first)
+  const handleRetryFailed = async () => {
+    if (isRetryingFailed || failedChecksList.length === 0 || !onCheckClass) return;
+    setIsRetryingFailed(true);
+    try {
+      const retryActionId = `p0_retry_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const batch = failedChecksList.slice(0, 40);
+      for (const item of batch) {
+        await onCheckClass({ ...item, actionId: retryActionId });
+      }
+    } finally {
+      setIsRetryingFailed(false);
+    }
+  };
+
+  // Phase 3 item 3: Auto-retry failed checks for visible cards once after 20 s, within caps, and stop after one attempt
+  useEffect(() => {
+    if (hasAutoRetriedRef.current || !onCheckClass) return;
+
+    const visibleFailed = [];
+    (visibleDirectTrains || []).forEach((train) => {
+      (train.classes || []).forEach((c) => {
+        const isFailed = c.tier === 'ERROR' || c.tier === 'UNKNOWN' || c.errorClass === 'TRANSIENT' || c.errorClass === 'AUTH_QUOTA';
+        if (isFailed) {
+          visibleFailed.push({
+            trainNo: train.trainNumber || train.train_number,
+            from: train.from,
+            to: train.to,
+            class: c.class,
+            date,
+            quota,
+          });
+        }
+      });
+    });
+
+    if (visibleFailed.length === 0) return;
+
+    const timer = setTimeout(async () => {
+      if (hasAutoRetriedRef.current) return;
+      hasAutoRetriedRef.current = true;
+      const retryActionId = `p0_auto_retry_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      for (const item of visibleFailed.slice(0, 40)) {
+        try {
+          await onCheckClass({ ...item, actionId: retryActionId });
+        } catch {}
+      }
+    }, 20000);
+
+    return () => clearTimeout(timer);
+  }, [visibleDirectTrains, onCheckClass, date, quota]);
+
   const handleShowNearbyDates = () => {
     const el = document.getElementById('p0-date-strip');
     if (el) {
@@ -180,14 +265,8 @@ export function P0ResultsView({
           </span>
         </h2>
 
-        {/* Friendly Checked Text, Station Expansion indicator & Debug info */}
+        {/* Friendly Checked Text & Debug info */}
         <div className="text-xs text-[#A7AFBA] flex flex-wrap items-center gap-2">
-          {features?.extension && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
-              <Sparkles className="h-2.5 w-2.5" />
-              <span>Station Expansion Active</span>
-            </span>
-          )}
           <span>
             Checked <strong className="text-[#F0F1F3]">{checkedTrainsCount}</strong> of{' '}
             {totalTrainsCount} trains
@@ -219,6 +298,8 @@ export function P0ResultsView({
               quota={quota}
               destinationCode={destinationCode}
               destinationName={destinationName}
+              requestedDestination={requestedDestination}
+              requestedDestinationName={requestedDestinationName}
               onCheckClass={onCheckClass}
               onRefreshCard={onRefreshCard}
               onBook={onBookJourney}
@@ -372,23 +453,16 @@ export function P0ResultsView({
         </div>
       )}
 
-      {/* Station Expansion (Strategy A) Banner */}
-      {features?.extension && (
-        <div className="flex items-start gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3.5 text-xs text-emerald-300">
-          <Sparkles className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-          <div className="space-y-0.5">
-            <div className="font-semibold text-emerald-300 flex items-center gap-2">
-              <span>Station Expansion (Strategy A) Active</span>
-              <span className="text-[10px] uppercase font-bold text-emerald-400/90 bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 rounded">
-                Live Scanner
-              </span>
-            </div>
-            <p className="text-[11px] text-[#A7AFBA] leading-relaxed">
-              {filteredAlternatives.some((a) => a.type === 'EXTENSION')
-                ? `Discovered confirmed route extension plan(s) by booking beyond ${destinationName || destinationCode} to downstream stops with alight-at destination permission.`
-                : `Active scanner monitors downstream candidate stations beyond ${destinationName || destinationCode} (e.g. Rajendra Nagar, Patna Saheb) for confirmed booking-beyond options.`}
-            </p>
-          </div>
+      {/* Truthful Station Expansion Banner (Phase 3 item 5) */}
+      {features?.extension === true && extension && extension.status !== 'skipped' && (
+        <div className="flex items-center gap-2.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3.5 py-2.5 text-xs text-emerald-300">
+          <Sparkles className="h-4 w-4 text-emerald-400 shrink-0" />
+          <span>
+            Route extension checked:{' '}
+            {(extension.found ?? extension.count ?? 0) > 0
+              ? `${extension.found ?? extension.count} found`
+              : 'none found'}
+          </span>
         </div>
       )}
 
@@ -452,8 +526,26 @@ export function P0ResultsView({
             </>
           ) : (
             <>
-              <p className="text-[#A7AFBA]">{emptyFacts.summaryText}</p>
+              <p className="text-[#A7AFBA]">
+                {emptyFacts.summaryText
+                  ? emptyFacts.summaryText.replace(
+                      /\s*\d+\s+could not be checked\.?/i,
+                      emptyFacts.errorCount > 0 ? ' Some seat availability checks could not be completed.' : ''
+                    )
+                  : 'No confirmed direct seats found.'}
+              </p>
               <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                {emptyFacts.errorCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleRetryFailed}
+                    disabled={isRetryingFailed}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-[#4B5563] bg-[#1A1F26] px-4 py-2 text-xs font-semibold text-[#F0F1F3] hover:border-[#6B7280] transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 text-[#E8B04A]" />
+                    <span>Retry failed checks ({emptyFacts.errorCount})</span>
+                  </button>
+                )}
                 {dateStrip && dateStrip.length > 0 && (
                   <button
                     type="button"
@@ -512,6 +604,36 @@ export function P0ResultsView({
           <div className="flex-1">
             <span className="font-bold">Provider Notice:</span> {providerNotice}
           </div>
+        </div>
+      )}
+
+      {/* 2c. Slow Seat Data Banner (Phase 3 item 2: >= 50% failed checks) */}
+      {isSlowSeatData && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200 shadow-md">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+            <span className="font-medium">
+              Seat data is slow right now - showing last known results where available
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleRetryFailed}
+            disabled={isRetryingFailed}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-400/40 bg-amber-400/20 px-3.5 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-400/30 transition-all cursor-pointer disabled:opacity-50 shrink-0"
+          >
+            {isRetryingFailed ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin text-amber-300" />
+                <span>Retrying...</span>
+              </>
+            ) : (
+              <>
+                <RotateCcw className="h-3 w-3 text-amber-300" />
+                <span>Retry failed checks ({failedChecksList.length})</span>
+              </>
+            )}
+          </button>
         </div>
       )}
 

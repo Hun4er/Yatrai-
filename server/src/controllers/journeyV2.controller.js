@@ -292,6 +292,11 @@ export const journeyV2Controller = {
           ...(isExtensionEnabled
             ? { extension: extensionResult?.metadata || { status: 'skipped', reason: 'no_extension_found' } }
             : {}),
+          requestedOrigin: origins[0],
+          requestedOriginName: clusterService.getStationDetails(origins[0])?.name || origins[0],
+          requestedDestination: destinations[0],
+          requestedDestinationName: clusterService.getStationDetails(destinations[0])?.name || destinations[0],
+          destinationCluster: expandedDestinations,
         };
       });
 

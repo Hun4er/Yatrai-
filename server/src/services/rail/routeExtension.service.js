@@ -439,6 +439,7 @@ export class RouteExtensionService {
         status: count > 0 ? 'success' : 'skipped',
         reason: count > 0 ? null : 'no_extension_found',
         count,
+        found: count,
       },
     };
   }

@@ -49,18 +49,18 @@
   },
   "default_all_wl": {
     "cold": {
-      "searchCalls": 25,
+      "searchCalls": 19,
       "cancelledCalls": 1,
-      "availCalls": 17,
+      "availCalls": 30,
       "scheduleCalls": 2,
-      "total": 45
+      "total": 52
     },
     "warm": {
       "searchCalls": 25,
       "cancelledCalls": 1,
-      "availCalls": 17,
+      "availCalls": 30,
       "scheduleCalls": 0,
-      "total": 43
+      "total": 56
     }
   },
   "alternatives_all_wl": {

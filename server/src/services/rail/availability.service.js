@@ -8,12 +8,14 @@ import {
   JOURNEY_AVAILABILITY,
   normalizeSeatAvailability,
 } from './availabilityNorm.js';
+import { classifyError, ERROR_CLASS, NOT_BOOKABLE_REASONS } from '../../utils/errorClassifier.js';
 
-export { AVAILABILITY_STATUS, JOURNEY_AVAILABILITY, normalizeSeatAvailability };
+export { AVAILABILITY_STATUS, JOURNEY_AVAILABILITY, normalizeSeatAvailability, ERROR_CLASS, NOT_BOOKABLE_REASONS };
 
 // P0 v2 — status-dependent availability TTLs (shared cross-user)
 const AVAIL_TTL_AVAILABLE_MS = config.p0v2?.availabilityTtlAvailableMs ?? 90_000;   // 90 s
 const AVAIL_TTL_WAITLIST_MS  = config.p0v2?.availabilityTtlWaitlistMs ?? 600_000;   // 10 min
+const STALE_STORE_TTL_MS     = 24 * 60 * 60 * 1000;                                 // 24 h
 
 function getTtlForStatus(normalizedStatus) {
   if (
@@ -42,6 +44,7 @@ function getTtlForStatus(normalizedStatus) {
  * - Strict confirmed availability enforcement
  * - Journey-level availability aggregation
  * - Short-lived caching and request deduplication
+ * - 24h Stale-while-error store for TRANSIENT errors
  */
 export class AvailabilityService {
   constructor(dependencies = {}) {
@@ -49,6 +52,8 @@ export class AvailabilityService {
     this._aopay = dependencies.aopay;
     // P0 v2: cache is shared across all users; TTL is status-dependent
     this.cache = new Map();
+    // P5: Stale-while-error store (24h TTL) per (train, from, to, date, class, quota)
+    this._staleStore = new Map();
   }
 
   get railKit() {
@@ -161,6 +166,7 @@ export class AvailabilityService {
     }
 
     let result = null;
+    let providerErr = null;
 
     // 1. Primary provider: RailKit
     try {
@@ -169,6 +175,7 @@ export class AvailabilityService {
         isRecovery,
       });
     } catch (err) {
+      providerErr = err;
       logger.debug(`[AvailabilityService] RailKit availability check failed: ${err.message}`);
     }
 
@@ -178,9 +185,84 @@ export class AvailabilityService {
         const aopayRes = await this.aopay.checkAvailability(num, from, to, dateStr, travelClass, quota);
         if (aopayRes && aopayRes.normalizedStatus !== AVAILABILITY_STATUS.UNKNOWN) {
           result = aopayRes;
+          providerErr = null;
         }
       } catch (err) {
         logger.debug(`[AvailabilityService] AOPAY availability fallback failed: ${err.message}`);
+      }
+    }
+
+    // If we received a valid result (AVAILABLE, RAC, WAITLIST, UNAVAILABLE)
+    const isSuccessfulStatus = result &&
+      result.normalizedStatus !== AVAILABILITY_STATUS.ERROR &&
+      result.normalizedStatus !== AVAILABILITY_STATUS.UNKNOWN &&
+      result.normalizedStatus !== 'ERROR' &&
+      result.normalizedStatus !== 'UNKNOWN';
+
+    if (isSuccessfulStatus) {
+      // Keep last successful availability for 24h in stale-while-error store
+      this._staleStore.set(cacheKey, {
+        data: result,
+        checkedAt: new Date().toISOString(),
+        expiresAt: Date.now() + STALE_STORE_TTL_MS,
+      });
+
+      const ttlMs = getTtlForStatus(result.normalizedStatus);
+      this.cache.set(cacheKey, { data: result, expiresAt: Date.now() + ttlMs });
+      return result;
+    }
+
+    // If not successful or threw, classify error
+    const classified = classifyError({
+      status: providerErr?.status,
+      error: providerErr,
+      body: providerErr?.body,
+      rawStatus: result?.rawStatus || result?.originalStatus,
+    });
+
+    // Handle NOT_BOOKABLE (business reality: chart prepared, train departed, booking closed, class not offered)
+    if (classified.errorClass === ERROR_CLASS.NOT_BOOKABLE) {
+      const notBookableResult = {
+        success: true, // It is a domain state, not an API crash
+        isNotBookable: true,
+        errorClass: ERROR_CLASS.NOT_BOOKABLE,
+        provider: 'RailKit',
+        trainNumber: num,
+        travelClass,
+        quota,
+        normalizedStatus: 'NOT_BOOKABLE',
+        originalStatus: classified.reason,
+        statusText: classified.userMessage,
+        availabilityText: classified.userMessage,
+        seatsAvailable: 0,
+        isAvailable: false,
+        reason: classified.reason,
+        lastUpdated: new Date().toISOString(),
+        isLive: true,
+      };
+      this._staleStore.set(cacheKey, {
+        data: notBookableResult,
+        checkedAt: new Date().toISOString(),
+        expiresAt: Date.now() + STALE_STORE_TTL_MS,
+      });
+      this.cache.set(cacheKey, { data: notBookableResult, expiresAt: Date.now() + AVAIL_TTL_WAITLIST_MS });
+      return notBookableResult;
+    }
+
+    // Handle TRANSIENT error: Check 24h Stale-While-Error store first
+    if (classified.errorClass === ERROR_CLASS.TRANSIENT) {
+      const staleRecord = this._staleStore.get(cacheKey);
+      if (staleRecord && staleRecord.expiresAt > Date.now()) {
+        logger.info(`[AvailabilityService] Returning 24h STALE availability for ${cacheKey}`);
+        return {
+          ...staleRecord.data,
+          state: 'STALE',
+          tier: 'OLDER_RESULT',
+          isStale: true,
+          checkedAt: staleRecord.checkedAt,
+          statusText: staleRecord.data.statusText || staleRecord.data.availabilityText || 'older result',
+          errorClass: ERROR_CLASS.TRANSIENT,
+        };
       }
     }
 
@@ -198,30 +280,26 @@ export class AvailabilityService {
       }
     }
 
-    // 3. Fallback normalization if still null or unknown
-    if (!result) {
-      result = {
-        success: false,
-        provider: 'RailKit',
-        trainNumber: num,
-        travelClass,
-        quota,
-        normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
-        originalStatus: 'UNKNOWN',
-        statusText: "couldn't check — tap to retry",
-        availabilityText: "couldn't check — tap to retry",
-        seatsAvailable: null,
-        isAvailable: false,
-        lastUpdated: new Date().toISOString(),
-        isLive: false,
-        reason: 'CALL_FAILED',
-        errorCode: 'CALL_FAILED',
-      };
-    }
-
-    // P0 v2: TTL depends on status (90s AVAILABLE/RAC, 10min WL/UNAVAILABLE)
-    const ttlMs = getTtlForStatus(result.normalizedStatus);
-    this.cache.set(cacheKey, { data: result, expiresAt: Date.now() + ttlMs });
+    // Fallback: Failed check (cached for at most 30s)
+    result = {
+      success: false,
+      provider: 'RailKit',
+      trainNumber: num,
+      travelClass,
+      quota,
+      normalizedStatus: AVAILABILITY_STATUS.UNKNOWN,
+      originalStatus: classified.reason,
+      statusText: "couldn't check — tap to retry",
+      availabilityText: "couldn't check — tap to retry",
+      seatsAvailable: null,
+      isAvailable: false,
+      lastUpdated: new Date().toISOString(),
+      isLive: false,
+      reason: classified.reason,
+      errorCode: classified.reason,
+      errorClass: classified.errorClass,
+    };
+    this.cache.set(cacheKey, { data: result, expiresAt: Date.now() + 30_000 });
     return result;
   }
 
