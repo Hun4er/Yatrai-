@@ -66,6 +66,7 @@ export class PlanErrorBoundary extends React.Component {
  */
 export function P0AlternativeCardInner({
   alternative,
+  onViewJourney,
   onBook,
   onRetryLeg,
 }) {
@@ -93,6 +94,16 @@ export function P0AlternativeCardInner({
 
   const durationMin = alternative.duration || alternative.totalDurationMinutes || 0;
   const durationDisplay = durationMin > 0 ? formatDuration(durationMin) : null;
+
+  const firstRailLeg = legs.find((l) => l.mode === 'rail') || legs[0];
+  const lastRailLeg = [...legs].reverse().find((l) => l.mode === 'rail') || legs[legs.length - 1];
+
+  const requestedOrigin = alternative.requestedOrigin || firstRailLeg?.fromCode || firstRailLeg?.from || '';
+  const requestedDestination = alternative.requestedDestination || lastRailLeg?.toCode || lastRailLeg?.to || '';
+  const actualDeparture = firstRailLeg?.fromCode || firstRailLeg?.from || '';
+  const actualArrival = lastRailLeg?.toCode || lastRailLeg?.to || '';
+  const hasStationDifference = (requestedOrigin && actualDeparture && requestedOrigin !== actualDeparture) ||
+    (requestedDestination && actualArrival && requestedDestination !== actualArrival);
 
   return (
     <div className="rounded-2xl border border-[#303640] bg-[#12151A] p-4 sm:p-5 shadow-lg space-y-3.5 hover:border-[#3E4654] transition-all">
@@ -155,6 +166,23 @@ export function P0AlternativeCardInner({
           >
             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </button>
+        </div>
+      </div>
+
+      {/* Requested vs Actual Endpoints Row (Requirement 5) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-[#EDEFF2]">
+            {requestedOrigin} → {requestedDestination}
+          </span>
+          {hasStationDifference && (
+            <span className="rounded bg-[#E07B39]/15 border border-[#E07B39]/30 px-2 py-0.5 text-[10px] text-[#E07B39] font-medium">
+              Train boards at {actualDeparture}, arrives at {actualArrival}
+            </span>
+          )}
+        </div>
+        <div className="text-[11px] text-[#9AA3AF]">
+          {isSameTrain ? 'Single train split ticket' : `${legs.filter((l) => l.mode === 'rail').length} train legs · via ${hubCode}`}
         </div>
       </div>
 
@@ -252,13 +280,22 @@ export function P0AlternativeCardInner({
           <span>Separate tickets — a missed connection is not protected.</span>
         </p>
 
-        <button
-          type="button"
-          onClick={() => onBook && onBook(alternative)}
-          className="inline-flex items-center justify-center rounded-xl bg-[#E8B04A] px-4 py-1.5 text-xs font-bold text-[#0B0D10] hover:bg-[#F2BE62] transition-colors shadow-sm cursor-pointer shrink-0"
-        >
-          Book Combination
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => onViewJourney && onViewJourney(alternative)}
+            className="inline-flex items-center justify-center rounded-xl border border-[#303640] bg-[#161B22] px-3.5 py-1.5 text-xs font-semibold text-[#EDEFF2] hover:bg-[#1F242C] hover:border-[#E8B04A] transition-colors cursor-pointer"
+          >
+            View Itinerary
+          </button>
+          <button
+            type="button"
+            onClick={() => onBook && onBook(alternative)}
+            className="inline-flex items-center justify-center rounded-xl bg-[#E8B04A] px-4 py-1.5 text-xs font-bold text-[#0B0D10] hover:bg-[#F2BE62] transition-colors shadow-sm cursor-pointer"
+          >
+            Book Combination
+          </button>
+        </div>
       </div>
     </div>
   );

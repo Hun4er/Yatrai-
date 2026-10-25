@@ -1,3 +1,25 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const CLUSTERS_CONFIG_PATH = path.resolve(__dirname, '../../config/clusters.json');
+
+const clusterCoordsMap = new Map();
+try {
+  const rawClusters = JSON.parse(fs.readFileSync(CLUSTERS_CONFIG_PATH, 'utf8'));
+  for (const cluster of Object.values(rawClusters)) {
+    for (const stn of cluster.stations || []) {
+      if (stn.code && typeof stn.lon === 'number' && typeof stn.lat === 'number') {
+        clusterCoordsMap.set(stn.code.toUpperCase().trim(), [stn.lon, stn.lat]);
+      }
+    }
+  }
+} catch {
+  // Graceful fallback
+}
+
 /**
  * Calculates straight-line great-circle distance between two coordinate pairs in kilometers.
  */
@@ -79,8 +101,11 @@ export class DistanceService {
     }
 
     // 2. Different station transfer: compute geographic distance
-    const coordsA = typeof stationA === 'object' ? (stationA?.coordinates || stationA?.location?.coordinates || null) : null;
-    const coordsB = typeof stationB === 'object' ? (stationB?.coordinates || stationB?.location?.coordinates || null) : null;
+    let coordsA = typeof stationA === 'object' ? (stationA?.coordinates || stationA?.location?.coordinates || null) : null;
+    let coordsB = typeof stationB === 'object' ? (stationB?.coordinates || stationB?.location?.coordinates || null) : null;
+
+    if (!coordsA && clusterCoordsMap.has(codeA)) coordsA = clusterCoordsMap.get(codeA);
+    if (!coordsB && clusterCoordsMap.has(codeB)) coordsB = clusterCoordsMap.get(codeB);
 
     let geoDistanceKm = 0;
     if (coordsA && coordsB) {

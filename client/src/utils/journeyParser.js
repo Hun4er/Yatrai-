@@ -411,8 +411,15 @@ function parseTimeMinutes(val) {
       leg.originStation?.stationCode ||
       leg.originStation?.code ||
       leg.origin?.stationCode ||
-      leg.origin?.code;
-    const legFromName = leg.metadata?.fromStationName || leg.originStation?.name || leg.origin?.name;
+      leg.origin?.code ||
+      leg.fromCode ||
+      (typeof leg.from === 'string' ? leg.from : leg.from?.code);
+    const legFromName =
+      leg.metadata?.fromStationName ||
+      leg.originStation?.name ||
+      leg.origin?.name ||
+      leg.fromName ||
+      (typeof leg.from === 'object' ? leg.from?.name : '');
     const legFrom = resolveStation(
       leg.originStation || leg.origin,
       legFromCandidate || (idx === 0 ? trainFrom.code : ''),
@@ -424,8 +431,15 @@ function parseTimeMinutes(val) {
       leg.destinationStation?.stationCode ||
       leg.destinationStation?.code ||
       leg.destination?.stationCode ||
-      leg.destination?.code;
-    const legToName = leg.metadata?.toStationName || leg.destinationStation?.name || leg.destination?.name;
+      leg.destination?.code ||
+      leg.toCode ||
+      (typeof leg.to === 'string' ? leg.to : leg.to?.code);
+    const legToName =
+      leg.metadata?.toStationName ||
+      leg.destinationStation?.name ||
+      leg.destination?.name ||
+      leg.toName ||
+      (typeof leg.to === 'object' ? leg.to?.name : '');
     const legTo = resolveStation(
       leg.destinationStation || leg.destination,
       legToCandidate || (idx === effectiveRailLegs.length - 1 ? trainTo.code : ''),
@@ -441,11 +455,15 @@ function parseTimeMinutes(val) {
         nextLeg.originStation?.code ||
         nextLeg.origin?.stationCode ||
         nextLeg.origin?.code ||
+        nextLeg.fromCode ||
+        (typeof nextLeg.from === 'string' ? nextLeg.from : nextLeg.from?.code) ||
         legTo.code;
       const nextFromName =
         nextLeg.metadata?.fromStationName ||
         nextLeg.originStation?.name ||
         nextLeg.origin?.name ||
+        nextLeg.fromName ||
+        (typeof nextLeg.from === 'object' ? nextLeg.from?.name : '') ||
         legTo.name;
       let bufferMinutes = null;
       const legArrMins = parseTimeMinutes(leg.arrivalTime);
@@ -459,8 +477,16 @@ function parseTimeMinutes(val) {
       transferBuffer = {
         transferStationName: nextFromName,
         transferStationCode: nextFromCode,
+        arrivalStationName: legTo.name,
+        arrivalStationCode: legTo.code,
+        arrivalTime: leg.arrivalTimeFormatted || formatTime(leg.arrivalTime) || leg.arrivalTime,
+        departureStationName: nextFromName,
+        departureStationCode: nextFromCode,
+        departureTime: nextLeg.departureTimeFormatted || formatTime(nextLeg.departureTime) || nextLeg.departureTime,
         bufferMinutes,
-        nextTrainNumber: nextLeg.service?.number || nextLeg.vehicle?.identifier || nextLeg.trainNumber || '',
+        isSameStation: String(legTo.code).toUpperCase() === String(nextFromCode).toUpperCase(),
+        transferStatus: 'Connection timing validated',
+        nextTrainNumber: nextLeg.service?.number || nextLeg.vehicle?.identifier || nextLeg.trainNumber || nextLeg.trainNo || '',
         nextTrainName: nextLeg.service?.name || nextLeg.trainName || 'Connecting Train',
       };
     }

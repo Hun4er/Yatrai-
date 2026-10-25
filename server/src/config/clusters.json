@@ -86,6 +86,12 @@
         "name": "BANARAS",
         "lat": 25.29975,
         "lon": 82.971856
+      },
+      {
+        "code": "DDU",
+        "name": "PT. DEEN DAYAL UPADHYAYA JN",
+        "lat": 25.2818,
+        "lon": 83.1179
       }
     ]
   },

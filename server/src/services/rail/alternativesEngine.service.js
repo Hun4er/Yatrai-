@@ -21,7 +21,7 @@
  *  6. Order: same-train first (cheapest), then cross-train.
  */
 
-import railKitAdapter from '../../providers/rail/railKit.adapter.js';
+import railKitAdapter, { normalizeRailKitTrain } from '../../providers/rail/railKit.adapter.js';
 import availabilityService, { AVAILABILITY_STATUS } from './availability.service.js';
 import corridorHubsService from './corridorHubs.service.js';
 import clusterService from './cluster.service.js';
@@ -29,7 +29,7 @@ import actionBudgetService from './actionBudget.service.js';
 import config from '../../config/index.js';
 import logger from '../../utils/logger.js';
 import { getAdvanceBookingWindow } from '../../utils/bookingWindow.js';
-import { formatJourneyDate } from '../../utils/railwayTime.js';
+import { formatJourneyDate, calculateJourneyTiming } from '../../utils/railwayTime.js';
 
 const p0v2 = config.p0v2;
 const CAPACITY_ORDER = p0v2.capacityOrder;
@@ -37,12 +37,48 @@ const CAPACITY_ORDER = p0v2.capacityOrder;
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function normalizeClasses(raw) {
+  if (!raw) return [];
+  if (typeof raw === 'string') {
+    return raw.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+  }
   if (!Array.isArray(raw)) return [];
-  return raw.map((c) =>
-    typeof c === 'object' && c !== null
-      ? (c.class || c.travelClass || c.coach || '').toUpperCase()
-      : String(c).trim().toUpperCase()
-  ).filter(Boolean);
+  return raw.flatMap((c) => {
+    if (typeof c === 'string') {
+      return c.includes(',') ? c.split(',').map((x) => x.trim().toUpperCase()) : [c.trim().toUpperCase()];
+    }
+    if (typeof c === 'object' && c !== null) {
+      return [(c.class || c.travelClass || c.coach || '').toUpperCase()];
+    }
+    return [String(c).trim().toUpperCase()];
+  }).filter(Boolean);
+}
+
+function addDays(dateStr, days) {
+  try {
+    const [y, m, d] = String(dateStr).slice(0, 10).split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d + days));
+    return dt.toISOString().slice(0, 10);
+  } catch {
+    return dateStr;
+  }
+}
+
+function isRunningOnDate(train, dateStr) {
+  if (!train || !dateStr) return true;
+  const runDays = train.runDays || train.running_days || train.train?.runDays;
+  if (!runDays || runDays.length === 0) return true;
+  const dayIndex = new Date(dateStr + 'T00:00:00+05:30').getDay(); // 0 is Sun
+  if (typeof runDays === 'string' && runDays.length === 7) {
+    // 0=Mon, 1=Tue, ..., 6=Sun in Indian Railways 7-flag format
+    const monIdx = (dayIndex + 6) % 7;
+    return runDays[monIdx] === '1';
+  }
+  if (Array.isArray(runDays)) {
+    const dayNames = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const dayName = dayNames[dayIndex];
+    return runDays.some((d) => String(d).toLowerCase().slice(0, 3) === dayName);
+  }
+  return true;
 }
 
 function pickLanes(requestedClass, referenceTrainClasses, maxLanes) {
@@ -61,8 +97,10 @@ function pickLanes(requestedClass, referenceTrainClasses, maxLanes) {
       if (lanes.length >= maxLanes) break;
     }
   }
-  if (lanes.length === 0 && offered.length > 0) return offered.slice(0, maxLanes);
-  return lanes;
+  if (lanes.length > 0) return lanes.slice(0, maxLanes);
+  if (offered.length > 0) return offered.slice(0, maxLanes);
+  // Default fallback classes when reference trains are not available
+  return ['3A', 'SL'].slice(0, maxLanes);
 }
 
 function layoverMinutes(arrivalIso, departureIso) {
@@ -324,17 +362,36 @@ export class AlternativesEngineService {
 
     // Fallback: If stationScores is empty, use known major physical corridor hubs
     if (stationScores.size === 0) {
+      const primaryFrom = clusterService.getClusterForStation(originCode)?.primaryCode || originCode;
+      const primaryTo = clusterService.getClusterForStation(destCode)?.primaryCode || destCode;
+
       const CORRIDOR_FALLBACKS = {
         'NDLS:PNBE': ['CNB', 'PRYJ', 'DDU'],
         'NDLS:DNR': ['CNB', 'PRYJ', 'DDU'],
-        'HWH:BSB': ['ASN', 'DHN', 'GAYA', 'DDU'],
-        'NDLS:HWH': ['CNB', 'PRYJ', 'DDU'],
+        'HWH:BSB': ['GAYA', 'DDU', 'ASN', 'DHN', 'PNBE', 'PRYJ'],
+        'SDAH:BSB': ['GAYA', 'DDU', 'ASN', 'DHN', 'PNBE', 'PRYJ'],
+        'KOAA:BSB': ['GAYA', 'DDU', 'ASN', 'DHN', 'PNBE', 'PRYJ'],
+        'SHM:BSB': ['GAYA', 'DDU', 'ASN', 'DHN', 'PNBE'],
+        'HWH:DDU': ['GAYA', 'ASN', 'DHN', 'PNBE'],
+        'HWH:BSBS': ['GAYA', 'DDU', 'ASN', 'DHN', 'PNBE'],
+        'NDLS:HWH': ['CNB', 'PRYJ', 'DDU', 'GAYA'],
         'SBC:MAS': ['KJM', 'JTJ', 'AJJ'],
       };
-      const key = `${originCode}:${destCode}`;
+      const directKey = `${originCode}:${destCode}`;
       const revKey = `${destCode}:${originCode}`;
-      const known = CORRIDOR_FALLBACKS[key] || CORRIDOR_FALLBACKS[revKey] || ['CNB', 'DDU', 'PRYJ'];
-      known.forEach((c, idx) => stationScores.set(c, 10 - idx));
+      const clusterKey = `${primaryFrom}:${primaryTo}`;
+      const clusterRevKey = `${primaryTo}:${primaryFrom}`;
+
+      const known =
+        CORRIDOR_FALLBACKS[directKey] ||
+        CORRIDOR_FALLBACKS[revKey] ||
+        CORRIDOR_FALLBACKS[clusterKey] ||
+        CORRIDOR_FALLBACKS[clusterRevKey] ||
+        ['GAYA', 'DDU', 'CNB', 'PRYJ'];
+
+      // Filter out originCode and destCode from candidate hubs
+      const validKnown = known.filter((c) => c !== originCode && c !== destCode);
+      validKnown.forEach((c, idx) => stationScores.set(c, 10 - idx));
     }
 
     // Sort by score and take top maxHubs
@@ -517,9 +574,11 @@ export class AlternativesEngineService {
           return null;
         });
         if (res?.success && Array.isArray(res.data)) {
-          leg1Trains = res.data
-            .filter((t) => normalizeClasses(t.classes || t.train?.classes || []).includes(laneClass))
-            .slice(0, maxTrains);
+          const mapped = res.data.map((t) => (typeof normalizeRailKitTrain === 'function' ? normalizeRailKitTrain(t, originCode, hubCode) : t)).filter(Boolean);
+          const laneFiltered = mapped.filter((t) =>
+            normalizeClasses(t.classes || t.classes_of_travel || t.train?.classes || []).includes(laneClass)
+          );
+          leg1Trains = (laneFiltered.length > 0 ? laneFiltered : mapped).slice(0, maxTrains);
         }
       } catch (err) {
         logger.warn(`[AltEngine] Cross-train search O→H failed (${originCode}→${hubCode}): ${err.message}`);
@@ -550,9 +609,11 @@ export class AlternativesEngineService {
           return null;
         });
         if (res?.success && Array.isArray(res.data)) {
-          leg2Trains = res.data
-            .filter((t) => normalizeClasses(t.classes || t.train?.classes || []).includes(laneClass))
-            .slice(0, maxTrains);
+          const mapped = res.data.map((t) => (typeof normalizeRailKitTrain === 'function' ? normalizeRailKitTrain(t, hubCode, destCode) : t)).filter(Boolean);
+          const laneFiltered = mapped.filter((t) =>
+            normalizeClasses(t.classes || t.classes_of_travel || t.train?.classes || []).includes(laneClass)
+          );
+          leg2Trains = (laneFiltered.length > 0 ? laneFiltered : mapped).slice(0, maxTrains);
         }
       } catch (err) {
         logger.warn(`[AltEngine] Cross-train search H→D failed (${hubCode}→${destCode}): ${err.message}`);
@@ -561,17 +622,14 @@ export class AlternativesEngineService {
 
     if (leg1Trains.length === 0 || leg2Trains.length === 0) return plans;
 
-    // Helper to evaluate if leg is viable in second pass (CONFIRMED, RAC, or WL with >= 60% prediction or WL <= 30)
+    // Helper to evaluate if leg is viable in second pass (CONFIRMED, RAC, WAITLIST, or schedule found)
     const isLegViable = (avail) => {
       if (!avail) return false;
-      const st = avail.normalizedStatus;
-      if (st === AVAILABILITY_STATUS.AVAILABLE) return true;
-      if (st === AVAILABILITY_STATUS.RAC) return true;
-      if (st === AVAILABILITY_STATUS.WAITLIST) {
-        const pct = avail.predictionPercentage || 0;
-        const wl = avail.waitlistPosition ?? 999;
-        return pct >= 60 || wl <= 30;
-      }
+      const st = avail.normalizedStatus || avail.status;
+      if (st === AVAILABILITY_STATUS.AVAILABLE || st === 'AVAILABLE' || st === 'CONFIRMED') return true;
+      if (st === AVAILABILITY_STATUS.RAC || st === 'RAC') return true;
+      if (st === AVAILABILITY_STATUS.WAITLIST || st === 'WAITLIST' || st === 'WL') return true;
+      if (st === 'SCHEDULE_FOUND' || st === 'UNKNOWN') return true;
       return false;
     };
 
@@ -580,19 +638,28 @@ export class AlternativesEngineService {
       if (plans.length >= p0v2.earlyStopPlans) break;
       if (budget.isAtCap(actionId)) break;
 
-      const t1Arr = t1.to?.arrival || t1.arrivalTime || null;
-      const t1No = String(t1.train?.number || t1.trainNumber || t1.number || '');
+      const t1Arr = t1.arrivalTime || t1.to?.arrival || t1.to_time || null;
+      const t1Dep = t1.departureTime || t1.from?.departure || t1.from_time || null;
+      const t1No = String(t1.trainNumber || t1.train?.number || t1.train_no || t1.number || '');
+      const t1Name = t1.trainName || t1.train?.name || t1.train_name || 'Express';
+
+      if (!t1Arr || !t1Dep || !t1No) continue;
 
       for (const t2 of leg2Trains) {
         if (plans.length >= p0v2.earlyStopPlans) break;
         if (budget.isAtCap(actionId)) break;
 
-        const t2Dep = t2.from?.departure || t2.departureTime || null;
-        const t2No = String(t2.train?.number || t2.trainNumber || t2.number || '');
+        const t2Dep = t2.departureTime || t2.from?.departure || t2.from_time || null;
+        const t2Arr = t2.arrivalTime || t2.to?.arrival || t2.to_time || null;
+        const t2No = String(t2.trainNumber || t2.train?.number || t2.train_no || t2.number || '');
+        const t2Name = t2.trainName || t2.train?.name || t2.train_name || 'Express';
+
+        if (!t2Dep || !t2Arr || !t2No) continue;
+        if (t1No === t2No) continue; // Same train cannot be an intermediate transfer to itself
 
         // Same hub station code or same-city cluster transfer
-        const hubA = String(t1.to?.code || t1.to_stn_code || hubCode).toUpperCase();
-        const hubB = String(t2.from?.code || t2.from_stn_code || hubCode).toUpperCase();
+        const hubA = String(t1.toCode || t1.to?.code || t1.to_stn_code || hubCode).toUpperCase();
+        const hubB = String(t2.fromCode || t2.from?.code || t2.from_stn_code || hubCode).toUpperCase();
 
         const isSameStation = hubA === hubB;
         let isClusterTransfer = false;
@@ -607,42 +674,91 @@ export class AlternativesEngineService {
 
         if (!isSameStation && !isClusterTransfer) continue;
 
-        // Layover check: inter-station transfers require minimum 120-minute buffer
-        if (!t1Arr || !t2Dep) continue;
-        const layover = layoverMinutes(this._toIso(t1Arr, dateStr), this._toIso(t2Dep, dateStr));
+        // Accurate timing & layover calculation across midnight / multi-day
+        let timing1;
+        try {
+          timing1 = calculateJourneyTiming(
+            t1Dep,
+            t1Arr,
+            dateStr,
+            null,
+            Number(t1.duration || t1.durationMinutes || 0) || null
+          );
+        } catch {
+          continue;
+        }
+
+        const [t1ArrH, t1ArrM] = (timing1.arrivalLocalTime || t1Arr).split(':').map(Number);
+        const t1ArrTotalMin = (t1ArrH || 0) * 60 + (t1ArrM || 0);
+
+        const [t2DepH, t2DepM] = t2Dep.split(':').map(Number);
+        const t2DepTotalMin = (t2DepH || 0) * 60 + (t2DepM || 0);
+
+        let layover = 0;
+        let t2DateStr = timing1.arrivalLocalDate || dateStr;
+
+        if (t2DepTotalMin >= t1ArrTotalMin) {
+          // Departs on the same day train 1 arrives at the hub
+          layover = t2DepTotalMin - t1ArrTotalMin;
+          t2DateStr = timing1.arrivalLocalDate || dateStr;
+        } else {
+          // Departs the next calendar day
+          layover = (1440 - t1ArrTotalMin) + t2DepTotalMin;
+          t2DateStr = addDays(timing1.arrivalLocalDate || dateStr, 1);
+        }
+
         const effectiveMinLayover = isClusterTransfer ? Math.max(120, layoverMin) : layoverMin;
         if (layover < effectiveMinLayover || layover > layoverMax) continue;
+
+        // Check if train 2 runs on t2DateStr
+        if (!isRunningOnDate(t2, t2DateStr)) continue;
+
+        let timing2;
+        try {
+          timing2 = calculateJourneyTiming(
+            t2Dep,
+            t2Arr,
+            t2DateStr,
+            null,
+            Number(t2.duration || t2.durationMinutes || 0) || null
+          );
+        } catch {
+          continue;
+        }
 
         const isTight = !isClusterTransfer && layover < layoverTight;
 
         // Detour check
         if (directDistanceKm) {
-          const leg1Dist = Number(t1.distance || t1.travel_distance || 0);
-          const leg2Dist = Number(t2.distance || t2.travel_distance || 0);
+          const leg1Dist = Number(t1.distance || t1.distanceKm || t1.travel_distance || 0);
+          const leg2Dist = Number(t2.distance || t2.distanceKm || t2.travel_distance || 0);
           const totalDetour = leg1Dist + leg2Dist;
           if (totalDetour > directDistanceKm * maxDetour) continue;
         }
 
         // Verify longer leg first; memoize
-        const leg1Dur = Number(t1.duration || t1.travel_time || 999);
-        const leg2Dur = Number(t2.duration || t2.travel_time || 999);
+        const leg1Dur = Number(timing1.durationMinutes || t1.duration || 999);
+        const leg2Dur = Number(timing2.durationMinutes || t2.duration || 999);
 
         let leg1Avail = null, leg2Avail = null;
 
+        const t1Boarding = String(t1.fromCode || t1.from?.code || t1.from_stn_code || originCode).toUpperCase();
+        const t2Alighting = String(t2.toCode || t2.to?.code || t2.to_stn_code || destCode).toUpperCase();
+
         if (leg1Dur >= leg2Dur) {
-          leg1Avail = await this._checkAvailMemo(t1No, originCode, hubA, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
+          leg1Avail = await this._checkAvailMemo(t1No, t1Boarding, hubA, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
           if (!allowRisky && leg1Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
           if (allowRisky && !isLegViable(leg1Avail)) continue;
 
-          leg2Avail = await this._checkAvailMemo(t2No, hubB, destCode, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
+          leg2Avail = await this._checkAvailMemo(t2No, hubB, t2Alighting, laneClass, t2DateStr, quota, actionId, 'crossTrain', budget);
           if (!allowRisky && leg2Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
           if (allowRisky && !isLegViable(leg2Avail)) continue;
         } else {
-          leg2Avail = await this._checkAvailMemo(t2No, hubB, destCode, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
+          leg2Avail = await this._checkAvailMemo(t2No, hubB, t2Alighting, laneClass, t2DateStr, quota, actionId, 'crossTrain', budget);
           if (!allowRisky && leg2Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
           if (allowRisky && !isLegViable(leg2Avail)) continue;
 
-          leg1Avail = await this._checkAvailMemo(t1No, originCode, hubA, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
+          leg1Avail = await this._checkAvailMemo(t1No, t1Boarding, hubA, laneClass, dateStr, quota, actionId, 'crossTrain', budget);
           if (!allowRisky && leg1Avail?.normalizedStatus !== AVAILABILITY_STATUS.AVAILABLE) continue;
           if (allowRisky && !isLegViable(leg1Avail)) continue;
         }
@@ -659,62 +775,143 @@ export class AlternativesEngineService {
           weakestTier = 'WAITLIST';
         } else if (leg1Avail?.normalizedStatus === AVAILABILITY_STATUS.RAC || leg2Avail?.normalizedStatus === AVAILABILITY_STATUS.RAC) {
           weakestTier = 'RAC';
+        } else if (
+          leg1Avail?.normalizedStatus === 'UNKNOWN' ||
+          leg2Avail?.normalizedStatus === 'UNKNOWN' ||
+          leg1Avail?.normalizedStatus === 'SCHEDULE_FOUND' ||
+          leg2Avail?.normalizedStatus === 'SCHEDULE_FOUND'
+        ) {
+          weakestTier = 'SCHEDULE_FOUND';
         }
 
         const tier = isStrict ? 'CONFIRMED' : weakestTier;
         const badge = isStrict
           ? (isClusterTransfer ? `Connection: ${hubA} → ${hubB}` : `Connection via ${hubCode}`)
-          : 'Risky — waitlisted';
+          : weakestTier === 'RAC'
+          ? `RAC Connection via ${hubCode}`
+          : weakestTier === 'WAITLIST'
+          ? (allowRisky ? 'Risky — waitlisted' : `Waitlisted Connection via ${hubCode}`)
+          : `Connection via ${hubCode}`;
+
         const notice = isStrict
           ? (isClusterTransfer ? `Separate tickets. Transfer between ${hubA} and ${hubB} is not protected.` : 'Separate tickets. A missed connection is not protected.')
-          : 'Waitlisted — not guaranteed. Separate tickets.';
+          : weakestTier === 'WAITLIST'
+          ? 'Waitlisted — not guaranteed. Separate tickets. A missed connection is not protected.'
+          : 'Separate tickets. A missed connection is not protected.';
 
         const leg1Fare = leg1Avail?.fare?.totalFare || leg1Avail?.totalFare || null;
         const leg2Fare = leg2Avail?.fare?.totalFare || leg2Avail?.totalFare || null;
-        const totalFare = (leg1Fare && leg2Fare) ? (leg1Fare + leg2Fare) : null;
+        const totalFare = (typeof leg1Fare === 'number' && typeof leg2Fare === 'number') ? (leg1Fare + leg2Fare) : null;
 
         const bookingWindow = getAdvanceBookingWindow();
         const leg1Beyond = bookingWindow.isBeyondWindow(dateStr);
-        const leg2Beyond = bookingWindow.isBeyondWindow(dateStr); // boarding date at hub
+        const leg2Beyond = bookingWindow.isBeyondWindow(t2DateStr);
+
+        const hasOriginShift = t1Boarding !== originCode;
+        const hasDestShift = t2Alighting !== destCode;
+        const hasStationDifference = hasOriginShift || hasDestShift;
 
         const legs = [
           {
+            id: `${t1No}-leg-1`,
+            sequence: 1,
             trainNo: t1No,
-            from: originCode,
+            trainNumber: t1No,
+            trainName: t1Name,
+            mode: 'rail',
+            from: t1Boarding,
             to: hubA,
+            origin: { code: t1Boarding, name: t1.from?.name || t1Boarding },
+            destination: { code: hubA, name: t1.to?.name || hubA },
+            originStation: { code: t1Boarding, name: t1.from?.name || t1Boarding },
+            destinationStation: { code: hubA, name: t1.to?.name || hubA },
+            service: {
+              number: t1No,
+              name: t1Name,
+              class: laneClass,
+              operator: 'Indian Railways',
+            },
             class: laneClass,
-            availability: leg1Avail,
+            travelClass: laneClass,
+            departureTime: t1Dep,
+            arrivalTime: t1Arr,
+            departureTimeFormatted: t1Dep,
+            arrivalTimeFormatted: t1Arr,
+            departureDate: dateStr,
+            arrivalDate: timing1.arrivalLocalDate || dateStr,
+            duration: timing1.durationMinutes,
+            distance: Number(t1.distance || t1.distanceKm || 0),
+            price: leg1Fare,
             fare: leg1Fare,
             totalFare: leg1Fare,
+            availability: leg1Avail,
             notice: leg1Beyond ? 'booking may not be open for this date yet' : null,
           },
         ];
 
         if (isClusterTransfer) {
           legs.push({
+            id: `transfer-${hubA}-${hubB}`,
+            sequence: 2,
             type: 'transfer',
             isTransfer: true,
+            mode: 'road',
             from: hubA,
             to: hubB,
+            origin: { code: hubA, name: hubA },
+            destination: { code: hubB, name: hubB },
             durationMinutes: layover,
+            duration: layover,
             label: `get to ${hubB} yourself (local train / metro / cab)`,
+            metadata: {
+              isStationTransfer: true,
+              transferStationA: hubA,
+              transferStationB: hubB,
+            },
           });
         }
 
         legs.push({
+          id: `${t2No}-leg-2`,
+          sequence: isClusterTransfer ? 3 : 2,
           trainNo: t2No,
+          trainNumber: t2No,
+          trainName: t2Name,
+          mode: 'rail',
           from: hubB,
-          to: destCode,
+          to: t2Alighting,
+          origin: { code: hubB, name: t2.from?.name || hubB },
+          destination: { code: t2Alighting, name: t2.to?.name || t2Alighting },
+          originStation: { code: hubB, name: t2.from?.name || hubB },
+          destinationStation: { code: t2Alighting, name: t2.to?.name || t2Alighting },
+          service: {
+            number: t2No,
+            name: t2Name,
+            class: laneClass,
+            operator: 'Indian Railways',
+          },
           class: laneClass,
-          availability: leg2Avail,
+          travelClass: laneClass,
+          departureTime: t2Dep,
+          arrivalTime: t2Arr,
+          departureTimeFormatted: t2Dep,
+          arrivalTimeFormatted: t2Arr,
+          departureDate: t2DateStr,
+          arrivalDate: timing2.arrivalLocalDate || t2DateStr,
+          duration: timing2.durationMinutes,
+          distance: Number(t2.distance || t2.distanceKm || 0),
+          price: leg2Fare,
           fare: leg2Fare,
           totalFare: leg2Fare,
+          availability: leg2Avail,
           notice: leg2Beyond ? 'booking may not be open for this date yet' : null,
         });
 
         const planNotice = (leg1Beyond || leg2Beyond)
           ? `Booking may not be open for this date yet. ${notice}`
           : notice;
+
+        const totalJourneyMinutes = timing1.durationMinutes + layover + timing2.durationMinutes;
 
         plans.push({
           type: 'cross_train',
@@ -732,11 +929,34 @@ export class AlternativesEngineService {
           badge,
           notice: planNotice,
           predictionPercentage: Math.min(leg1Avail?.predictionPercentage || 60, leg2Avail?.predictionPercentage || 60),
-          departureTime: t1.departureTime || t1.from?.departure || '06:00',
-          arrivalTime: t2.arrivalTime || t2.to?.arrival || '18:00',
-          duration: Number(t1.duration || 0) + Number(t2.duration || 0) + layover,
+          departureTime: t1Dep,
+          arrivalTime: t2Arr,
+          departureDate: dateStr,
+          arrivalDate: timing2.arrivalLocalDate || t2DateStr,
+          duration: totalJourneyMinutes,
+          totalDuration: totalJourneyMinutes,
+          totalWaitingMinutes: layover,
           totalFare,
           fare: totalFare,
+          requestedOrigin: originCode,
+          requestedDestination: destCode,
+          origin: { code: originCode, name: originCode },
+          destination: { code: destCode, name: destCode },
+          from: t1Boarding,
+          to: t2Alighting,
+          stationDifference: {
+            hasDifference: hasStationDifference,
+            originShift: {
+              isShift: hasOriginShift,
+              requestedCode: originCode,
+              actualCode: t1Boarding,
+            },
+            destinationShift: {
+              isShift: hasDestShift,
+              requestedCode: destCode,
+              actualCode: t2Alighting,
+            },
+          },
         });
 
         if (plans.length >= p0v2.earlyStopPlans) break;

@@ -64,6 +64,7 @@ export function P0ResultsView({
   onSearchDeeper,
   onSelectDate,
   onBookJourney,
+  onViewJourney,
 }) {
   // Sticky class filter state
   const [selectedClassFilter, setSelectedClassFilter] = useState('ALL');
@@ -495,6 +496,7 @@ export function P0ResultsView({
                 <P0AlternativeCard
                   key={idx}
                   alternative={alt}
+                  onViewJourney={onViewJourney}
                   onBook={onBookJourney}
                 />
               );

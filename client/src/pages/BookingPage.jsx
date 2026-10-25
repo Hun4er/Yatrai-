@@ -114,9 +114,12 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
         const params = new URLSearchParams(window.location.search);
         let journeyId = params.get('journeyId') || params.get('id');
 
-        // Step 2: Check sessionStorage
+        // Step 2: Check sessionStorage and localStorage fallbacks
         let sessionSnapshot = null;
-        const pendingRaw = sessionStorage.getItem('yatrai_pending_booking');
+        const pendingRaw =
+          sessionStorage.getItem('yatrai_pending_booking') ||
+          localStorage.getItem('yatrai_last_selected_journey');
+
         if (pendingRaw) {
           try {
             const parsed = JSON.parse(pendingRaw);
@@ -131,9 +134,10 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
           }
         }
 
-        // Step 3: Fetch latest persisted journey from backend
+        // Step 3: Fetch latest persisted journey from backend ONLY if journeyId is a valid 24-char MongoDB ObjectId
         let authoritativeJourney = null;
-        if (journeyId) {
+        const isMongoObjectId = journeyId && /^[0-9a-fA-F]{24}$/.test(journeyId);
+        if (isMongoObjectId) {
           try {
             const res = await api.journeys.getById(journeyId);
             if (res?.data?.journey) {
@@ -152,7 +156,87 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
           );
         }
 
-        setJourneyData(activeJourney);
+        // Normalize activeJourney attributes safely so all steps can read them
+        const legs = Array.isArray(activeJourney.legs) ? activeJourney.legs : [];
+        const originCode =
+          activeJourney.origin?.code ||
+          activeJourney.fromCode ||
+          activeJourney.from ||
+          activeJourney.originStation?.code ||
+          legs[0]?.origin?.code ||
+          legs[0]?.fromCode ||
+          legs[0]?.from ||
+          'ORIGIN';
+        const originName =
+          activeJourney.origin?.name ||
+          activeJourney.originStation?.name ||
+          activeJourney.from ||
+          originCode;
+
+        const lastLeg = legs[legs.length - 1];
+        const destCode =
+          activeJourney.destination?.code ||
+          activeJourney.toCode ||
+          activeJourney.to ||
+          activeJourney.destinationStation?.code ||
+          lastLeg?.destination?.code ||
+          lastLeg?.toCode ||
+          lastLeg?.to ||
+          'DEST';
+        const destName =
+          activeJourney.destination?.name ||
+          activeJourney.destinationStation?.name ||
+          activeJourney.to ||
+          destCode;
+
+        const calculatedFare =
+          Number(activeJourney.totalPrice) > 0
+            ? Number(activeJourney.totalPrice)
+            : Number(activeJourney.totalFare) > 0
+            ? Number(activeJourney.totalFare)
+            : Number(activeJourney.fare) > 0
+            ? Number(activeJourney.fare)
+            : 380;
+
+        const normalizedJourney = {
+          ...activeJourney,
+          id: activeJourney.id || activeJourney._id || journeyId || `j-${Date.now()}`,
+          origin: {
+            code: originCode,
+            name: originName,
+          },
+          destination: {
+            code: destCode,
+            name: destName,
+          },
+          totalPrice: calculatedFare,
+          totalFare: calculatedFare,
+          fare: calculatedFare,
+          duration:
+            activeJourney.duration ||
+            activeJourney.totalDuration ||
+            activeJourney.totalDurationMinutes ||
+            0,
+          departureTime: activeJourney.departureTime || legs[0]?.departureTime || '00:00',
+          arrivalTime: activeJourney.arrivalTime || lastLeg?.arrivalTime || '00:00',
+          departureDate:
+            activeJourney.departureDate ||
+            activeJourney.departureTime ||
+            legs[0]?.departureDate,
+          arrivalDate:
+            activeJourney.arrivalDate ||
+            activeJourney.arrivalTime ||
+            lastLeg?.arrivalDate,
+          numberOfTransfers:
+            activeJourney.numberOfTransfers !== undefined
+              ? activeJourney.numberOfTransfers
+              : legs.length > 1
+              ? legs.length - 1
+              : 0,
+          legs,
+        };
+
+        setJourneyData(normalizedJourney);
 
         // Pre-fill contact details from authenticated user
         if (user) {
@@ -337,7 +421,18 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
           <div className="flex items-center justify-center gap-3 pt-2">
             <button
               type="button"
-              onClick={() => (onNavigate ? onNavigate('/results') : window.history.back())}
+              onClick={() => {
+                const lastSearch = sessionStorage.getItem('yatrai_last_search_url');
+                if (lastSearch && onNavigate) {
+                  onNavigate(lastSearch);
+                } else if (window.history.length > 1) {
+                  window.history.back();
+                } else if (onNavigate) {
+                  onNavigate('/results');
+                } else {
+                  window.location.href = '/results';
+                }
+              }}
               className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-brand-hover transition-all cursor-pointer"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -363,11 +458,18 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
   const originCode = journeyData.origin?.code ? `[${journeyData.origin.code}]` : '';
   const destCode = journeyData.destination?.code ? `[${journeyData.destination.code}]` : '';
 
-  const depTime = formatTime(journeyData.departureTime);
-  const arrTime = formatTime(journeyData.arrivalTime);
-  const depDate = formatDateDisplay(journeyData.departureTime);
-  const arrDate = formatDateDisplay(journeyData.arrivalTime);
-  const dayOffset = getDayOffset(journeyData.departureTime, journeyData.arrivalTime);
+  const depTime = formatTime(journeyData.departureTime || legs[0]?.departureTime);
+  const arrTime = formatTime(journeyData.arrivalTime || legs[legs.length - 1]?.arrivalTime);
+  const depDate = formatDateDisplay(
+    journeyData.departureDate || journeyData.departureTime || legs[0]?.departureDate
+  );
+  const arrDate = formatDateDisplay(
+    journeyData.arrivalDate || journeyData.arrivalTime || legs[legs.length - 1]?.arrivalDate
+  );
+  const dayOffset = getDayOffset(
+    journeyData.departureTime || legs[0]?.departureTime,
+    journeyData.arrivalTime || legs[legs.length - 1]?.arrivalTime
+  );
   const dayOffsetBadge = formatDayOffsetBadge(dayOffset);
 
   const durationStr = formatDuration(journeyData.duration);
@@ -376,9 +478,28 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
 
   const basePricePerPerson = Number(journeyData.totalPrice) > 0 ? Number(journeyData.totalPrice) : 380;
   const totalCalculatedFare = basePricePerPerson * passengers.length;
-  const trainName = legs[0]?.service?.name || journeyData.metadata?.trainName || 'Train Service';
-  const trainNumber = legs[0]?.vehicle?.identifier || legs[0]?.service?.number || journeyData.metadata?.trainNumber || '';
-  const travelClass = legs[0]?.service?.class || '3A';
+
+  const trainName =
+    legs.length > 1
+      ? legs.map((l) => l.service?.name || l.trainName).filter(Boolean).join(' → ') ||
+        'Connecting Rail Service'
+      : legs[0]?.service?.name ||
+        legs[0]?.trainName ||
+        journeyData.metadata?.trainName ||
+        'Train Service';
+
+  const trainNumber =
+    legs.length > 1
+      ? legs.map((l) => l.service?.number || l.trainNumber || l.trainNo).filter(Boolean).join(' / ')
+      : legs[0]?.vehicle?.identifier ||
+        legs[0]?.service?.number ||
+        legs[0]?.trainNumber ||
+        legs[0]?.trainNo ||
+        journeyData.metadata?.trainNumber ||
+        '';
+
+  const travelClass =
+    legs[0]?.service?.class || legs[0]?.class || journeyData.laneClass || '3A';
 
   return (
     <div className="mx-auto max-w-4xl py-6 sm:py-10 px-4 space-y-8">
@@ -388,9 +509,20 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
           <button
             type="button"
             onClick={() => {
-              if (currentStep === 2) setCurrentStep(1);
-              else if (onNavigate) onNavigate('/results');
-              else window.history.back();
+              if (currentStep === 2) {
+                setCurrentStep(1);
+              } else {
+                const lastSearch = sessionStorage.getItem('yatrai_last_search_url');
+                if (lastSearch && onNavigate) {
+                  onNavigate(lastSearch);
+                } else if (window.history.length > 1) {
+                  window.history.back();
+                } else if (onNavigate) {
+                  onNavigate('/results');
+                } else {
+                  window.location.href = '/results';
+                }
+              }
             }}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
           >
@@ -536,6 +668,15 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
             </div>
           </div>
         </div>
+
+        {legs.length > 1 && (
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300 flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold">Multi-Leg Connecting Journey:</span> This itinerary includes {legs.length} train legs (Transfer at {legs[0]?.toCode || legs[0]?.to || 'intermediate junction'}). In accordance with IRCTC ticketing regulations, each train leg must be booked as a separate ticket.
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 3. STEP 1: PASSENGER DETAILS FORM */}

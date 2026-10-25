@@ -1323,27 +1323,33 @@ export function normalizeRailKitTrain(rkTrain, defaultFrom = '', defaultTo = '')
   }
 
   let durationMinutes = null;
-  if (rkTrain.travel_time) {
+  if (rkTrain.durationMinutes) {
+    durationMinutes = rkTrain.durationMinutes;
+  } else if (typeof rkTrain.duration === 'number') {
+    durationMinutes = rkTrain.duration;
+  } else if (rkTrain.travel_time) {
     const m = String(rkTrain.travel_time).match(/(\d+):(\d+)/);
     if (m) durationMinutes = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
   }
 
-  const fromCode = rkTrain.from_stn_code || defaultFrom;
-  const toCode = rkTrain.to_stn_code || defaultTo;
-  const fromName = rkTrain.from_stn_name || rkTrain.source_stn_name || fromCode;
-  const toName = rkTrain.to_stn_name || rkTrain.dstn_stn_name || toCode;
-  const trainNum = String(rkTrain.train_no || rkTrain.trainNumber || rkTrain.number || '');
+  const fromCode = rkTrain.from_stn_code || rkTrain.from?.code || rkTrain.fromCode || defaultFrom;
+  const toCode = rkTrain.to_stn_code || rkTrain.to?.code || rkTrain.toCode || defaultTo;
+  const fromName = rkTrain.from_stn_name || rkTrain.source_stn_name || rkTrain.from?.name || fromCode;
+  const toName = rkTrain.to_stn_name || rkTrain.dstn_stn_name || rkTrain.to?.name || toCode;
+  const trainNum = String(rkTrain.train_number || rkTrain.train_no || rkTrain.trainNumber || rkTrain.number || '');
   let trainName = rkTrain.train_name || rkTrain.trainName || rkTrain.name || 'Express';
   trainName = String(trainName).replace(/\bEXPRES\b/gi, 'EXPRESS').trim();
 
   let classes = [];
-  if (Array.isArray(rkTrain.classes)) {
-    classes = rkTrain.classes.map((c) => String(c).trim().toUpperCase());
-  } else if (typeof rkTrain.classes === 'string') {
-    classes = rkTrain.classes.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
-  } else if (typeof rkTrain.train_type === 'string') {
-    classes = rkTrain.train_type.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
+  const rawClasses = rkTrain.classes_of_travel || rkTrain.classes || rkTrain.train_type || [];
+  if (Array.isArray(rawClasses)) {
+    classes = rawClasses.map((c) => String(c).trim().toUpperCase());
+  } else if (typeof rawClasses === 'string') {
+    classes = rawClasses.split(',').map((c) => c.trim().toUpperCase()).filter(Boolean);
   }
+
+  const departureTime = rkTrain.from_time || rkTrain.departureTime || rkTrain.from?.departure || '06:00';
+  const arrivalTime = rkTrain.to_time || rkTrain.arrivalTime || rkTrain.to?.arrival || '18:00';
 
   return {
     train: {
@@ -1355,16 +1361,21 @@ export function normalizeRailKitTrain(rkTrain, defaultFrom = '', defaultTo = '')
     trainNumber: trainNum,
     trainName,
     classes,
+    classes_of_travel: rkTrain.classes_of_travel || classes.join(','),
+    departureTime,
+    arrivalTime,
+    fromCode,
+    toCode,
     from: {
       code: fromCode,
       name: fromName,
-      departure: rkTrain.from_time || rkTrain.departureTime || '06:00',
+      departure: departureTime,
       day: 1,
     },
     to: {
       code: toCode,
       name: toName,
-      arrival: rkTrain.to_time || rkTrain.arrivalTime || '18:00',
+      arrival: arrivalTime,
       day: 1,
     },
     durationMinutes,

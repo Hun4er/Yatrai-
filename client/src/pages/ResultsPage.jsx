@@ -60,6 +60,78 @@ export function ResultsPage({
   const [activeRanking, setActiveRanking] = useState(searchParams?.ranking || 'overall');
 
   const handleBookJourney = (journey, isUserAuthed) => {
+    if (!journey) return;
+
+    // Record last search URL so user can seamlessly return from booking
+    try {
+      const currentSearchUrl = window.location.pathname + window.location.search;
+      sessionStorage.setItem('yatrai_last_search_url', currentSearchUrl);
+    } catch {
+      // ignore storage errors
+    }
+
+    const journeyId =
+      journey.id ||
+      journey._id ||
+      `alt-${journey.origin?.code || journey.from || 'ORIGIN'}-${journey.destination?.code || journey.to || 'DEST'}-${Date.now()}`;
+
+    // Normalize snapshot so booking page and backend have all required attributes
+    const legs = Array.isArray(journey.legs) ? journey.legs : [];
+    const originCode = journey.origin?.code || journey.fromCode || journey.from || legs[0]?.origin?.code || legs[0]?.fromCode || legs[0]?.from || 'ORIGIN';
+    const originName = journey.origin?.name || journey.originStation?.name || journey.from || originCode;
+    const destCode = journey.destination?.code || journey.toCode || journey.to || legs[legs.length - 1]?.destination?.code || legs[legs.length - 1]?.toCode || legs[legs.length - 1]?.to || 'DEST';
+    const destName = journey.destination?.name || journey.destinationStation?.name || journey.to || destCode;
+
+    const totalPrice =
+      Number(journey.totalPrice) > 0
+        ? Number(journey.totalPrice)
+        : Number(journey.totalFare) > 0
+        ? Number(journey.totalFare)
+        : Number(journey.fare) > 0
+        ? Number(journey.fare)
+        : 0;
+
+    const bookingSnapshot = {
+      ...journey,
+      id: journeyId,
+      _id: journey._id || journeyId,
+      origin: {
+        code: originCode,
+        name: originName,
+      },
+      destination: {
+        code: destCode,
+        name: destName,
+      },
+      departureTime: journey.departureTime || legs[0]?.departureTime || '00:00',
+      arrivalTime: journey.arrivalTime || legs[legs.length - 1]?.arrivalTime || '00:00',
+      departureDate: journey.departureDate || journey.departureTime || legs[0]?.departureDate,
+      arrivalDate: journey.arrivalDate || journey.arrivalTime || legs[legs.length - 1]?.arrivalDate,
+      duration: journey.duration || journey.totalDuration || journey.totalDurationMinutes || 0,
+      totalPrice,
+      totalFare: totalPrice,
+      fare: totalPrice,
+      numberOfTransfers:
+        journey.numberOfTransfers !== undefined
+          ? journey.numberOfTransfers
+          : legs.length > 1
+          ? legs.length - 1
+          : 0,
+      legs,
+    };
+
+    try {
+      const payloadString = JSON.stringify({
+        journeyId,
+        journeySnapshot: bookingSnapshot,
+        savedAt: Date.now(),
+      });
+      sessionStorage.setItem('yatrai_pending_booking', payloadString);
+      localStorage.setItem('yatrai_last_selected_journey', payloadString);
+    } catch (e) {
+      console.warn('[ResultsPage] Failed to save pending booking snapshot in storage:', e);
+    }
+
     if (!isUserAuthed) {
       if (onNavigate) {
         onNavigate('/profile');
@@ -68,11 +140,11 @@ export function ResultsPage({
         window.dispatchEvent(new PopStateEvent('popstate'));
       }
     } else {
-      const journeyId = journey.id || journey._id;
+      const targetUrl = `/booking?journeyId=${encodeURIComponent(journeyId)}`;
       if (onNavigate) {
-        onNavigate(`/booking?journeyId=${journeyId}`);
+        onNavigate(targetUrl);
       } else {
-        window.history.pushState(null, '', `/booking?journeyId=${journeyId}`);
+        window.history.pushState(null, '', targetUrl);
         window.dispatchEvent(new PopStateEvent('popstate'));
       }
     }
@@ -917,6 +989,7 @@ export function ResultsPage({
                   window.dispatchEvent(new PopStateEvent('popstate'));
                 }}
                 onBookJourney={(j) => handleBookJourney(j, isAuthenticated)}
+                onViewJourney={handleViewJourney}
               />
             ) : filteredJourneys.length === 0 ? (
               <FilterEmptyState onClearFilters={handleClearFilters} />
@@ -1100,6 +1173,7 @@ export function ResultsPage({
         <JourneyDetailModal
           journey={selectedJourney}
           onClose={() => setSelectedJourney(null)}
+          onBook={(j) => handleBookJourney(j, isAuthenticated)}
         />
       )}
 

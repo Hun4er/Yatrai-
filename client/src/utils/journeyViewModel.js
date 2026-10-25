@@ -90,17 +90,87 @@ export function toJourneyViewModel(newResponse) {
 
   for (let i = 0; i < alternatives.length; i++) {
     const alt = alternatives[i];
-    const legs = Array.isArray(alt.legs) ? alt.legs : [];
+    const rawLegs = Array.isArray(alt.legs) ? alt.legs : [];
     const isSameTrain = Boolean(alt.sameTrain || alt.type === 'same_train');
-    const transfers = isSameTrain ? 0 : Math.max(0, legs.length - 1);
+    const transfers = isSameTrain ? 0 : Math.max(0, rawLegs.filter((l) => l.mode === 'rail').length - 1);
     const fare = typeof alt.totalFare === 'number' && alt.totalFare > 0
       ? alt.totalFare
       : (typeof alt.fare === 'number' && alt.fare > 0 ? alt.fare : null);
 
-    const depTime = alt.departureTime || legs[0]?.departureTime || '06:00';
-    const arrTime = alt.arrivalTime || legs[legs.length - 1]?.arrivalTime || '18:00';
+    const depTime = alt.departureTime || rawLegs[0]?.departureTime || '06:00';
+    const arrTime = alt.arrivalTime || rawLegs[rawLegs.length - 1]?.arrivalTime || '18:00';
     const duration = alt.duration || alt.totalDurationMinutes || 720;
     const tier = alt.tier || 'CONFIRMED';
+
+    const normalizedLegs = rawLegs.map((leg, lIdx) => {
+      const fromCode = String(leg.fromCode || leg.from?.code || leg.from || '').toUpperCase();
+      const toCode = String(leg.toCode || leg.to?.code || leg.to || '').toUpperCase();
+      const fromName = leg.fromName || leg.from?.name || fromCode;
+      const toName = leg.toName || leg.to?.name || toCode;
+      const trainNo = String(leg.trainNo || leg.trainNumber || leg.number || '');
+      const trainName = leg.trainName || leg.service?.name || (leg.isTransfer ? 'Transfer' : 'Express');
+      const legFare = typeof leg.fare === 'number' && leg.fare > 0
+        ? leg.fare
+        : (typeof leg.totalFare === 'number' && leg.totalFare > 0 ? leg.totalFare : (typeof leg.price === 'number' && leg.price > 0 ? leg.price : null));
+
+      return {
+        id: leg.id || `alt-${i}-leg-${lIdx}`,
+        sequence: lIdx + 1,
+        mode: leg.mode || (leg.isTransfer ? 'road' : 'rail'),
+        isTransfer: Boolean(leg.isTransfer || leg.type === 'transfer'),
+        type: leg.type,
+        from: fromCode,
+        to: toCode,
+        fromCode,
+        toCode,
+        fromName,
+        toName,
+        origin: { code: fromCode, name: fromName },
+        destination: { code: toCode, name: toName },
+        originStation: { code: fromCode, name: fromName, stationCode: fromCode },
+        destinationStation: { code: toCode, name: toName, stationCode: toCode },
+        departureTime: leg.departureTime || leg.departure || '--:--',
+        arrivalTime: leg.arrivalTime || leg.arrival || '--:--',
+        departureTimeFormatted: leg.departureTimeFormatted || leg.departureTime,
+        arrivalTimeFormatted: leg.arrivalTimeFormatted || leg.arrivalTime,
+        departureDate: leg.departureDate,
+        arrivalDate: leg.arrivalDate,
+        departureDateFormatted: leg.departureDateFormatted || leg.departureDate,
+        arrivalDateFormatted: leg.arrivalDateFormatted || leg.arrivalDate,
+        duration: leg.duration || leg.durationMinutes,
+        durationMinutes: leg.durationMinutes || leg.duration,
+        distance: leg.distance,
+        price: legFare,
+        fare: legFare,
+        totalFare: legFare,
+        travelClass: leg.class || leg.travelClass || alt.laneClass || '3A',
+        service: {
+          number: trainNo,
+          name: trainName,
+          class: leg.class || leg.travelClass || alt.laneClass || '3A',
+          operator: leg.operator || 'Indian Railways',
+        },
+        trainNo,
+        trainNumber: trainNo,
+        trainName,
+        availability: leg.availability || {
+          status: alt.tier || 'CONFIRMED',
+          normalizedStatus: alt.tier || 'CONFIRMED',
+        },
+        metadata: leg.metadata || {},
+      };
+    });
+
+    const firstRailLeg = normalizedLegs.find((l) => l.mode === 'rail') || normalizedLegs[0];
+    const lastRailLeg = [...normalizedLegs].reverse().find((l) => l.mode === 'rail') || normalizedLegs[normalizedLegs.length - 1];
+
+    const requestedOrigin = alt.requestedOrigin || alt.origin?.code || firstRailLeg?.fromCode;
+    const requestedDestination = alt.requestedDestination || alt.destination?.code || lastRailLeg?.toCode;
+    const actualDeparture = firstRailLeg?.fromCode;
+    const actualArrival = lastRailLeg?.toCode;
+
+    const hasOriginShift = Boolean(requestedOrigin && actualDeparture && requestedOrigin !== actualDeparture);
+    const hasDestShift = Boolean(requestedDestination && actualArrival && requestedDestination !== actualArrival);
 
     list.push({
       id: `alt-${i}-${alt.laneClass || 'any'}`,
@@ -108,6 +178,7 @@ export function toJourneyViewModel(newResponse) {
       departureTime: depTime,
       arrivalTime: arrTime,
       duration,
+      durationMinutes: duration,
       numberOfTransfers: transfers,
       transferCount: transfers,
       totalPrice: fare,
@@ -119,11 +190,40 @@ export function toJourneyViewModel(newResponse) {
       tierScore: tier === 'CONFIRMED' ? 100 : (tier === 'RAC' ? 75 : (tier === 'WAITLIST' || tier === 'RISKY' ? 50 : 0)),
       isDirectTrain: false,
       isAlternative: true,
+      sameTrain: isSameTrain,
       transportModes: ['rail'],
-      from: legs[0]?.from,
-      to: legs[legs.length - 1]?.to,
+      from: actualDeparture,
+      to: actualArrival,
+      requestedOrigin,
+      requestedDestination,
+      origin: {
+        code: requestedOrigin,
+        name: alt.origin?.name || requestedOrigin,
+      },
+      destination: {
+        code: requestedDestination,
+        name: alt.destination?.name || requestedDestination,
+      },
+      stationDifference: alt.stationDifference || {
+        hasDifference: hasOriginShift || hasDestShift,
+        originShift: {
+          isShift: hasOriginShift,
+          requestedCode: requestedOrigin,
+          actualCode: actualDeparture,
+        },
+        destinationShift: {
+          isShift: hasDestShift,
+          requestedCode: requestedDestination,
+          actualCode: actualArrival,
+        },
+      },
       laneClass: alt.laneClass,
-      legs,
+      hubCode: alt.hubCode,
+      layoverMinutes: alt.layoverMinutes,
+      totalWaitingMinutes: alt.totalWaitingMinutes || alt.layoverMinutes || 0,
+      badge: alt.badge,
+      notice: alt.notice,
+      legs: normalizedLegs,
       raw: alt,
     });
   }
@@ -273,7 +373,7 @@ export function computeEmptyStateFacts({ direct = [] } = {}) {
         const tier = String(cls.tier || cls.normalizedStatus || '').toUpperCase();
         const txt = String(cls.availabilityText || '').toUpperCase();
 
-        if (tier === 'ERROR' || txt.includes("COULDN'T CHECK")) {
+        if (tier === 'ERROR' || tier === 'UNKNOWN' || tier === 'SCHEDULE_FOUND' || txt.includes("COULDN'T CHECK")) {
           errorCount++;
         } else if (tier === 'UNAVAILABLE' || txt.includes('NOT AVAILABLE') || txt.includes('REGRET')) {
           unavailableCount++;

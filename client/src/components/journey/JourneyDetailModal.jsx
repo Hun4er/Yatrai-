@@ -22,7 +22,7 @@ import { CompleteJourneyTimeline, parseJourneyStages } from './CompleteJourneyTi
  * (Access -> Train -> Onward), cost breakdown, and timing buffer analysis
  * in Graphite & Amber design system.
  */
-export function JourneyDetailModal({ journey, onClose }) {
+export function JourneyDetailModal({ journey, onClose, onBook }) {
   // Handle ESC key press to close modal
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -224,7 +224,10 @@ export function JourneyDetailModal({ journey, onClose }) {
 
         {/* Complete Journey Timeline & Itinerary Breakdown */}
         <div className="border-t border-[#232830] pt-4">
-          <CompleteJourneyTimeline journey={journey} />
+          <CompleteJourneyTimeline
+            journey={journey}
+            onOpenBooking={onBook ? () => onBook(journey) : null}
+          />
         </div>
 
         {/* Footer Info & Disclaimers */}
@@ -242,14 +245,56 @@ export function JourneyDetailModal({ journey, onClose }) {
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl bg-[#12151A] hover:bg-[#181C22] px-5 py-2.5 text-xs font-semibold text-[#EDEFF2] border border-[#232830] hover:border-[#3A414C] transition-colors cursor-pointer self-end sm:self-auto"
-          >
-            Close Itinerary
-          </button>
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl bg-[#12151A] hover:bg-[#181C22] px-4 py-2 text-xs font-semibold text-[#EDEFF2] border border-[#232830] hover:border-[#3A414C] transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+            {onBook && (
+              <button
+                type="button"
+                onClick={() => onBook(journey)}
+                className="rounded-xl bg-[#E8B04A] hover:bg-[#F0C066] px-5 py-2 text-xs font-bold text-[#0B0D10] shadow-md transition-colors cursor-pointer"
+              >
+                Continue to Booking
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Persistent Sticky Bottom Action Bar (Requirement 7) */}
+        {onBook && (
+          <div className="sticky -bottom-6 sm:-bottom-8 -mx-6 sm:-mx-8 border-t border-[#232830] bg-[#12151A]/95 p-4 sm:px-8 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 z-10 shadow-2xl">
+            <div className="space-y-0.5">
+              <div className="text-xs font-bold text-[#EDEFF2] flex items-center gap-2">
+                <span>{priceText}</span>
+                {parsed?.trainStages?.length > 1 && (
+                  <span className="text-[11px] font-normal text-[#E07B39]">
+                    · {parsed.trainStages.length} separate tickets on IRCTC
+                  </span>
+                )}
+              </div>
+              <div className="text-[11px] text-[#9AA3AF]">
+                {parsed?.trainStages?.length > 1
+                  ? 'Connecting journey — tickets must be booked separately for each leg.'
+                  : 'Proceed to confirmed booking details and passenger details.'}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => onBook(journey)}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-[#E8B04A] hover:bg-[#F0C066] px-6 py-2.5 text-xs font-bold text-[#0B0D10] shadow-md transition-colors cursor-pointer"
+              >
+                <span>Continue to Booking</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

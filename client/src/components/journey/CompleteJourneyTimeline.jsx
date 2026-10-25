@@ -415,20 +415,88 @@ export function CompleteJourneyTimeline({
                   </div>
                 </div>
 
-                {/* Transfer / buffer gap between consecutive trains */}
+                {/* Transfer / buffer gap between consecutive trains (Dedicated Section 6.C) */}
                 {currTrainStage.transferBuffer && (
-                  <div className="my-2.5 flex items-center gap-2.5 text-xs text-[#9AA3AF] bg-[#181C22] rounded-xl p-3 border border-[#E8B04A]/30">
-                    <ArrowRightLeft className="h-4 w-4 text-[#E8B04A] shrink-0" />
-                    <div>
-                      <span className="font-bold text-[#EDEFF2]">
-                        Change Trains at {currTrainStage.transferBuffer.transferStationName} {currTrainStage.transferBuffer.transferStationCode && `(${currTrainStage.transferBuffer.transferStationCode})`}:
-                      </span>{' '}
-                      Connection buffer{' '}
-                      <strong className="text-[#E8B04A] font-mono">
-                        {currTrainStage.transferBuffer.bufferMinutes != null ? formatDuration(currTrainStage.transferBuffer.bufferMinutes) : 'Layover'}
-                      </strong>{' '}
-                      before Train #{currTrainStage.transferBuffer.nextTrainNumber} ({currTrainStage.transferBuffer.nextTrainName})
+                  <div className="my-3 rounded-2xl border border-[#E8B04A]/30 bg-[#12151A] p-4 sm:p-5 shadow-md space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#232830] pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <ArrowRightLeft className="h-4 w-4 text-[#E8B04A] shrink-0" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-[#E8B04A]">
+                          TRANSFER DETAILS
+                        </span>
+                        <span className="text-xs text-[#9AA3AF]">
+                          · {currTrainStage.transferBuffer.isSameStation ? 'Same Station Transfer' : 'Inter-Station Transfer'}
+                        </span>
+                      </div>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#4CC38A]/10 border border-[#4CC38A]/20 px-2.5 py-0.5 text-[11px] font-bold text-[#4CC38A]">
+                        <CheckCircle2 className="h-3 w-3" />
+                        <span>{currTrainStage.transferBuffer.transferStatus || 'Connection timing validated'}</span>
+                      </span>
                     </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div className="rounded-xl bg-[#181C22] p-3 border border-[#232830]">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[#6B7480]">
+                          Arrival at {currTrainStage.transferBuffer.arrivalStationName || currTrainStage.destinationName}
+                        </div>
+                        <div className="mt-1 font-mono font-extrabold text-base text-[#EDEFF2]">
+                          {currTrainStage.transferBuffer.arrivalTime || currTrainStage.arrivalTime}
+                        </div>
+                        <div className="text-[11px] text-[#9AA3AF]">
+                          {currTrainStage.transferBuffer.arrivalStationCode || currTrainStage.destinationCode}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl bg-[#181C22] p-3 border border-[#E8B04A]/20">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[#E8B04A]">
+                          Transfer Wait
+                        </div>
+                        <div className="mt-1 font-mono font-extrabold text-base text-[#E8B04A]">
+                          {currTrainStage.transferBuffer.bufferMinutes != null
+                            ? formatDuration(currTrainStage.transferBuffer.bufferMinutes)
+                            : 'Layover'}
+                        </div>
+                        <div className="text-[11px] text-[#9AA3AF]">
+                          {currTrainStage.transferBuffer.bufferMinutes < 180 ? 'Tight Connection (< 3h)' : 'Buffer window verified'}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl bg-[#181C22] p-3 border border-[#232830]">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[#6B7480]">
+                          Next Train Departs
+                        </div>
+                        <div className="mt-1 font-mono font-extrabold text-base text-[#EDEFF2]">
+                          {currTrainStage.transferBuffer.departureTime || '--:--'}
+                        </div>
+                        <div className="text-[11px] text-[#9AA3AF] truncate">
+                          Train #{currTrainStage.transferBuffer.nextTrainNumber}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl bg-[#181C22] p-3 border border-[#232830]">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-[#6B7480]">
+                          Departure Station
+                        </div>
+                        <div className="mt-1 font-bold text-sm text-[#EDEFF2] truncate">
+                          {currTrainStage.transferBuffer.departureStationName || currTrainStage.transferBuffer.transferStationName}
+                        </div>
+                        <div className="text-[11px] text-[#9AA3AF]">
+                          {currTrainStage.transferBuffer.departureStationCode || currTrainStage.transferBuffer.transferStationCode}
+                        </div>
+                      </div>
+                    </div>
+
+                    {!currTrainStage.transferBuffer.isSameStation && (
+                      <div className="flex items-start gap-2 rounded-xl bg-[#E07B39]/10 border border-[#E07B39]/30 p-2.5 text-xs text-[#EDEFF2]">
+                        <AlertCircle className="h-4 w-4 text-[#E07B39] shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-semibold text-[#E07B39]">Station Change Required: </span>
+                          <span>
+                            Arrive at {currTrainStage.transferBuffer.arrivalStationName} ({currTrainStage.transferBuffer.arrivalStationCode}) and proceed to {currTrainStage.transferBuffer.departureStationName} ({currTrainStage.transferBuffer.departureStationCode}) via local train, metro, or cab. Allow sufficient road transfer buffer.
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -569,17 +637,24 @@ export function CompleteJourneyTimeline({
         </div>
       </div>
 
-      {/* 3. Cost Breakdown (Section 6) */}
+      {/* 3. Cost Breakdown (Section 6 & Requirement 6.F) */}
       <div className="rounded-xl border border-[#232830] bg-[#12151A] p-4 sm:p-5 space-y-3">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-[#9AA3AF]">
-          COST BREAKDOWN
-        </h4>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#9AA3AF]">
+            COST BREAKDOWN
+          </h4>
+          {effectiveTrainStages.length > 1 && (
+            <span className="text-[11px] text-[#E07B39] font-medium">
+              Separate tickets required for each train leg
+            </span>
+          )}
+        </div>
 
         <div className="divide-y divide-[#232830] text-xs">
           {accessStage && (
             <div className="flex items-center justify-between py-2.5">
               <span className="text-[#9AA3AF]">
-                ACCESS JOURNEY ({accessStage.originCode || accessStage.originName} → {accessStage.destinationCode || accessStage.destinationName})
+                ACCESS TRANSFER ({accessStage.originCode || accessStage.originName} → {accessStage.destinationCode || accessStage.destinationName})
               </span>
               <span className="font-mono font-semibold text-[#EDEFF2]">
                 {costs.accessFare ? (
@@ -593,25 +668,42 @@ export function CompleteJourneyTimeline({
             </div>
           )}
 
-          {trainStage && (
-            <div className="flex items-center justify-between py-2.5">
-              <span className="text-[#9AA3AF]">
-                TRAIN FARE ({trainStage.originCode || trainStage.originName} → {trainStage.destinationCode || trainStage.destinationName})
-              </span>
-              <span className="font-mono font-bold text-[#EDEFF2]">
-                {costs.trainFare ? (
-                  `₹${costs.trainFare}${costs.trainFareEstimated ? ' (est)' : ''}`
-                ) : (
-                  <span className="text-[#6B7480] font-normal italic">Unavailable</span>
-                )}
-              </span>
-            </div>
+          {effectiveTrainStages.length > 1 ? (
+            effectiveTrainStages.map((tStage, tIdx) => (
+              <div key={tIdx} className="flex items-center justify-between py-2.5">
+                <span className="text-[#9AA3AF]">
+                  TRAIN {tIdx + 1} FARE: Train #{tStage.trainNumber} ({tStage.originCode || tStage.originName} → {tStage.destinationCode || tStage.destinationName})
+                </span>
+                <span className="font-mono font-bold text-[#EDEFF2]">
+                  {tStage.fare ? (
+                    `₹${tStage.fare}${tStage.isEstimatedFare ? ' (est)' : ''}`
+                  ) : (
+                    <span className="text-[#6B7480] font-normal italic">Unavailable</span>
+                  )}
+                </span>
+              </div>
+            ))
+          ) : (
+            trainStage && (
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-[#9AA3AF]">
+                  TRAIN FARE ({trainStage.originCode || trainStage.originName} → {trainStage.destinationCode || trainStage.destinationName})
+                </span>
+                <span className="font-mono font-bold text-[#EDEFF2]">
+                  {costs.trainFare ? (
+                    `₹${costs.trainFare}${costs.trainFareEstimated ? ' (est)' : ''}`
+                  ) : (
+                    <span className="text-[#6B7480] font-normal italic">Unavailable</span>
+                  )}
+                </span>
+              </div>
+            )
           )}
 
           {onwardStage && (
             <div className="flex items-center justify-between py-2.5">
               <span className="text-[#9AA3AF]">
-                ONWARD JOURNEY ({onwardStage.originCode || onwardStage.originName} → {onwardStage.destinationCode || onwardStage.destinationName})
+                ONWARD TRANSFER ({onwardStage.originCode || onwardStage.originName} → {onwardStage.destinationCode || onwardStage.destinationName})
               </span>
               <span className="font-mono font-semibold text-[#EDEFF2]">
                 {costs.onwardFare ? (
@@ -625,26 +717,34 @@ export function CompleteJourneyTimeline({
             </div>
           )}
 
-          <div className="flex items-baseline justify-between pt-3">
-            <div>
-              <div className="font-bold text-[#EDEFF2]">
-                {costs.hasMissingCosts ? 'TOTAL ESTIMATED COST (PARTIAL)' : 'TOTAL ESTIMATED JOURNEY COST'}
-              </div>
-              {costs.hasMissingCosts && (
-                <div className="text-[11px] text-[#E07B39] mt-0.5">
-                  Complete journey cost unavailable (Access & onward transport fares not included)
+          {(() => {
+            const trainFaresKnown = effectiveTrainStages.every((s) => typeof s.fare === 'number' && s.fare > 0);
+            const sumKnownFares = effectiveTrainStages.reduce((sum, s) => sum + (Number(s.fare) || 0), 0) + (Number(costs.accessFare) || 0) + (Number(costs.onwardFare) || 0);
+            const hasMissingAmounts = costs.hasMissingCosts || !trainFaresKnown;
+
+            return (
+              <div className="flex items-baseline justify-between pt-3">
+                <div>
+                  <div className="font-bold text-[#EDEFF2]">
+                    {hasMissingAmounts ? 'TOTAL ESTIMATED COST (PARTIAL)' : 'TOTAL ESTIMATED JOURNEY COST'}
+                  </div>
+                  {hasMissingAmounts && (
+                    <div className="text-[11px] text-[#E07B39] mt-0.5">
+                      Complete journey cost unavailable ({effectiveTrainStages.length > 1 ? 'separate tickets required' : 'local transport fares not included'})
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <div className="text-base sm:text-lg font-black font-mono text-[#E8B04A] tabular-nums">
-              {costs.knownCostSum > 0 ? `₹${costs.knownCostSum}` : 'Price unavailable'}
-            </div>
-          </div>
+                <div className="text-base sm:text-lg font-black font-mono text-[#E8B04A] tabular-nums">
+                  {sumKnownFares > 0 ? `₹${sumKnownFares.toLocaleString('en-IN')}` : 'Price unavailable'}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
-      {/* 4. Total Journey Summary (Section 4) */}
-      <div className="rounded-xl border border-[#232830] bg-[#181C22] p-4 sm:p-5 space-y-3 text-xs">
+      {/* 4. Total Journey Summary & Duration Breakdown (Requirement 6.E) */}
+      <div className="rounded-xl border border-[#232830] bg-[#181C22] p-4 sm:p-5 space-y-4 text-xs">
         <h4 className="text-xs font-bold uppercase tracking-wider text-[#E8B04A]">
           TOTAL JOURNEY SUMMARY
         </h4>
@@ -678,10 +778,48 @@ export function CompleteJourneyTimeline({
                 ? (accessStage?.type === 'connected' && onwardStage?.type === 'connected'
                     ? 'Connected multi-stage journey'
                     : 'Train operates between nearby stations · Local transfers required')
-                : 'Direct train journey'}
+                : (totalTransfers > 0 ? `${totalTransfers} train transfer${totalTransfers > 1 ? 's' : ''}` : 'Direct train journey')}
             </div>
           </div>
         </div>
+
+        {/* Detailed Duration Breakdown (Requirement 6.E) */}
+        {(() => {
+          const totalInVehicleMinutes = effectiveTrainStages.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
+          const totalWaitingMinutes = effectiveTrainStages.reduce((sum, s) => sum + (Number(s.transferBuffer?.bufferMinutes) || 0), 0);
+          const accessDuration = Number(accessStage?.duration) || null;
+          const onwardDuration = Number(onwardStage?.duration) || null;
+
+          return (
+            <div className="rounded-xl border border-[#232830] bg-[#12151A] p-3.5 space-y-2">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[#9AA3AF]">
+                Duration Breakdown
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="space-y-0.5">
+                  <span className="text-[11px] text-[#6B7480]">Total Elapsed</span>
+                  <div className="font-mono font-bold text-[#EDEFF2]">{totalDurationText || 'Unresolved'}</div>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[11px] text-[#6B7480]">In-Vehicle Travel</span>
+                  <div className="font-mono font-bold text-[#EDEFF2]">{totalInVehicleMinutes > 0 ? formatDuration(totalInVehicleMinutes) : '--'}</div>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[11px] text-[#6B7480]">Transfer Waiting</span>
+                  <div className="font-mono font-bold text-[#E8B04A]">{totalWaitingMinutes > 0 ? formatDuration(totalWaitingMinutes) : '0m'}</div>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[11px] text-[#6B7480]">Access / Onward</span>
+                  <div className="font-mono text-[#EDEFF2]">
+                    {(accessDuration || onwardDuration)
+                      ? formatDuration((accessDuration || 0) + (onwardDuration || 0))
+                      : 'Not arranged'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-[11px] text-[#9AA3AF]">
           <span>
