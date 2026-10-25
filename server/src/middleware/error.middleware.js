@@ -15,7 +15,10 @@ export function errorHandler(err, req, res, _next) {
     status = 409;
     code = 'DUPLICATE_KEY_ERROR';
     const field = Object.keys(err.keyPattern || err.keyValue || {})[0] || 'field';
-    message = `An account with that ${field} already exists.`;
+    message =
+      field === 'email'
+        ? 'This account already exists. Sign in instead.'
+        : `An account with that ${field} already exists.`;
   }
 
   logger.error(`Error processing request: ${req.method} ${req.originalUrl}`, {

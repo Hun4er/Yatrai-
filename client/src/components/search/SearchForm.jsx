@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api.js';
 import { normalizeDate } from '../../utils/formatters.js';
+import { getCachedData, setCachedData, saveLocalRecentSearch } from '../../utils/browserCache.js';
 
 /**
  * Format ISO date string (YYYY-MM-DD) into editorial reference format (e.g., "Mon, 15 Jan 2024")
@@ -163,6 +164,15 @@ export function SearchForm({
     }
 
     const currentToken = ++originRequestTokenRef.current;
+    const cacheKey = `stn_ac_${query.toUpperCase()}`;
+    const cached = getCachedData(cacheKey);
+    if (cached && Array.isArray(cached)) {
+      setOriginSuggestions(cached);
+      setOriginActiveIndex(cached.length > 0 ? 0 : -1);
+      setIsOriginLoading(false);
+      return;
+    }
+
     setIsOriginLoading(true);
 
     const timer = setTimeout(async () => {
@@ -172,6 +182,9 @@ export function SearchForm({
           const locs = res?.data?.locations || [];
           setOriginSuggestions(locs);
           setOriginActiveIndex(locs.length > 0 ? 0 : -1);
+          if (locs.length > 0) {
+            setCachedData(cacheKey, locs, 24 * 60 * 60 * 1000); // 24h
+          }
         }
       } catch {
         if (currentToken === originRequestTokenRef.current) {
@@ -197,6 +210,15 @@ export function SearchForm({
     }
 
     const currentToken = ++destRequestTokenRef.current;
+    const cacheKey = `stn_ac_${query.toUpperCase()}`;
+    const cached = getCachedData(cacheKey);
+    if (cached && Array.isArray(cached)) {
+      setDestSuggestions(cached);
+      setDestActiveIndex(cached.length > 0 ? 0 : -1);
+      setIsDestLoading(false);
+      return;
+    }
+
     setIsDestLoading(true);
 
     const timer = setTimeout(async () => {
@@ -206,6 +228,9 @@ export function SearchForm({
           const locs = res?.data?.locations || [];
           setDestSuggestions(locs);
           setDestActiveIndex(locs.length > 0 ? 0 : -1);
+          if (locs.length > 0) {
+            setCachedData(cacheKey, locs, 24 * 60 * 60 * 1000); // 24h
+          }
         }
       } catch {
         if (currentToken === destRequestTokenRef.current) {
@@ -381,6 +406,13 @@ export function SearchForm({
         destinationStation: selectedDestStation || null,
         departureDate,
         passengers: passengers || 1,
+      });
+
+      // Automatically preserve recent search query locally for quick discovery
+      saveLocalRecentSearch({
+        origin: finalOrigin,
+        destination: finalDest,
+        departureDate,
       });
     } finally {
       setIsSubmitting(false);

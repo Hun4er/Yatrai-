@@ -18,12 +18,31 @@ const persistentCacheSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: ['availability', 'fare', 'timetable', 'station', 'negative'],
+      enum: [
+        'availability',
+        'fare',
+        'timetable',
+        'station',
+        'search',
+        'schedule',
+        'trainInfo',
+        'pnr',
+        'live',
+        'cancelled',
+        'negative',
+        'route',
+        'static',
+        'preview',
+      ],
       index: true,
     },
     data: {
       type: mongoose.Schema.Types.Mixed,
       required: true,
+    },
+    fetchedAt: {
+      type: Date,
+      default: Date.now,
     },
     expiresAt: {
       type: Date,

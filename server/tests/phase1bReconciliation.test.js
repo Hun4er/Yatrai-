@@ -82,7 +82,7 @@ describe('Phase 1b-i Reconciliation & Enforcement Tests', () => {
 
       await adapter.syncUsage();
       const initial = adapter.getStats().totalOutboundRequests;
-      await adapter.checkPNRStatus('1234567890');
+      await adapter.checkPNRStatus('9876543210');
       assert.equal(adapter.getStats().totalOutboundRequests - initial, 1);
 
       await adapter.trackTrain('12309', '2026-10-25');

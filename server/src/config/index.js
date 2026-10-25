@@ -77,6 +77,7 @@ export const config = Object.freeze({
         ? process.env.AUTH_COOKIE_SECURE === 'true'
         : process.env.NODE_ENV === 'production',
     cookieSameSite: process.env.AUTH_COOKIE_SAME_SITE || 'lax',
+    cookiePath: process.env.AUTH_COOKIE_PATH || '/api/auth',
   },
   providers: {
     rail: {

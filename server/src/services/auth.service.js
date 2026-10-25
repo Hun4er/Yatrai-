@@ -57,11 +57,14 @@ function createAuthError(message, status = 401, code = 'UNAUTHORIZED') {
  * @returns {import('express').CookieOptions}
  */
 export function getRefreshCookieOptions() {
+  const sameSite = config.auth.cookieSameSite || 'lax';
+  const secure = sameSite === 'none' ? true : config.auth.cookieSecure;
+
   return {
     httpOnly: true,
-    secure: config.auth.cookieSecure,
-    sameSite: config.auth.cookieSameSite,
-    path: '/api/auth',
+    secure,
+    sameSite,
+    path: config.auth.cookiePath || '/api/auth',
     maxAge: parseDurationToMs(config.auth.jwtRefreshExpiresIn),
   };
 }
@@ -72,11 +75,14 @@ export function getRefreshCookieOptions() {
  * @returns {import('express').CookieOptions}
  */
 export function getClearCookieOptions() {
+  const sameSite = config.auth.cookieSameSite || 'lax';
+  const secure = sameSite === 'none' ? true : config.auth.cookieSecure;
+
   return {
     httpOnly: true,
-    secure: config.auth.cookieSecure,
-    sameSite: config.auth.cookieSameSite,
-    path: '/api/auth',
+    secure,
+    sameSite,
+    path: config.auth.cookiePath || '/api/auth',
   };
 }
 
@@ -96,20 +102,20 @@ function generateAccessToken(userId, role = 'user') {
  * Creates a cryptographically random refresh token and records its hash in a RefreshSession.
  *
  * @param {string} userId
- * @returns {Promise<{ rawRefreshToken: string, expiresAt: Date }>}
+ * @returns {Promise<{ rawRefreshToken: string, expiresAt: Date, sessionId: import('mongoose').Types.ObjectId }>}
  */
 async function createRefreshSession(userId) {
   const rawRefreshToken = crypto.randomBytes(40).toString('hex');
   const tokenHash = hashToken(rawRefreshToken);
   const expiresAt = new Date(Date.now() + parseDurationToMs(config.auth.jwtRefreshExpiresIn));
 
-  await RefreshSession.create({
+  const session = await RefreshSession.create({
     user: userId,
     tokenHash,
     expiresAt,
   });
 
-  return { rawRefreshToken, expiresAt };
+  return { rawRefreshToken, expiresAt, sessionId: session._id };
 }
 
 /**
@@ -132,11 +138,13 @@ export const authService = {
     // Check pre-existing account
     const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
-      throw createAuthError(
-        'An account with this email address already exists.',
+      const err = createAuthError(
+        'This account already exists. Sign in instead.',
         409,
         'DUPLICATE_EMAIL'
       );
+      err.details = { email: normalizedEmail, canSignIn: true };
+      throw err;
     }
 
     // Hash password with bcrypt
@@ -153,11 +161,13 @@ export const authService = {
       await user.save();
     } catch (err) {
       if (err.code === 11000) {
-        throw createAuthError(
-          'An account with this email address already exists.',
+        const dupErr = createAuthError(
+          'This account already exists. Sign in instead.',
           409,
           'DUPLICATE_EMAIL'
         );
+        dupErr.details = { email: normalizedEmail, canSignIn: true };
+        throw dupErr;
       }
       throw err;
     }
@@ -255,12 +265,14 @@ export const authService = {
       );
     }
 
-    // Token Rotation: revoke old session and create a new one
+    // Token Rotation: create new session first, then record linkage and revoke old session
+    const { rawRefreshToken: newRawRefreshToken, expiresAt: newExpiresAt, sessionId: newSessionId } =
+      await createRefreshSession(user._id);
+
     session.revokedAt = new Date();
+    session.replacedBy = newSessionId;
     await session.save();
 
-    const { rawRefreshToken: newRawRefreshToken, expiresAt: newExpiresAt } =
-      await createRefreshSession(user._id);
     const accessToken = generateAccessToken(user._id.toString(), user.role || 'user');
 
     return {

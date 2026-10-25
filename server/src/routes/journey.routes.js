@@ -19,6 +19,12 @@ router.post('/search', optionalAuthenticate, (req, res, next) => {
 });
 
 /**
+ * GET /api/journeys/preview
+ * Public discovery endpoint returning featured curated train journeys with cache metadata.
+ */
+router.get('/preview', journeyController.getPreview);
+
+/**
  * P0 v2 endpoints aliased on /api/journeys for compatibility
  */
 router.post('/check-class', optionalAuthenticate, journeyV2Controller.checkClass);

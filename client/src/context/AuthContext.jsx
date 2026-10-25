@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import api, { setAccessToken } from '../services/api.js';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import api, { setAccessToken, setOnSessionExpired } from '../services/api.js';
 
 const AuthContext = createContext(null);
 
@@ -8,32 +8,61 @@ export function AuthProvider({ children }) {
   const [status, setStatus] = useState('loading');
   const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  /**
+   * Listen for background session expirations triggered by the API client
+   */
+  useEffect(() => {
+    setOnSessionExpired((message) => {
+      if (!isMountedRef.current) return;
+      setAccessToken(null);
+      setUser(null);
+      setStatus('unauthenticated');
+      setError(message || 'Your session has expired. Please sign in again.');
+    });
+  }, []);
 
   /**
    * Session Restoration on Application Startup
    * Attempts to exchange existing HTTP-only refresh cookie for a fresh access token and user identity.
    */
   const restoreSession = useCallback(async () => {
+    if (!isMountedRef.current) return;
     setStatus('loading');
+
     try {
       const refreshResult = await api.auth.refresh();
       if (refreshResult?.data?.accessToken) {
         setAccessToken(refreshResult.data.accessToken);
 
-        // Fetch current user details via protected /me endpoint to ensure valid session
+        // Fetch current user details via protected /me endpoint to verify authorization
         const meResult = await api.auth.me();
-        setUser(meResult.data.user);
-        setStatus('authenticated');
+        if (isMountedRef.current) {
+          setUser(meResult.data.user);
+          setStatus('authenticated');
+          setError(null);
+        }
       } else {
+        if (isMountedRef.current) {
+          setAccessToken(null);
+          setUser(null);
+          setStatus('unauthenticated');
+        }
+      }
+    } catch {
+      if (isMountedRef.current) {
         setAccessToken(null);
         setUser(null);
         setStatus('unauthenticated');
       }
-    } catch {
-      // No active session or revoked cookie
-      setAccessToken(null);
-      setUser(null);
-      setStatus('unauthenticated');
     }
   }, []);
 
@@ -54,9 +83,10 @@ export function AuthProvider({ children }) {
       setStatus('authenticated');
       return { success: true, user: res.data.user };
     } catch (err) {
-      setError(err.message || 'Registration failed');
+      const message = err.message || 'Registration failed';
+      setError(message);
       setStatus('unauthenticated');
-      return { success: false, error: err.message };
+      return { success: false, error: message, code: err.code };
     }
   };
 
@@ -73,9 +103,10 @@ export function AuthProvider({ children }) {
       setStatus('authenticated');
       return { success: true, user: res.data.user };
     } catch (err) {
-      setError(err.message || 'Login failed');
+      const message = err.message || 'Invalid email or password';
+      setError(message);
       setStatus('unauthenticated');
-      return { success: false, error: err.message };
+      return { success: false, error: message, code: err.code };
     }
   };
 

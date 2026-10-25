@@ -16,6 +16,9 @@ const server = app.listen(config.port, async () => {
   // Attempt database connection on startup
   try {
     await connectDatabase();
+    const { User } = await import('./models/User.js');
+    const { RefreshSession } = await import('./models/RefreshSession.js');
+    await Promise.all([User.init(), RefreshSession.init()]);
     await railKitAdapter.syncUsage();
   } catch (dbError) {
     logger.warn(

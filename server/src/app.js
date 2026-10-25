@@ -10,12 +10,28 @@ import errorHandler from './middleware/error.middleware.js';
 export function createApp() {
   const app = express();
 
-  // Basic Security & CORS configuration
+  // Production-grade CORS configuration with credentials and multiple origin support
+  const allowedOrigins = (config.clientUrl || 'http://localhost:5173')
+    .split(',')
+    .map((url) => url.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+
   app.use(
     cors({
-      origin: config.clientUrl,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        const cleanOrigin = origin.replace(/\/$/, '');
+        if (
+          allowedOrigins.includes(cleanOrigin) ||
+          (!config.isProduction && cleanOrigin.includes('localhost'))
+        ) {
+          return callback(null, true);
+        }
+        return callback(new Error(`Origin ${origin} not allowed by CORS`));
+      },
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true,
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
     })
   );
 

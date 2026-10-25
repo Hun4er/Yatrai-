@@ -58,6 +58,17 @@ export class RailKitAdapter {
     this._activeRequests = 0;
     this._concurrencyQueue = [];
 
+    // Cache observability metrics
+    this._metrics = {
+      hits: 0,
+      misses: 0,
+      inFlightCoalesced: 0,
+      upstreamRequests: 0,
+      upstreamErrors: 0,
+      rateLimits: 0,
+      lastReset: new Date().toISOString(),
+    };
+
     // Monthly request counter (resets on process restart)
     this._monthlyCount = 0;
     this._monthStart = new Date().toISOString().slice(0, 7); // YYYY-MM
@@ -125,6 +136,7 @@ export class RailKitAdapter {
     // 1. Check L1 Memory cache
     const cached = this._cache.get(cacheKey);
     if (cached && cached.expiresAt > now) {
+      this._metrics.hits++;
       if (tracker) tracker.recordCacheHit();
       return cached.data;
     }
@@ -133,7 +145,8 @@ export class RailKitAdapter {
     if (!this._disablePersistentCache) {
       const persistent = await persistentCacheService.get(cacheKey);
       if (persistent !== null && persistent !== undefined) {
-        this._cache.set(cacheKey, { data: persistent, expiresAt: now + ttlMs });
+        this._metrics.hits++;
+        this._cache.set(cacheKey, { data: persistent, expiresAt: now + ttlMs, fetchedAt: now });
         if (tracker) tracker.recordCacheHit();
         return persistent;
       }
@@ -141,9 +154,12 @@ export class RailKitAdapter {
 
     // 3. In-flight promise coalescing
     if (this._inFlight.has(cacheKey)) {
+      this._metrics.inFlightCoalesced++;
       if (tracker) tracker.deduplicatedCount++;
       return this._inFlight.get(cacheKey);
     }
+
+    this._metrics.misses++;
 
     // 4. Budget check & Atomic Reservation (Availability / Recovery / Direct / Static / Timetable)
     let reservation = null;
@@ -275,6 +291,7 @@ export class RailKitAdapter {
     let fetchErr = null;
 
     try {
+      this._metrics.upstreamRequests++;
       res = await fetchFunc(url, { headers: this._headers(), signal: controller.signal });
       if (typeof res.text === 'function') {
         resBodyText = await res.text().catch((e) => `[Failed to read body: ${e.message}]`);
@@ -282,6 +299,7 @@ export class RailKitAdapter {
       logger.info(`[DIAGNOSTIC - RAILKIT RESPONSE] URL: ${redactedUrl} | HTTP Status: ${res.status} | Body: ${resBodyText}`);
     } catch (err) {
       fetchErr = err;
+      this._metrics.upstreamErrors++;
       logger.error(`[DIAGNOSTIC - RAILKIT FETCH ERROR] URL: ${redactedUrl} | Attempt ${attempt} | Error: ${err.message}`);
     } finally {
       clearTimeout(timer);
@@ -298,9 +316,11 @@ export class RailKitAdapter {
     // Check if error state
     const isErrorState = fetchErr || !res?.ok;
     if (isErrorState) {
+      this._metrics.upstreamErrors++;
       // Only TRANSIENT is retried, max 2 retries (attempt 1 and 2)
       if (classified.errorClass === ERROR_CLASS.TRANSIENT && attempt <= 2) {
         if (statusCode === 429) {
+          this._metrics.rateLimits++;
           this._maxConcurrent = Math.max(1, Math.floor(this._maxConcurrent / 2));
           logger.warn(`[RailKitAdapter] HTTP 429 Rate Limit. Halving adaptive concurrency to ${this._maxConcurrent}`);
         }
@@ -993,8 +1013,14 @@ export class RailKitAdapter {
   async checkPNRStatus(pnr) {
     const cleanPnr = String(pnr || '').trim().replace(/\D/g, '');
     const url = `${BASE_URL}/api/v1/pnr/${cleanPnr}`;
+    const cacheKey = `railkit:pnr:${cleanPnr}`;
     try {
-      const json = await this._fetch(url);
+      const json = await this._cachedFetch(
+        cacheKey,
+        CACHE_TTL_CONFIG.pnr,
+        () => this._fetch(url),
+        'pnr'
+      );
       return { status: 'ok', success: Boolean(json?.success), data: json?.data || null };
     } catch (err) {
       return { status: 'error', success: false, data: null, error: err.message };
@@ -1014,8 +1040,14 @@ export class RailKitAdapter {
     const num = this._normalizeTrainNo(trainNumber);
     const rkDate = toRailKitDate(formatJourneyDate(date));
     const url = `${BASE_URL}/api/v1/trains/${num}/live/${rkDate}`;
+    const cacheKey = `railkit:live:${num}:${rkDate}`;
     try {
-      const json = await this._fetch(url);
+      const json = await this._cachedFetch(
+        cacheKey,
+        CACHE_TTL_CONFIG.live,
+        () => this._fetch(url),
+        'live'
+      );
       return { status: 'ok', success: Boolean(json?.success), data: json?.data || null };
     } catch (err) {
       return { status: 'error', success: false, data: null, error: err.message };
@@ -1031,8 +1063,14 @@ export class RailKitAdapter {
     const internalDate = date ? formatJourneyDate(date) : '';
     const rkDate = internalDate ? toRailKitDate(internalDate) : '';
     const url = `${BASE_URL}/api/v1/trains/cancelled${rkDate ? `?date=${rkDate}` : ''}`;
+    const cacheKey = `railkit:cancelled:${rkDate || 'all'}`;
     try {
-      const json = await this._cachedFetch(`trains:cancelled:${rkDate || 'all'}`, 30 * 60 * 1000, () => this._fetch(url));
+      const json = await this._cachedFetch(
+        cacheKey,
+        CACHE_TTL_CONFIG.cancelled,
+        () => this._fetch(url),
+        'cancelled'
+      );
       return { status: 'ok', success: Boolean(json?.success), data: json?.data || {} };
     } catch (err) {
       return { status: 'error', success: false, data: {}, error: err.message };
@@ -1144,6 +1182,8 @@ export class RailKitAdapter {
     const quota = Number(config.apiQuota?.monthlyLimit || 10000);
     const total = raw + offset;
     const percentage = Math.round((total / quota) * 100);
+    const totalLookups = (this._metrics?.hits || 0) + (this._metrics?.misses || 0);
+    const hitRatio = totalLookups > 0 ? Number(((this._metrics?.hits || 0) / totalLookups).toFixed(4)) : 0;
 
     return {
       provider: 'RailKit',
@@ -1159,6 +1199,16 @@ export class RailKitAdapter {
       inFlightCount: this._inFlight.size,
       activeRequests: this._activeRequests,
       queuedRequests: this._concurrencyQueue.length,
+      cacheMetrics: {
+        hits: this._metrics?.hits || 0,
+        misses: this._metrics?.misses || 0,
+        inFlightCoalesced: this._metrics?.inFlightCoalesced || 0,
+        upstreamRequests: this._metrics?.upstreamRequests || 0,
+        upstreamErrors: this._metrics?.upstreamErrors || 0,
+        rateLimits: this._metrics?.rateLimits || 0,
+        hitRatio,
+        persistentL1Size: this._cache.size,
+      },
     };
   }
 
@@ -1168,6 +1218,64 @@ export class RailKitAdapter {
     this._stationCache.clear();
     await persistentCacheService.clearAll();
     logger.info('[RailKitAdapter] Cache completely cleared');
+  }
+}
+
+/**
+ * Deterministic RailKit cache key builder.
+ * Generates canonical, normalized keys incorporating all response-affecting parameters.
+ */
+export function buildRailKitCacheKey(type, params = {}) {
+  switch (type) {
+    case 'availability': {
+      const num = String(params.trainNo || '').trim().replace(/\D/g, '').padStart(5, '0').slice(-5);
+      const from = String(params.from || '').trim().toUpperCase();
+      const to = String(params.to || '').trim().toUpperCase();
+      const date = String(params.date || '').trim();
+      const coach = String(params.coach || '3A').trim().toUpperCase();
+      const quota = String(params.quota || 'GN').trim().toUpperCase();
+      return `railkit:availability:${num}:${from}:${to}:${date}:${coach}:${quota}`;
+    }
+    case 'fare': {
+      const num = String(params.trainNo || '').trim().replace(/\D/g, '').padStart(5, '0').slice(-5);
+      const from = String(params.from || '').trim().toUpperCase();
+      const to = String(params.to || '').trim().toUpperCase();
+      const date = String(params.date || '').trim();
+      const coach = String(params.travelClass || params.coach || '3A').trim().toUpperCase();
+      const quota = String(params.quota || 'GN').trim().toUpperCase();
+      return `railkit:fare:${num}:${from}:${to}:${date}:${coach}:${quota}`;
+    }
+    case 'search': {
+      const from = String(params.from || '').trim().toUpperCase();
+      const to = String(params.to || '').trim().toUpperCase();
+      const date = String(params.date || '').trim();
+      return `railkit:search:${from}:${to}:${date || 'all'}`;
+    }
+    case 'timetable': {
+      const stn = String(params.station || '').trim().toUpperCase();
+      const date = String(params.date || '').trim();
+      return `railkit:timetable:${stn}:${date || 'all'}`;
+    }
+    case 'station': {
+      const code = String(params.code || params.query || '').trim().toUpperCase();
+      return `railkit:station:${code}`;
+    }
+    case 'schedule':
+    case 'trainInfo': {
+      const num = String(params.trainNo || params.trainNumber || '').trim().replace(/\D/g, '').padStart(5, '0').slice(-5);
+      return `railkit:schedule:${num}`;
+    }
+    case 'pnr': {
+      const pnr = String(params.pnr || '').trim().replace(/\D/g, '');
+      return `railkit:pnr:${pnr}`;
+    }
+    case 'live': {
+      const num = String(params.trainNo || '').trim().replace(/\D/g, '').padStart(5, '0').slice(-5);
+      const date = String(params.date || '').trim();
+      return `railkit:live:${num}:${date}`;
+    }
+    default:
+      return `railkit:${type}:${JSON.stringify(params)}`;
   }
 }
 

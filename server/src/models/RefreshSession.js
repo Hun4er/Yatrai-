@@ -25,6 +25,12 @@ const RefreshSessionSchema = new Schema(
       default: null,
       index: true,
     },
+    replacedBy: {
+      type: Schema.Types.ObjectId,
+      ref: 'RefreshSession',
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,

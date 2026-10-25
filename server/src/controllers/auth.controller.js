@@ -74,7 +74,9 @@ export const authController = {
         rawRefreshToken: newRawRefreshToken,
       } = await authService.refreshSession(rawRefreshToken);
 
-      res.cookie(config.auth.cookieName, newRawRefreshToken, getRefreshCookieOptions());
+      if (newRawRefreshToken) {
+        res.cookie(config.auth.cookieName, newRawRefreshToken, getRefreshCookieOptions());
+      }
 
       return res.status(200).json(
         successResponse('Token refreshed successfully', {

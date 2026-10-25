@@ -3,13 +3,17 @@
  * Handles all HTTP communications with the Yatrai Backend Service.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_BASE_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
+  '/api';
 
 /**
  * In-memory access token storage.
  * Never stored in localStorage or sessionStorage for security.
  */
 let inMemoryAccessToken = null;
+let sessionExpiredCallback = null;
+let activeRefreshPromise = null;
 
 export function setAccessToken(token) {
   inMemoryAccessToken = token;
@@ -19,10 +23,70 @@ export function getAccessToken() {
   return inMemoryAccessToken;
 }
 
+export function setOnSessionExpired(cb) {
+  sessionExpiredCallback = cb;
+}
+
 /**
- * Standard fetch wrapper with JSON serialization, credentials transport, and error normalization.
+ * Deduplicated, single-flight token refresh executor.
+ * Concurrent callers share the exact same active refresh promise.
  */
-async function request(endpoint, options = {}) {
+async function performTokenRefresh() {
+  if (activeRefreshPromise) {
+    return activeRefreshPromise;
+  }
+
+  activeRefreshPromise = (async () => {
+    try {
+      const url = `${API_BASE_URL}/auth/refresh`;
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+      });
+
+      let data;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        data = { raw: await response.text() };
+      }
+
+      if (!response.ok || !data?.data?.accessToken) {
+        setAccessToken(null);
+        if (sessionExpiredCallback) {
+          sessionExpiredCallback('Your session has expired. Please sign in again.');
+        }
+        const error = new Error(
+          data?.error?.message || 'Your session has expired. Please sign in again.'
+        );
+        error.status = response.status;
+        error.code = data?.error?.code || 'SESSION_EXPIRED';
+        throw error;
+      }
+
+      const newAccessToken = data.data.accessToken;
+      setAccessToken(newAccessToken);
+      return data;
+    } catch (err) {
+      setAccessToken(null);
+      throw err;
+    } finally {
+      activeRefreshPromise = null;
+    }
+  })();
+
+  return activeRefreshPromise;
+}
+
+/**
+ * Standard fetch wrapper with JSON serialization, credentials transport, single-flight auto-refresh, and error normalization.
+ */
+async function request(endpoint, options = {}, isRetry = false) {
   const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
   const defaultHeaders = {
@@ -47,6 +111,31 @@ async function request(endpoint, options = {}) {
 
   try {
     const response = await fetch(url, config);
+
+    // If 401 unauthorized on a non-auth endpoint, attempt token refresh and retry once
+    const isAuthEndpoint =
+      endpoint.includes('/auth/login') ||
+      endpoint.includes('/auth/register') ||
+      endpoint.includes('/auth/refresh') ||
+      endpoint.includes('/auth/logout');
+
+    if (response.status === 401 && !isAuthEndpoint && !isRetry) {
+      try {
+        const refreshResult = await performTokenRefresh();
+        if (refreshResult?.data?.accessToken) {
+          // Retry the original request once with the renewed token
+          const retryHeaders = {
+            ...options.headers,
+            Authorization: `Bearer ${refreshResult.data.accessToken}`,
+          };
+          return await request(endpoint, { ...options, headers: retryHeaders }, true);
+        }
+      } catch (refreshErr) {
+        // Refresh failed; clear local token and rethrow
+        setAccessToken(null);
+        throw refreshErr;
+      }
+    }
 
     // Parse JSON response safely
     let data;
@@ -104,10 +193,7 @@ export const api = {
         body: JSON.stringify({ email, password }),
       }),
 
-    refresh: () =>
-      request('/auth/refresh', {
-        method: 'POST',
-      }),
+    refresh: () => performTokenRefresh(),
 
     logout: () =>
       request('/auth/logout', {
@@ -207,6 +293,7 @@ export const api = {
     getAvailability: (id) => request(`/journeys/${id}/availability`),
     getFare: (id) => request(`/journeys/${id}/fare`),
     getById: (id) => request(`/journeys/${id}`),
+    getPreview: () => request('/journeys/preview'),
   },
 
   /**

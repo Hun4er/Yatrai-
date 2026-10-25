@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../services/api.js';
+import { AlertCircle, Clock, CheckCircle2, ArrowRight } from 'lucide-react';
 
-export function AuthCard() {
+export function AuthCard({ initialMode = 'login', onAuthSuccess }) {
   const { user, status, error, login, register, logout, clearError } = useAuth();
 
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [mode, setMode] = useState(initialMode); // 'login' | 'register'
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -15,19 +16,44 @@ export function AuthCard() {
   const [testResponse, setTestResponse] = useState(null);
   const [testingProtected, setTestingProtected] = useState(false);
 
+  useEffect(() => {
+    if (initialMode) {
+      setMode(initialMode);
+    }
+  }, [initialMode]);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (error) clearError();
   };
 
+  const isDuplicateAccountError =
+    error &&
+    (error.toLowerCase().includes('already exists') ||
+      error.toLowerCase().includes('duplicate_email'));
+
+  const isSessionExpiredNotice =
+    error && error.toLowerCase().includes('session has expired');
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+
     if (mode === 'login') {
-      await login(formData.email, formData.password);
+      const res = await login(formData.email.trim(), formData.password);
+      if (res?.success && onAuthSuccess) {
+        onAuthSuccess(res.user);
+      }
     } else {
-      await register(formData.name, formData.email, formData.password);
+      const res = await register(
+        formData.name.trim(),
+        formData.email.trim(),
+        formData.password
+      );
+      if (res?.success && onAuthSuccess) {
+        onAuthSuccess(res.user);
+      }
     }
     setSubmitting(false);
   };
@@ -151,7 +177,9 @@ export function AuthCard() {
             {mode === 'login' ? 'Sign In to Yatrai' : 'Create an Account'}
           </h2>
           <p className="text-xs text-text-muted mt-0.5">
-            Phase 2 Email + Password Authentication
+            {mode === 'login'
+              ? 'Access your journeys, bookings & preferences'
+              : 'Join Yatrai for synchronized railway discovery'}
           </p>
         </div>
 
@@ -190,14 +218,66 @@ export function AuthCard() {
         </div>
       </div>
 
-      {/* Error notification */}
-      {error && (
+      {/* Session Expired Notice */}
+      {isSessionExpiredNotice && (
+        <div
+          id="auth-session-expired-banner"
+          className="flex items-center gap-2.5 rounded-control border border-amber-accent/40 bg-amber-accent/10 p-3 text-xs text-amber-accent"
+        >
+          <Clock className="h-4 w-4 shrink-0" />
+          <span>Your session has expired. Please sign in again.</span>
+        </div>
+      )}
+
+      {/* Duplicate Account Resolution Banner */}
+      {isDuplicateAccountError && (
+        <div
+          id="auth-duplicate-account-banner"
+          className="flex flex-col gap-2 rounded-control border border-amber-accent/40 bg-amber-accent/10 p-3.5 text-xs text-[#F0F1F3]"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-accent font-semibold">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>This account already exists. Sign in instead.</span>
+            </div>
+            <button
+              type="button"
+              onClick={clearError}
+              className="text-text-muted hover:text-text-primary font-bold cursor-pointer"
+            >
+              &times;
+            </button>
+          </div>
+          <p className="text-text-secondary text-[11px]">
+            An account with <strong className="text-text-primary font-mono">{formData.email}</strong> is already registered. You do not need to create a new account.
+          </p>
+          <button
+            id="auth-switch-to-login-btn"
+            type="button"
+            onClick={() => {
+              setMode('login');
+              clearError();
+            }}
+            className="self-start inline-flex items-center gap-1.5 mt-1 rounded-control bg-amber-accent px-3 py-1.5 text-xs font-semibold text-amber-on hover:bg-amber-hover transition-colors cursor-pointer"
+          >
+            <span>Sign In to This Account</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Standard Error notification */}
+      {error && !isDuplicateAccountError && !isSessionExpiredNotice && (
         <div
           id="auth-error-banner"
           className="flex items-start justify-between rounded-control border border-semantic-error/30 bg-semantic-error/10 p-3 text-xs text-semantic-error"
         >
           <span>{error}</span>
-          <button type="button" onClick={clearError} className="ml-2 font-bold hover:opacity-75 cursor-pointer">
+          <button
+            type="button"
+            onClick={clearError}
+            className="ml-2 font-bold hover:opacity-75 cursor-pointer"
+          >
             &times;
           </button>
         </div>
