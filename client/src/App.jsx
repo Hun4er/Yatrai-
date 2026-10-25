@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AuthProvider } from './context/AuthContext.jsx';
+import { ThemeProvider } from './context/ThemeContext.jsx';
 import MainLayout from './layouts/MainLayout.jsx';
 import HomePage from './pages/HomePage.jsx';
 import ResultsPage from './pages/ResultsPage.jsx';
@@ -198,7 +199,8 @@ export function App() {
   }, []);
 
   return (
-    <AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
       {currentPath.startsWith('/admin') ? (
         <AdminLayout
           currentPath={currentPath}
@@ -329,7 +331,8 @@ export function App() {
             )}
         </MainLayout>
       )}
-    </AuthProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

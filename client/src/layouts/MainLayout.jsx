@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
 import api from '../services/api.js';
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from '../constants/index.js';
 import { PnrStatusModal } from '../components/pnr/PnrStatusModal.jsx';
 import {
   Moon,
+  Sun,
   Menu,
   X,
   Shield,
@@ -22,6 +24,7 @@ import {
 
 export function MainLayout({ children, currentPath = '/', onNavigate, onNavigateHome }) {
   const { user, isAuthenticated, logout } = useAuth();
+  const { theme, isDark, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [pnrModalOpen, setPnrModalOpen] = useState(false);
@@ -171,14 +174,19 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
 
           {/* Right: Theme Toggle & Sign in Actions matching reference */}
           <div className="flex items-center gap-3">
-            {/* Dark Theme Moon Icon Indicator */}
+            {/* Dark / Light Mode Toggle Button */}
             <button
               type="button"
-              title="Dark Mode Active"
-              className="p-1.5 rounded-lg text-[#A7AFBA] hover:text-[#F0F1F3] transition-colors cursor-pointer"
-              aria-label="Dark mode indicator"
+              onClick={toggleTheme}
+              title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              className="p-1.5 rounded-lg text-[#A7AFBA] hover:text-[#F0F1F3] hover:bg-[#181C22] transition-colors cursor-pointer border border-transparent hover:border-[#303640] flex items-center justify-center group"
             >
-              <Moon className="h-4 w-4" />
+              {isDark ? (
+                <Moon className="h-4 w-4 text-[#A7AFBA] group-hover:text-[#E8B04A] transition-colors" />
+              ) : (
+                <Sun className="h-4 w-4 text-[#E8B04A] group-hover:text-[#D97706] transition-colors" />
+              )}
             </button>
 
             {isAuthenticated ? (
@@ -307,6 +315,27 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
                   </button>
                 );
               })}
+            </div>
+
+            {/* Mobile Dark/Light Theme Toggle */}
+            <div className="pt-2 border-t border-[#303640]/50">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="flex w-full items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-[#A7AFBA] hover:text-[#F0F1F3] hover:bg-[#181C22] transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  {isDark ? (
+                    <Moon className="h-4 w-4 text-[#A7AFBA]" />
+                  ) : (
+                    <Sun className="h-4 w-4 text-[#E8B04A]" />
+                  )}
+                  <span>{isDark ? 'Dark Mode' : 'Light Mode'}</span>
+                </div>
+                <span className="text-[10px] font-semibold text-[#E8B04A] border border-[#303640] px-2 py-0.5 rounded">
+                  Toggle
+                </span>
+              </button>
             </div>
 
             {user?.role === 'admin' && (

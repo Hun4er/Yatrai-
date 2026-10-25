@@ -81,7 +81,7 @@ export function HomePage({
   return (
     <div className="relative min-h-[calc(100vh-64px)] w-full bg-[#0B0D10] text-[#EDEFF2] overflow-x-hidden flex flex-col font-sans">
       {/* ===================== HERO SECTION ===================== */}
-      <section className="relative z-20 w-full pt-8 sm:pt-12 md:pt-16 pb-10 sm:pb-14 md:pb-18 px-3.5 sm:px-6 lg:px-8 border-b border-[#232830]/80">
+      <section className="home-hero-section relative z-20 w-full pt-8 sm:pt-12 md:pt-16 pb-10 sm:pb-14 md:pb-18 px-3.5 sm:px-6 lg:px-8 border-b border-[#232830]/80">
         {/* Cinematic Photograph Background */}
         <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
           {!imgError ? (

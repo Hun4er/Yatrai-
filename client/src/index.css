@@ -46,6 +46,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Tabular numerals for aligned numeric information in mono fonts */
@@ -53,4 +54,173 @@ body {
 .tabular-nums {
   font-feature-settings: 'tnum' on, 'zero' on;
   font-variant-numeric: tabular-nums;
+}
+
+/* =============================================================================
+   LIGHT MODE ADAPTATION — Graphite & Amber Design System
+   Ensures cards, timelines, forms, and buttons render cleanly and identically
+   in structure, contrast, and layout across light and dark modes.
+   ============================================================================= */
+
+html.light {
+  color-scheme: light;
+
+  --color-bg: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-surface-raised: #F1F5F9;
+  --color-search-panel: #FFFFFF;
+  --color-input-bg: #F1F5F9;
+  --color-line: #E2E8F0;
+  --color-line-strong: #CBD5E1;
+
+  --color-ink: #0F172A;
+  --color-ink-soft: #475569;
+  --color-ink-mute: #64748B;
+
+  --color-accent: #E8B04A;
+  --color-accent-hover: #D99B35;
+  --color-on-accent: #0B0D10;
+}
+
+html.light body {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+
+/* Light mode background overrides */
+html.light .bg-\[\#0B0D10\],
+html.light .bg-\[\#0b0d10\],
+html.light .bg-background-primary {
+  background-color: #F8FAFC !important;
+}
+
+html.light .bg-\[\#0B0D10\]\/95,
+html.light .bg-\[\#0b0d10\]\/95 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+html.light .bg-\[\#12151A\],
+html.light .bg-\[\#12151a\],
+html.light .bg-surface-primary {
+  background-color: #FFFFFF !important;
+}
+
+html.light .bg-\[\#181C22\],
+html.light .bg-\[\#181c22\],
+html.light .bg-surface-secondary,
+html.light .bg-surface-elevated {
+  background-color: #F1F5F9 !important;
+}
+
+html.light .bg-\[\#15191F\],
+html.light .bg-\[\#15191f\],
+html.light .bg-\[\#1A1F26\],
+html.light .bg-\[\#1a1f26\],
+html.light .bg-\[\#161B22\],
+html.light .bg-\[\#161b22\],
+html.light .bg-\[\#1F242C\],
+html.light .bg-\[\#1f242c\] {
+  background-color: #F8FAFC !important;
+}
+
+html.light .bg-white\/5,
+html.light .bg-white\/10 {
+  background-color: #F1F5F9 !important;
+}
+
+/* Light mode border overrides */
+html.light .border-\[\#232830\],
+html.light .border-\[\#303640\],
+html.light .border-\[\#3A414C\],
+html.light .border-white\/5,
+html.light .border-white\/10,
+html.light .border-\[\#303640\]\/50,
+html.light .border-\[\#232830\]\/80,
+html.light .border-border-default,
+html.light .border-border-subtle {
+  border-color: #E2E8F0 !important;
+}
+
+/* Light mode typography overrides */
+html.light .text-\[\#EDEFF2\],
+html.light .text-\[\#F0F1F3\],
+html.light .text-\[\#edeff2\],
+html.light .text-\[\#f0f1f3\],
+html.light .text-text-primary {
+  color: #0F172A !important;
+}
+
+html.light .text-\[\#A7AFBA\],
+html.light .text-\[\#9AA3AF\],
+html.light .text-\[\#a7afba\],
+html.light .text-\[\#9aa3af\],
+html.light .text-text-secondary {
+  color: #475569 !important;
+}
+
+html.light .text-\[\#7E8794\],
+html.light .text-\[\#6B7480\],
+html.light .text-\[\#7e8794\],
+html.light .text-\[\#6b7480\],
+html.light .text-text-tertiary,
+html.light .text-text-muted {
+  color: #64748B !important;
+}
+
+/* Keep cinematic hero banner photograph and light text in both dark & light modes */
+html.light .home-hero-section {
+  background-color: #0B0D10 !important;
+}
+html.light .home-hero-section h1,
+html.light .home-hero-section .text-\[\#EDEFF2\] {
+  color: #F0F1F3 !important;
+}
+html.light .home-hero-section p,
+html.light .home-hero-section .text-\[\#9AA3AF\] {
+  color: #A7AFBA !important;
+}
+html.light .home-hero-section .bg-\[\#12151A\]\/80 {
+  background-color: rgba(18, 21, 26, 0.8) !important;
+}
+html.light .home-hero-section .bg-\[\#181C22\]\/90 {
+  background-color: rgba(24, 28, 34, 0.9) !important;
+}
+html.light .home-hero-section .border-\[\#232830\] {
+  border-color: rgba(48, 54, 64, 0.6) !important;
+}
+
+/* Modal backdrop in light mode */
+html.light [class*="bg-black/80"] {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+}
+
+/* Card subtle shadow enhancements in light mode */
+html.light .bg-\[\#12151A\],
+html.light .bg-\[\#181C22\] {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+}
+
+/* Status Badges in Light Mode */
+html.light .bg-emerald-500\/10,
+html.light .bg-emerald-500\/20 {
+  background-color: #ECFDF5 !important;
+  border-color: #A7F3D0 !important;
+  color: #065F46 !important;
+}
+
+html.light .bg-amber-500\/10,
+html.light .bg-amber-500\/20,
+html.light .bg-amber-500\/5 {
+  background-color: #FFFBEB !important;
+  border-color: #FDE68A !important;
+  color: #92400E !important;
+}
+
+html.light .bg-rose-500\/10,
+html.light .bg-rose-500\/20,
+html.light .bg-red-500\/10,
+html.light .bg-red-500\/20 {
+  background-color: #FEF2F2 !important;
+  border-color: #FECACA !important;
+  color: #991B1B !important;
 }
