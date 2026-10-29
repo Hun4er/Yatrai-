@@ -14,7 +14,8 @@ import routeExtensionService from '../services/rail/routeExtension.service.js';
 import actionBudgetService, { getCapForActionType } from '../services/rail/actionBudget.service.js';
 import availabilityService from '../services/rail/availability.service.js';
 import clusterService from '../services/rail/cluster.service.js';
-import { resolveStationCode } from '../providers/transport/rail/rail.provider.js';
+import { resolveStationCode, STATION_CODE_MAP } from '../providers/transport/rail/rail.provider.js';
+import { findStationByCode, findStationByName } from '../services/rail/stationRegistry.js';
 import locationService from '../services/locationService.js';
 import { successResponse, errorResponse } from '../utils/apiResponse.js';
 import logger from '../utils/logger.js';
@@ -30,36 +31,86 @@ const _refreshRateLimit = new Map();
  * Resolve origins/destinations to station codes.
  * Accepts station codes, location names, or Location objects.
  */
-async function resolveStations(inputs) {
+export async function resolveStations(inputs) {
   const codes = [];
   for (const inp of inputs) {
     if (!inp) continue;
+
+    // 1. If object has explicit code or stationCode
     if (typeof inp === 'object') {
-      const codeProp = inp.code || inp.stationCode || inp.id;
-      if (codeProp && /^[A-Z]{2,5}$/i.test(String(codeProp).trim())) {
+      const codeProp = inp.stationCode || inp.code || inp.metadata?.stationCode || inp.metadata?.code;
+      if (codeProp && /^[A-Z]{1,5}$/i.test(String(codeProp).trim())) {
         codes.push(String(codeProp).trim().toUpperCase());
         continue;
       }
     }
-    if (typeof inp === 'string' && /^[A-Z]{2,5}$/i.test(inp.trim())) {
-      codes.push(inp.trim().toUpperCase());
-      continue;
+
+    // 2. If string, check code patterns, authoritative registry, or station code map
+    if (typeof inp === 'string') {
+      const trimmed = inp.trim();
+      const upper = trimmed.toUpperCase();
+
+      // Check extracted code from formatted name e.g. "RAIPUR JN - R", "New Delhi (NDLS)", "R - RAIPUR"
+      const parenMatch = trimmed.match(/\(([A-Za-z]{1,5})\)/) || trimmed.match(/-\s*([A-Za-z]{1,5})$/) || trimmed.match(/^([A-Za-z]{1,5})\s*-\s*/);
+      if (parenMatch) {
+        const candidate = parenMatch[1].toUpperCase();
+        if (findStationByCode(candidate) || STATION_CODE_MAP[candidate.toLowerCase()]) {
+          codes.push(candidate);
+          continue;
+        }
+      }
+
+      // Check if exact code in authoritative registry (e.g. "R", "NDLS", "CSMT", "G")
+      const regByCode = findStationByCode(upper);
+      if (regByCode) {
+        codes.push(regByCode.stationCode);
+        continue;
+      }
+
+      // Check if directly in STATION_CODE_MAP
+      const lower = trimmed.toLowerCase();
+      if (STATION_CODE_MAP[lower]) {
+        codes.push(STATION_CODE_MAP[lower]);
+        continue;
+      }
+
+      const stripped = lower.replace(/\s+(jn|junction|cantt|terminal|central|ter)$/i, '').trim();
+      if (STATION_CODE_MAP[stripped]) {
+        codes.push(STATION_CODE_MAP[stripped]);
+        continue;
+      }
+
+      const byName = findStationByName(trimmed) || findStationByName(stripped);
+      if (byName) {
+        codes.push(byName.stationCode);
+        continue;
+      }
     }
+
+    // 3. Try resolveStationCode
     const code = resolveStationCode(inp);
-    if (code && /^[A-Z]{2,5}$/.test(code) && code !== String(inp).trim().toUpperCase()) {
+    if (code && /^[A-Z]{1,5}$/.test(code)) {
       codes.push(code);
       continue;
     }
-    // Try location service
+
+    // 4. Try location service (searchRailwayStations first, then generic search)
     try {
       const queryStr = typeof inp === 'object'
         ? (inp.name || inp.cityName || inp.query || JSON.stringify(inp))
         : String(inp);
+
+      const stnCandidates = await locationService.searchRailwayStations(queryStr, 1);
+      if (stnCandidates && stnCandidates[0]?.stationCode) {
+        codes.push(stnCandidates[0].stationCode.toUpperCase());
+        continue;
+      }
+
       const candidates = await locationService.search(queryStr, { limit: 1 });
       const c = candidates?.[0];
       if (c) {
-        const resolved = resolveStationCode(c) || c.code || c.stationCode;
-        if (resolved && /^[A-Z]{2,5}$/i.test(String(resolved).trim())) {
+        const resolved = c.stationCode || resolveStationCode(c) || c.code;
+        if (resolved && /^[A-Z]{1,5}$/i.test(String(resolved).trim())) {
           codes.push(String(resolved).trim().toUpperCase());
           continue;
         }
@@ -187,6 +238,13 @@ export const journeyV2Controller = {
           const altActionType = isDeepMode ? 'deep' : 'alternatives_button';
           const originCode = origins[0];
           const destCode = destinations[0];
+          let refTrains = directResult?.direct || [];
+          if (refTrains.length === 0) {
+            const cached = await persistentCacheService.get(`demo:search:${origins[0]}:${destinations[0]}`).catch(() => null);
+            if (cached?.direct?.length) {
+              refTrains = cached.direct;
+            }
+          }
           alternativesResult = await alternativesEngineService.run({
             originCode,
             destCode,
@@ -195,7 +253,7 @@ export const journeyV2Controller = {
             quota,
             actionId,
             actionType: altActionType,
-            referenceTrains: directResult?.direct || [],
+            referenceTrains: refTrains,
             isDegraded,
           });
         }

@@ -79,7 +79,7 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
             aria-label={`${APP_NAME} Home`}
           >
             <img
-              src="/Yatrai Logo.png"
+              src={isDark ? '/Yatrai Logo.png' : '/Yatrai Logo Light.png'}
               alt="Yatrai"
               className="h-12 w-auto max-w-[180px] object-contain shrink-0"
               onError={(e) => { e.target.style.display = 'none'; }}
@@ -227,7 +227,7 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
             ) : (
               <button
                 type="button"
-                onClick={() => handleNav('/profile')}
+                onClick={() => handleNav('/login')}
                 className="px-3.5 py-1.5 rounded-lg border border-[#303640] bg-[#12151A] hover:bg-[#181C22] hover:border-[#3A414C] text-xs font-medium text-[#F0F1F3] transition-all cursor-pointer shadow-sm"
               >
                 Sign in

@@ -389,12 +389,12 @@ export function SearchForm({
 
     try {
       const finalOrigin =
-        selectedOriginStation?.name ||
         selectedOriginStation?.stationCode ||
+        selectedOriginStation?.name ||
         originText.trim();
       const finalDest =
-        selectedDestStation?.name ||
         selectedDestStation?.stationCode ||
+        selectedDestStation?.name ||
         destText.trim();
 
       await onSearch({

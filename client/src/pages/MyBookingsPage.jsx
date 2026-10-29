@@ -193,22 +193,32 @@ export function MyBookingsPage({ onNavigate, onNavigateHome }) {
         <div className="space-y-5">
           {filteredBookings.map((booking) => {
             const snap = booking.journeySnapshot || {};
-            const legs = Array.isArray(snap.legs) ? snap.legs : [];
-            const originName = snap.origin?.name || snap.origin?.city || 'Origin';
-            const destName = snap.destination?.name || snap.destination?.city || 'Destination';
-            const originCode = snap.origin?.code ? `[${snap.origin.code}]` : '';
-            const destCode = snap.destination?.code ? `[${snap.destination.code}]` : '';
+            const bookingLegs = Array.isArray(booking.legs) && booking.legs.length > 0
+              ? booking.legs
+              : (Array.isArray(snap.legs) ? snap.legs : []);
+            const isMultiLeg = bookingLegs.length > 1;
+            const primaryLeg = bookingLegs[0] || {};
+            const lastLeg = bookingLegs[bookingLegs.length - 1] || primaryLeg;
 
-            const depTime = formatTime(snap.departureTime);
-            const arrTime = formatTime(snap.arrivalTime);
-            const depDate = formatDateDisplay(snap.departureTime);
-            const arrDate = formatDateDisplay(snap.arrivalTime);
-            const dayOffset = getDayOffset(snap.departureTime, snap.arrivalTime);
+            const originName = snap.origin?.name || snap.origin?.city || primaryLeg.fromStationName || primaryLeg.fromName || 'Origin';
+            const destName = snap.destination?.name || snap.destination?.city || lastLeg.toStationName || lastLeg.toName || 'Destination';
+            const originCode = (snap.origin?.code || primaryLeg.fromStationCode || primaryLeg.fromCode || primaryLeg.from) ? `[${snap.origin?.code || primaryLeg.fromStationCode || primaryLeg.fromCode || primaryLeg.from}]` : '';
+            const destCode = (snap.destination?.code || lastLeg.toStationCode || lastLeg.toCode || lastLeg.to) ? `[${snap.destination?.code || lastLeg.toStationCode || lastLeg.toCode || lastLeg.to}]` : '';
+
+            const depTime = formatTime(snap.departureTime || primaryLeg.departureTime);
+            const arrTime = formatTime(snap.arrivalTime || lastLeg.arrivalTime);
+            const depDate = formatDateDisplay(snap.departureTime || primaryLeg.departureTime);
+            const arrDate = formatDateDisplay(snap.arrivalTime || lastLeg.arrivalTime);
+            const dayOffset = getDayOffset(snap.departureTime || primaryLeg.departureTime, snap.arrivalTime || lastLeg.arrivalTime);
             const dayOffsetBadge = formatDayOffsetBadge(dayOffset);
 
-            const trainName = legs[0]?.service?.name || 'Train Service';
-            const trainNumber = legs[0]?.vehicle?.identifier || legs[0]?.service?.number || '';
-            const travelClass = legs[0]?.service?.class || '3A';
+            const trainName = isMultiLeg
+              ? bookingLegs.map((l) => l.trainNumber || l.trainNo || l.service?.number || l.trainName || l.service?.name).filter(Boolean).join(' → ')
+              : (primaryLeg.trainName || primaryLeg.service?.name || 'Train Service');
+            const trainNumber = isMultiLeg
+              ? `${bookingLegs.length} Trains`
+              : (primaryLeg.trainNumber || primaryLeg.trainNo || primaryLeg.vehicle?.identifier || primaryLeg.service?.number || '');
+            const travelClass = primaryLeg.travelClass || primaryLeg.class || primaryLeg.service?.class || '3A';
             const passengers = Array.isArray(booking.passengerDetails) ? booking.passengerDetails : [];
             const isConfirmed = Boolean(booking.isConfirmed && booking.status === 'confirmed');
 
@@ -231,7 +241,7 @@ export function MyBookingsPage({ onNavigate, onNavigateHome }) {
 
                   <div>
                     {isConfirmed ? (
-                      <span className="inline-flex items-center rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-400 uppercase tracking-wider">
+                      <span className="inline-flex items-center rounded-full bg-[#4CC38A]/10 border border-[#4CC38A]/30 px-2.5 py-0.5 text-[10px] font-bold text-[#4CC38A] uppercase tracking-wider">
                         Confirmed (PNR: {booking.pnr || 'Issued'})
                       </span>
                     ) : (
@@ -278,11 +288,32 @@ export function MyBookingsPage({ onNavigate, onNavigateHome }) {
                   {/* Fare */}
                   <div className="sm:col-span-3 text-left sm:text-right">
                     <span className="text-[10px] text-text-tertiary uppercase font-semibold">Total Fare</span>
-                    <div className="text-base font-bold font-mono text-emerald-400">
+                    <div className="text-base font-bold font-mono text-[#4CC38A]">
                       {formatPrice(booking.fare?.totalFare)}
                     </div>
                   </div>
                 </div>
+
+                {/* Multi-Leg Segment Details */}
+                {isMultiLeg && (
+                  <div className="rounded-xl border border-white/5 bg-[#12151A] p-3 text-xs space-y-2">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#E8B04A]">
+                      Multi-Leg Itinerary ({bookingLegs.length} Trains)
+                    </div>
+                    <div className="space-y-1.5">
+                      {bookingLegs.map((leg, idx) => (
+                        <div key={idx} className="flex flex-wrap items-center justify-between text-text-secondary">
+                          <span>
+                            <strong className="text-text-primary">Leg {leg.legIndex || idx + 1}:</strong> {leg.trainNumber || leg.trainNo} {leg.trainName || leg.service?.name} ({leg.fromStationCode || leg.fromCode || leg.from} → {leg.toStationCode || leg.toCode || leg.to})
+                          </span>
+                          <span className="font-mono text-[11px] text-[#E8B04A]">
+                            {leg.departureTime ? formatTime(leg.departureTime) : '--:--'} - {leg.arrivalTime ? formatTime(leg.arrivalTime) : '--:--'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Passenger list */}
                 <div className="rounded-xl border border-white/5 bg-surface-secondary/50 p-3 text-xs">

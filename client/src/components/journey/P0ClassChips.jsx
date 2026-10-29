@@ -160,7 +160,7 @@ export function P0ClassChips({
           <span>{cls}</span>
           <span>·</span>
           <span>{avlText}</span>
-          {fareStr && <span className="text-emerald-300 font-semibold">{fareStr}</span>}
+          {fareStr && <span className="text-[#4CC38A] font-semibold">{fareStr}</span>}
         </span>
       );
     }
@@ -233,8 +233,8 @@ export function P0ClassChips({
     }
     if (tier === 'AVAILABLE') {
       return isSelected
-        ? 'border border-emerald-400 bg-emerald-500/20 text-emerald-300 font-semibold shadow-sm shadow-emerald-900/30'
-        : 'border border-emerald-500/40 bg-emerald-950/40 text-emerald-400 hover:border-emerald-400 font-medium';
+        ? 'border border-[#4CC38A] bg-[#4CC38A]/20 text-[#4CC38A] font-semibold shadow-sm'
+        : 'border border-[#4CC38A]/40 bg-[#4CC38A]/10 text-[#4CC38A] hover:border-[#4CC38A] font-medium';
     }
     if (tier === 'RAC') {
       return isSelected

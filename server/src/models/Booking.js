@@ -2,7 +2,64 @@ import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
 
-export const BOOKING_STATUSES = ['unconfirmed', 'confirmed', 'pending', 'cancelled', 'failed'];
+export const BOOKING_STATUSES = [
+  'unconfirmed',
+  'confirmed',
+  'pending',
+  'cancelled',
+  'failed',
+  'partially_booked',
+];
+
+const LegBookingSchema = new Schema(
+  {
+    sequence: { type: Number, required: true },
+    trainNumber: { type: String, trim: true },
+    trainName: { type: String, trim: true },
+    origin: {
+      code: { type: String, trim: true, uppercase: true },
+      name: { type: String, trim: true },
+    },
+    destination: {
+      code: { type: String, trim: true, uppercase: true },
+      name: { type: String, trim: true },
+    },
+    departureTime: { type: Date },
+    arrivalTime: { type: Date },
+    duration: { type: Number },
+    distance: { type: Number, default: 0 },
+    travelClass: { type: String, trim: true },
+    quota: { type: String, trim: true, default: 'GN' },
+    fare: { type: Number, min: 0 },
+    availabilityStatus: { type: String },
+    bookingStatus: {
+      type: String,
+      enum: ['unconfirmed', 'confirmed', 'pending', 'cancelled', 'failed', 'not_bookable'],
+      default: 'unconfirmed',
+    },
+    pnr: { type: String, default: null, trim: true },
+    providerBookingReference: { type: String, default: null },
+    seat: { type: String, default: null },
+    coach: { type: String, default: null },
+    ticketDocumentReference: { type: String, default: null },
+  },
+  { _id: false }
+);
+
+const TransferSchema = new Schema(
+  {
+    transferStationCode: { type: String, trim: true, uppercase: true },
+    transferStationName: { type: String, trim: true },
+    arrivalStationCode: { type: String, trim: true, uppercase: true },
+    departureStationCode: { type: String, trim: true, uppercase: true },
+    arrivalTimestamp: { type: Date },
+    nextDepartureTimestamp: { type: Date },
+    waitingTimeMinutes: { type: Number, min: 0 },
+    isSameStation: { type: Boolean, default: true },
+    connectionStatus: { type: String, default: 'validated' },
+  },
+  { _id: false }
+);
 
 const PassengerSchema = new Schema(
   {
@@ -137,6 +194,14 @@ const BookingSchema = new Schema(
     metadata: {
       type: Schema.Types.Mixed,
       default: {},
+    },
+    legs: {
+      type: [LegBookingSchema],
+      default: [],
+    },
+    transfers: {
+      type: [TransferSchema],
+      default: [],
     },
   },
   {

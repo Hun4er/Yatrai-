@@ -192,17 +192,17 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = f
                   return (
                     <div className="mt-2 flex flex-wrap items-center gap-2 pt-2 border-t border-[#303640] text-[11px]">
                       {availStatus === 'AVAILABLE' && (
-                        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={statusTooltip}>
+                        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-[#4CC38A]/10 text-[#4CC38A] border border-[#4CC38A]/20" title={statusTooltip}>
                           AVAILABLE {seats != null ? `(${seats})` : ''}
                         </span>
                       )}
                       {availStatus === 'RAC' && (
-                        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20" title={statusTooltip}>
+                        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-[#E8B04A]/10 text-[#E8B04A] border border-[#E8B04A]/20" title={statusTooltip}>
                           RAC {seats != null && seats > 0 ? `(${seats})` : ''}
                         </span>
                       )}
                       {availStatus === 'WAITLIST' && (
-                        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20" title={statusTooltip}>
+                        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-[#E8B04A]/10 text-[#E8B04A] border border-[#E8B04A]/20" title={statusTooltip}>
                           WAITLIST {rawStatus ? `· ${rawStatus}` : ''}
                           {leg.availability?.prediction ? ` (${leg.availability.prediction})` : ''}
                         </span>
@@ -213,7 +213,7 @@ export function JourneyLeg({ leg, isLast = false, nextLeg = null, isSelected = f
                         </span>
                       )}
                       {availStatus === 'UNAVAILABLE' && (
-                        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20" title={statusTooltip}>
+                        <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 font-bold bg-[#E5484D]/10 text-[#E5484D] border border-[#E5484D]/20" title={statusTooltip}>
                           NOT AVAILABLE
                         </span>
                       )}

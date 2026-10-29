@@ -1,6 +1,12 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
 import config from './index.js';
 import logger from '../utils/logger.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let isConnecting = false;
 let memoryServerInstance = null;
@@ -65,7 +71,21 @@ export async function connectDatabase(customUri) {
         logger.info('[Database] Falling back to in-memory MongoDB instance via mongodb-memory-server...');
         const { MongoMemoryServer } = await import('mongodb-memory-server');
         if (!memoryServerInstance) {
-          memoryServerInstance = await MongoMemoryServer.create();
+          if (!config.isTest && config.isDevelopment) {
+            const dbDir = path.resolve(__dirname, '../../data/db');
+            if (!fs.existsSync(dbDir)) {
+              fs.mkdirSync(dbDir, { recursive: true });
+            }
+            logger.info(`[Database] Initializing persistent local MongoDB storage at ${dbDir}...`);
+            memoryServerInstance = await MongoMemoryServer.create({
+              instance: {
+                dbPath: dbDir,
+                storageEngine: 'wiredTiger',
+              },
+            });
+          } else {
+            memoryServerInstance = await MongoMemoryServer.create();
+          }
         }
         const memUri = memoryServerInstance.getUri();
         logger.info(`[Database] Connecting to in-memory MongoDB at ${memUri}...`);

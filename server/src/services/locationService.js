@@ -28,7 +28,7 @@ export function scoreLocationCandidate(candidate, cleanQuery) {
   if (!candidate) return -999;
   const lowerQ = cleanQuery.toLowerCase().trim();
   const upperQ = cleanQuery.toUpperCase().trim();
-  const isStationCode = /^[A-Z]{2,5}$/.test(upperQ) && Boolean(findStationByCode(upperQ));
+  const isStationCode = /^[A-Z]{1,5}$/.test(upperQ) && Boolean(findStationByCode(upperQ));
   const isAirportQuery = /\b(airport|aerodrome|airfield|terminal\s*[12345])\b/i.test(lowerQ);
   const isStationQuery = isStationCode || /\b(station|junction|central|cantt|railway|terminus|jn)\b/i.test(lowerQ);
   const isBusQuery = /\b(bus\s*(?:stand|station|terminal)|isbt)\b/i.test(lowerQ);
@@ -469,38 +469,75 @@ export const locationService = {
       try {
         const upperQuery = cleanQuery.toUpperCase();
 
-        // 3a. If looks like station code (2-4 uppercase letters)
-        if (/^[A-Z]{2,4}$/.test(upperQuery)) {
-          const codeRes = await railKitAdapter.stationByCode(upperQuery);
-          if (codeRes?.success && codeRes.data) {
-            const st = codeRes.data;
-            const code = String(st.code || upperQuery).toUpperCase();
-            if (!seenCodes.has(code)) {
-              seenCodes.add(code);
-              results.push({
-                id: `station_${code.toLowerCase()}`,
-                name: st.name || code,
-                stationCode: code,
-                displayName: `${st.name || code} - ${code}`,
-                city: st.name || code,
-                state: 'India',
-                type: 'railway_station',
-                country: 'India',
-                location: {
-                  type: 'Point',
+        // 3a. If looks like station code (1-5 uppercase letters) or has extracted code
+        const candidateCode = (
+          cleanQuery.match(/\(([A-Za-z]{1,5})\)/)?.[1] ||
+          cleanQuery.match(/-\s*([A-Za-z]{1,5})$/)?.[1] ||
+          cleanQuery.match(/^([A-Za-z]{1,5})\s*-\s*/)?.[1] ||
+          upperQuery
+        ).toUpperCase();
+
+        if (/^[A-Z]{1,5}$/.test(candidateCode)) {
+          const localStn = findStationByCode(candidateCode);
+          if (localStn && !seenCodes.has(localStn.stationCode)) {
+            seenCodes.add(localStn.stationCode);
+            results.push({
+              id: `station_${localStn.stationCode.toLowerCase()}`,
+              name: localStn.name,
+              stationCode: localStn.stationCode,
+              displayName: localStn.displayName || `${localStn.name} - ${localStn.stationCode}`,
+              city: localStn.city,
+              state: localStn.state || 'India',
+              type: 'railway_station',
+              country: 'India',
+              location: {
+                type: 'Point',
+                coordinates: localStn.coordinates || [77.2, 28.6],
+              },
+              coordinates: localStn.coordinates || [77.2, 28.6],
+              latitude: localStn.coordinates?.[1] || 28.6,
+              longitude: localStn.coordinates?.[0] || 77.2,
+              source: 'railway_registry',
+            });
+          }
+
+          if (results.length < limit) {
+            const codeRes = await railKitAdapter.stationByCode(candidateCode);
+            if (codeRes?.success && codeRes.data) {
+              const st = codeRes.data;
+              const code = String(st.code || candidateCode).toUpperCase();
+              if (!seenCodes.has(code)) {
+                seenCodes.add(code);
+                results.push({
+                  id: `station_${code.toLowerCase()}`,
+                  name: st.name || code,
+                  stationCode: code,
+                  displayName: `${st.name || code} - ${code}`,
+                  city: st.name || code,
+                  state: 'India',
+                  type: 'railway_station',
+                  country: 'India',
+                  location: {
+                    type: 'Point',
+                    coordinates: [Number(st.lon) || 77.2, Number(st.lat) || 28.6],
+                  },
                   coordinates: [Number(st.lon) || 77.2, Number(st.lat) || 28.6],
-                },
-                coordinates: [Number(st.lon) || 77.2, Number(st.lat) || 28.6],
-                latitude: Number(st.lat) || 28.6,
-                longitude: Number(st.lon) || 77.2,
-                source: 'railkit',
-              });
+                  latitude: Number(st.lat) || 28.6,
+                  longitude: Number(st.lon) || 77.2,
+                  source: 'railkit',
+                });
+              }
             }
           }
         }
 
-        // 3b. Search by station or city name
-        const nameRes = await railKitAdapter.stationsByName(cleanQuery);
+        // 3b. Search by station or city name (clean any "- CODE" or "(CODE)" suffix first)
+        const cleanName = cleanQuery
+          .replace(/\s*-\s*[a-z]{1,5}$/i, '')
+          .replace(/\s*\([a-z]{1,5}\)$/i, '')
+          .replace(/^[a-z]{1,5}\s*-\s*/i, '')
+          .trim();
+        const nameRes = await railKitAdapter.stationsByName(cleanName || cleanQuery);
         const rkStations = nameRes?.data?.stations || (Array.isArray(nameRes?.data) ? nameRes.data : []);
         for (const st of rkStations) {
           const code = String(st.code || '').toUpperCase();

@@ -10,6 +10,8 @@ import FavoriteRoutesPage from './pages/FavoriteRoutesPage.jsx';
 import JourneyHistoryPage from './pages/JourneyHistoryPage.jsx';
 import NotificationsPage from './pages/NotificationsPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
+import LoginPage from './pages/LoginPage.jsx';
+import SignupPage from './pages/SignupPage.jsx';
 import BookingPage from './pages/BookingPage.jsx';
 import MyBookingsPage from './pages/MyBookingsPage.jsx';
 import AdminLayout from './layouts/AdminLayout.jsx';
@@ -308,6 +310,18 @@ export function App() {
             />
           )}
 
+          {currentPath === '/login' && (
+            <LoginPage
+              onNavigate={handleNavigate}
+            />
+          )}
+
+          {(currentPath === '/signup' || currentPath === '/register') && (
+            <SignupPage
+              onNavigate={handleNavigate}
+            />
+          )}
+
           {currentPath !== '/results' &&
             !currentPath.startsWith('/booking') &&
             currentPath !== '/bookings' &&
@@ -317,7 +331,10 @@ export function App() {
             currentPath !== '/favorites' &&
             currentPath !== '/history' &&
             currentPath !== '/notifications' &&
-            currentPath !== '/profile' && (
+            currentPath !== '/profile' &&
+            currentPath !== '/login' &&
+            currentPath !== '/signup' &&
+            currentPath !== '/register' && (
               <HomePage
                 initialOrigin={searchParams.origin}
                 initialDestination={searchParams.destination}

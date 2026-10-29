@@ -88,16 +88,8 @@ export function ProfilePage({ onNavigate }) {
   // Unauthenticated view: AuthCard prompt
   if (!isAuthenticated) {
     return (
-      <div className="mx-auto max-w-md space-y-6 py-8">
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-extrabold tracking-tight text-text-primary">
-            Sign In to Yatrai
-          </h1>
-          <p className="text-xs text-text-secondary">
-            Sign in to access your saved journeys, favorite routes, and travel history.
-          </p>
-        </div>
-        <AuthCard />
+      <div className="mx-auto max-w-lg space-y-6 py-6">
+        <AuthCard onNavigate={onNavigate} />
       </div>
     );
   }

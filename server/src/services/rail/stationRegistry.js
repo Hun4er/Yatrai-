@@ -1661,20 +1661,35 @@ export const INDIAN_RAILWAY_STATIONS = [
  * @returns {Array<Object>}
  */
 export function searchRailwayStations(query = '', limit = 8) {
-  const clean = String(query || '').trim().toLowerCase();
+  const rawQuery = String(query || '').trim();
+  const clean = rawQuery.toLowerCase();
   if (!clean || clean.length < 1) return [];
 
-  const upperQuery = clean.toUpperCase();
+  const upperQuery = rawQuery.toUpperCase();
+
+  // Extract candidate station code from formats like "RAIPUR JN - R", "NEW DELHI (NDLS)", "R - RAIPUR"
+  const parenMatch = rawQuery.match(/\(([A-Za-z]{1,5})\)/);
+  const dashMatch = rawQuery.match(/-\s*([A-Za-z]{1,5})$/);
+  const prefixDashMatch = rawQuery.match(/^([A-Za-z]{1,5})\s*-\s*/);
+  const extractedCode = (parenMatch?.[1] || dashMatch?.[1] || prefixDashMatch?.[1] || '').toUpperCase();
+
+  // Base name with code suffixes/prefixes stripped
+  const cleanBase = clean
+    .replace(/\s*-\s*[a-z]{1,5}$/i, '')
+    .replace(/\s*\([a-z]{1,5}\)$/i, '')
+    .replace(/^[a-z]{1,5}\s*-\s*/i, '')
+    .trim();
 
   // Scoring weights:
-  // 1. Exact Station Code match = 1000
-  // 2. Station Code starts with query = 800
-  // 3. Exact Station Name match = 600
-  // 4. Station Name starts with query = 500
-  // 5. City Name equals query = 450
-  // 6. City Name starts with query = 400
-  // 7. Aliases match = 300
-  // 8. Station Name contains query = 200
+  // 1. Exact Station Code match = 1200
+  // 2. Extracted Code match = 1100
+  // 3. Exact DisplayName match = 1000
+  // 4. Station Code starts with query = 850
+  // 5. Exact Station Name match = 800
+  // 6. Station Name starts with query = 650
+  // 7. City Name equals query = 550
+  // 8. Aliases match = 450
+  // 9. Station Name contains query = 300
 
   const scored = [];
 
@@ -1683,28 +1698,41 @@ export function searchRailwayStations(query = '', limit = 8) {
     const stnCode = stn.stationCode;
     const stnNameLower = stn.name.toLowerCase();
     const cityLower = stn.city.toLowerCase();
+    const displayLower = (stn.displayName || `${stn.name} - ${stn.stationCode}`).toLowerCase();
 
     if (stnCode === upperQuery) {
+      score += 1200;
+    } else if (extractedCode && stnCode === extractedCode) {
+      score += 1100;
+    } else if (displayLower === clean) {
       score += 1000;
-    } else if (stnCode.startsWith(upperQuery)) {
-      score += 800;
     } else if (stnNameLower === clean) {
-      score += 600;
+      score += 850;
+    } else if (cleanBase && cleanBase !== clean && stnNameLower === cleanBase) {
+      score += 800;
+    } else if (stnCode.startsWith(upperQuery)) {
+      score += 750;
     } else if (stnNameLower.startsWith(clean)) {
+      score += 650;
+    } else if (cleanBase && cleanBase !== clean && stnNameLower.startsWith(cleanBase)) {
+      score += 600;
+    } else if (displayLower.startsWith(clean)) {
+      score += 550;
+    } else if (cityLower === clean || (cleanBase && cityLower === cleanBase)) {
       score += 500;
-    } else if (cityLower === clean) {
-      score += 450;
       if (stn.isMajorHub) score += 50;
-    } else if (cityLower.startsWith(clean)) {
-      score += 400;
+    } else if (cityLower.startsWith(clean) || (cleanBase && cityLower.startsWith(cleanBase))) {
+      score += 420;
       if (stn.isMajorHub) score += 30;
-    } else if (stn.aliases && stn.aliases.some((a) => a === clean)) {
-      score += 350;
-    } else if (stn.aliases && stn.aliases.some((a) => a.startsWith(clean))) {
+    } else if (stn.aliases && stn.aliases.some((a) => a === clean || a === cleanBase)) {
+      score += 400;
+    } else if (stn.aliases && stn.aliases.some((a) => a.startsWith(clean) || a.startsWith(cleanBase))) {
+      score += 300;
+    } else if (stnNameLower.includes(clean) || (cleanBase && cleanBase.length >= 2 && stnNameLower.includes(cleanBase))) {
       score += 250;
-    } else if (stnNameLower.includes(clean)) {
+    } else if (displayLower.includes(clean)) {
       score += 200;
-    } else if (cityLower.includes(clean)) {
+    } else if (cityLower.includes(clean) || (cleanBase && cleanBase.length >= 2 && cityLower.includes(cleanBase))) {
       score += 150;
     }
 
@@ -1722,7 +1750,7 @@ export function searchRailwayStations(query = '', limit = 8) {
     id: `station_${s.station.stationCode.toLowerCase()}`,
     name: s.station.name,
     stationCode: s.station.stationCode,
-    displayName: s.station.displayName,
+    displayName: s.station.displayName || `${s.station.name} - ${s.station.stationCode}`,
     city: s.station.city,
     state: s.station.state,
     type: 'railway_station',
@@ -1744,8 +1772,75 @@ export function findStationByCode(code) {
   return INDIAN_RAILWAY_STATIONS.find((s) => s.stationCode === clean) || null;
 }
 
+/**
+ * Finds a station in the authoritative registry by name, display name, code, or alias.
+ * @param {string} name
+ * @returns {Object|null}
+ */
+export function findStationByName(name) {
+  if (!name) return null;
+  const clean = String(name).trim();
+  if (!clean) return null;
+  const upper = clean.toUpperCase();
+  const norm = (s) => String(s || '').toLowerCase().replace(/[.,/\\-]/g, ' ').replace(/\s+/g, ' ').trim();
+  const lowerNorm = norm(clean);
+
+  // 1. Exact station code match (1 to 5 letters)
+  const byCode = findStationByCode(upper);
+  if (byCode) return byCode;
+
+  // 2. Extract code from "- CODE" or "(CODE)"
+  const paren = clean.match(/\(([A-Za-z]{1,5})\)/) || clean.match(/-\s*([A-Za-z]{1,5})$/) || clean.match(/^([A-Za-z]{1,5})\s*-\s*/);
+  if (paren) {
+    const codeMatch = findStationByCode(paren[1].toUpperCase());
+    if (codeMatch) return codeMatch;
+  }
+
+  // 3. Exact match against normalized name or displayName
+  for (const stn of INDIAN_RAILWAY_STATIONS) {
+    if (
+      norm(stn.name) === lowerNorm ||
+      (stn.displayName && norm(stn.displayName) === lowerNorm)
+    ) {
+      return stn;
+    }
+  }
+
+  // 4. Match against aliases
+  for (const stn of INDIAN_RAILWAY_STATIONS) {
+    if (stn.aliases && stn.aliases.some((a) => norm(a) === lowerNorm)) {
+      return stn;
+    }
+  }
+
+  // 5. Strip suffixes like " JN", " JUNCTION", " CANTT", " TERMINAL", " CENTRAL"
+  const stripped = lowerNorm.replace(/\s+(jn|junction|cantt|terminal|central|ter)$/i, '').trim();
+  for (const stn of INDIAN_RAILWAY_STATIONS) {
+    const stnStripped = norm(stn.name).replace(/\s+(jn|junction|cantt|terminal|central|ter)$/i, '').trim();
+    if (stnStripped === stripped) {
+      return stn;
+    }
+  }
+
+  // 6. Match against aliases or city with stripped suffix
+  for (const stn of INDIAN_RAILWAY_STATIONS) {
+    if (
+      stn.aliases &&
+      stn.aliases.some((a) => norm(a) === stripped)
+    ) {
+      return stn;
+    }
+    if (norm(stn.city) === lowerNorm || norm(stn.city) === stripped) {
+      return stn;
+    }
+  }
+
+  return null;
+}
+
 export default {
   INDIAN_RAILWAY_STATIONS,
   searchRailwayStations,
   findStationByCode,
+  findStationByName,
 };

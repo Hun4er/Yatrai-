@@ -4,8 +4,7 @@ import { httpFetch } from '../httpClient.js';
 import { ProviderError } from '../errors.js';
 import { calculateJourneyTiming } from '../../../utils/railwayTime.js';
 import railKitAdapter, { normalizeRailKitTrain } from '../../rail/railKit.adapter.js';
-import { findVerifiedDirectTrains } from '../../../services/rail/verifiedTrainData.js';
-import { findStationByCode } from '../../../services/rail/stationRegistry.js';
+import { findStationByCode, findStationByName, searchRailwayStations } from '../../../services/rail/stationRegistry.js';
 
 /**
  * Built-in Station Code Mapping for major Indian cities and railway hubs.
@@ -14,6 +13,8 @@ import { findStationByCode } from '../../../services/rail/stationRegistry.js';
 export const STATION_CODE_MAP = {
   // Delhi NCR
   delhi: 'NDLS',
+  'delhi jn': 'DLI',
+  'delhi junction': 'DLI',
   'new delhi': 'NDLS',
   'old delhi': 'DLI',
   'hazrat nizamuddin': 'NZM',
@@ -175,8 +176,13 @@ export const STATION_CODE_MAP = {
   indore: 'INDB',
   ujjain: 'UJN',
   gwalior: 'GWL',
-  jabalpur: 'JBP',
   raipur: 'R',
+  'raipur jn': 'R',
+  'raipur junction': 'R',
+  r: 'R',
+  gondia: 'G',
+  'gondia jn': 'G',
+  g: 'G',
   bilaspur: 'BSP',
 
   // South India
@@ -327,21 +333,48 @@ export function resolveStationCode(location) {
   if (typeof location === 'string') {
     const trimmed = location.trim();
     if (!trimmed) return 'NDLS';
-    if (/^[A-Za-z]{2,5}$/.test(trimmed)) {
-      return trimmed.toUpperCase();
+
+    // 1. Check if string has formatted station code: "RAIPUR JN - R", "New Delhi (NDLS)", "R - RAIPUR"
+    const parenMatch = trimmed.match(/\(([A-Za-z]{1,5})\)/) || trimmed.match(/-\s*([A-Za-z]{1,5})$/) || trimmed.match(/^([A-Za-z]{1,5})\s*-\s*/);
+    if (parenMatch && /^[A-Za-z]{1,5}$/.test(parenMatch[1])) {
+      const code = parenMatch[1].toUpperCase();
+      if (findStationByCode(code) || STATION_CODE_MAP[code.toLowerCase()]) {
+        return code;
+      }
     }
+
     const lower = trimmed.toLowerCase();
+    const upper = trimmed.toUpperCase();
+
+    // 2. Check if lower query is directly in STATION_CODE_MAP (e.g. "delhi" -> "NDLS", "patna" -> "PNBE", "raipur" -> "R")
     if (STATION_CODE_MAP[lower]) {
       return STATION_CODE_MAP[lower];
     }
-    const cleaned = lower.replace(/\s+(jn|junction|cantt|terminal|central)$/i, '').trim();
+
+    // 3. Exact match in authoritative station registry by stationCode (e.g. "NDLS", "R", "PNBE", "CSMT")
+    const stnByCode = findStationByCode(upper);
+    if (stnByCode) {
+      return stnByCode.stationCode;
+    }
+
+    // 4. Match in authoritative registry by exact name / display name / alias
+    const stnByName = findStationByName(trimmed);
+    if (stnByName) {
+      return stnByName.stationCode;
+    }
+
+    // 5. Strip common station suffixes ("JN", "JUNCTION", "CANTT", "TERMINAL", "CENTRAL")
+    const cleaned = lower.replace(/\s+(jn|junction|cantt|terminal|central|ter)$/i, '').trim();
     if (STATION_CODE_MAP[cleaned]) {
       return STATION_CODE_MAP[cleaned];
     }
-    const parenMatch = trimmed.match(/\(([A-Za-z]{2,5})\)/) || trimmed.match(/-\s*([A-Za-z]{2,5})$/);
-    if (parenMatch && /^[A-Za-z]{2,5}$/.test(parenMatch[1])) {
-      return parenMatch[1].toUpperCase();
+
+    const stnByNameCleaned = findStationByName(cleaned);
+    if (stnByNameCleaned) {
+      return stnByNameCleaned.stationCode;
     }
+
+    // 6. Check prefixes/suffixes in STATION_CODE_MAP
     for (const [key, code] of Object.entries(STATION_CODE_MAP)) {
       if (lower === key || lower.startsWith(key + ' ') || lower.endsWith(' ' + key)) {
         return code;
@@ -352,32 +385,59 @@ export function resolveStationCode(location) {
         return code;
       }
     }
+
+    // 7. Search in registry using searchRailwayStations
+    const registryMatches = searchRailwayStations(trimmed, 1);
+    if (registryMatches.length > 0 && registryMatches[0].stationCode) {
+      return registryMatches[0].stationCode;
+    }
+
+    // 8. If 1-5 letters format, return uppercase
+    if (/^[A-Za-z]{1,5}$/.test(trimmed)) {
+      return upper;
+    }
+
     return trimmed.toUpperCase();
   }
 
-  // 1. Explicit station code properties
-  const directCode = location.code || location.stationCode;
-  if (directCode && /^[A-Za-z]{2,5}$/.test(directCode.trim())) {
-    return directCode.trim().toUpperCase();
+  // 1. Explicit station code properties (supports 1 to 5 letters)
+  const directCode = location.stationCode || location.code;
+  if (directCode && /^[A-Za-z]{1,5}$/.test(String(directCode).trim())) {
+    return String(directCode).trim().toUpperCase();
   }
 
   // 2. Metadata station code
-  const metaCode = location.metadata?.code || location.metadata?.stationCode;
-  if (metaCode && /^[A-Za-z]{2,5}$/.test(metaCode.trim())) {
-    return metaCode.trim().toUpperCase();
+  const metaCode = location.metadata?.stationCode || location.metadata?.code;
+  if (metaCode && /^[A-Za-z]{1,5}$/.test(String(metaCode).trim())) {
+    return String(metaCode).trim().toUpperCase();
   }
 
-  // 3. Clean name & city match against STATION_CODE_MAP
+  // 3. Formatted displayName or name match (e.g. "RAIPUR JN - R", "New Delhi (NDLS)")
+  const parenMatch =
+    (location.displayName || location.name || '').match(/\(([A-Za-z]{1,5})\)/) ||
+    (location.displayName || location.name || '').match(/-\s*([A-Za-z]{1,5})$/) ||
+    (location.displayName || location.name || '').match(/^([A-Za-z]{1,5})\s*-\s*/);
+  if (parenMatch && /^[A-Za-z]{1,5}$/.test(parenMatch[1])) {
+    const candidateCode = parenMatch[1].toUpperCase();
+    if (findStationByCode(candidateCode) || STATION_CODE_MAP[candidateCode.toLowerCase()]) {
+      return candidateCode;
+    }
+  }
+
+  // 4. Clean name & city match against STATION_CODE_MAP
   const nameClean = (location.name || '').toLowerCase().trim();
   const cityClean = (location.city || '').toLowerCase().trim();
+  const nameStripped = nameClean.replace(/\s+(jn|junction|cantt|terminal|central|ter)$/i, '').trim();
 
   if (STATION_CODE_MAP[nameClean]) return STATION_CODE_MAP[nameClean];
+  if (STATION_CODE_MAP[nameStripped]) return STATION_CODE_MAP[nameStripped];
   if (STATION_CODE_MAP[cityClean]) return STATION_CODE_MAP[cityClean];
 
-  const stnByName = findStationByCode(location.name);
+  // 5. Registry lookup by name
+  const stnByName = findStationByName(location.name) || (location.displayName ? findStationByName(location.displayName) : null);
   if (stnByName) return stnByName.stationCode;
 
-  // 4. Aliases containing a verified station code (do not pick non-station abbreviations like 'NCR')
+  // 6. Aliases containing a verified station code
   if (Array.isArray(location.aliases)) {
     const verifiedAlias = location.aliases.find((a) => {
       if (typeof a !== 'string') return false;
@@ -387,17 +447,6 @@ export function resolveStationCode(location) {
     if (verifiedAlias) {
       const match = findStationByCode(verifiedAlias) || STATION_CODE_MAP[verifiedAlias.toLowerCase().trim()];
       return typeof match === 'string' ? match : match.stationCode;
-    }
-  }
-
-  // 5. Parentheses in displayName or name (e.g. "New Delhi (NDLS)")
-  const parenMatch =
-    (location.displayName || location.name || '').match(/\(([A-Za-z]{2,5})\)/) ||
-    (location.displayName || location.name || '').match(/-\s*([A-Za-z]{2,5})$/);
-  if (parenMatch && /^[A-Za-z]{2,5}$/.test(parenMatch[1])) {
-    const candidateCode = parenMatch[1].toUpperCase();
-    if (findStationByCode(candidateCode) || STATION_CODE_MAP[candidateCode.toLowerCase()]) {
-      return candidateCode;
     }
   }
 
@@ -413,16 +462,22 @@ export function resolveStationCode(location) {
     }
   }
 
-  // 6. Name directly matches 2-5 capital letters
-  if (/^[A-Za-z]{2,5}$/.test(nameClean)) {
+  // 7. Name directly matches 1-5 capital letters
+  if (/^[A-Za-z]{1,5}$/.test(nameClean)) {
     const candidate = nameClean.toUpperCase();
     if (findStationByCode(candidate) || STATION_CODE_MAP[nameClean]) {
       return candidate;
     }
   }
 
-  if (parenMatch && /^[A-Z]{2,5}$/.test(parenMatch[1])) {
+  if (parenMatch && /^[A-Z]{1,5}$/.test(parenMatch[1])) {
     return parenMatch[1].toUpperCase();
+  }
+
+  // Fallback: search in registry
+  const regMatches = searchRailwayStations(location.name || location.displayName || location.city || '', 1);
+  if (regMatches.length > 0 && regMatches[0].stationCode) {
+    return regMatches[0].stationCode;
   }
 
   // Fallback: sanitized uppercase city or name

@@ -879,15 +879,175 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
         </form>
       )}
 
-      {/* 4. STEP 2: REVIEW JOURNEY & CONFIRMATION */}
+      {/* 4. STEP 2: REVIEW JOURNEY & CONFIRMATION (Multi-Leg Connected Timeline) */}
       {currentStep === 2 && (
         <div className="space-y-6">
+          {/* Multi-Leg Journey Summary Header */}
+          <div className="rounded-2xl border border-white/10 bg-surface-primary p-5 sm:p-6 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#E8B04A]">
+                  {legs.length > 1 ? `Multi-Train Journey · ${legs.length} Train Legs · ${Math.max(0, legs.length - 1)} Transfer` : 'Direct Train Journey'}
+                </span>
+                <h3 className="text-base font-bold text-text-primary mt-0.5">
+                  {originName} → {destName}
+                </h3>
+              </div>
+              <div className="text-left sm:text-right">
+                <span className="text-[11px] text-text-secondary">
+                  Total Duration: <strong className="text-text-primary">{durationStr}</strong> · {passengers.length} Traveller{passengers.length > 1 ? 's' : ''}
+                </span>
+                <div className="font-mono text-base font-bold text-[#4CC38A]">
+                  {formatPrice(totalCalculatedFare)}
+                </div>
+              </div>
+            </div>
+
+            {/* Connected Vertical Timeline for All Segments in journeyData.legs */}
+            <div className="space-y-3 pt-1">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-text-tertiary">
+                Connected Itinerary Timeline
+              </h4>
+
+              {legs.map((leg, idx) => {
+                const legTrainNo = leg.trainNo || leg.trainNumber || leg.service?.number || leg.vehicle?.identifier || '';
+                const legTrainName = leg.trainName || leg.service?.name || leg.vehicle?.type || 'Train Service';
+                const legClass = leg.class || leg.travelClass || leg.service?.class || travelClass;
+                const legFromCode = leg.fromCode || leg.from || leg.origin?.code || originCode;
+                const legFromName = leg.fromName || leg.origin?.name || legFromCode;
+                const legToCode = leg.toCode || leg.to || leg.destination?.code || destCode;
+                const legToName = leg.toName || leg.destination?.name || legToCode;
+                const legDepTime = leg.departureTimeFormatted || formatTime(leg.departureTime || leg.depTime);
+                const legArrTime = leg.arrivalTimeFormatted || formatTime(leg.arrivalTime || leg.arrTime);
+                const legFareVal = Number(leg.fare || leg.price || (basePricePerPerson / legs.length));
+
+                // Leg availability badge
+                const legNormStatus = (leg.normalizedStatus || leg.tier || leg.availability?.normalizedStatus || '').toUpperCase();
+                const isAvail = legNormStatus === 'AVAILABLE' || leg.isAvailable === true;
+                const isWl = legNormStatus === 'WAITLIST' || legNormStatus === 'RAC' || /WL|RAC/i.test(leg.availabilityText || '');
+                const isUnavail = legNormStatus === 'NOT_AVAILABLE' || legNormStatus === 'UNAVAILABLE' || /NOT AVAILABLE|REGRET/i.test(leg.availabilityText || '');
+
+                // Layover to next leg
+                const nextLeg = legs[idx + 1];
+                let layoverText = null;
+                if (nextLeg) {
+                  const arrM = leg.arrivalTime || leg.arrTime;
+                  const nextDepM = nextLeg.departureTime || nextLeg.depTime;
+                  if (arrM && nextDepM) {
+                    try {
+                      const t1 = new Date(arrM).getTime();
+                      const t2 = new Date(nextDepM).getTime();
+                      if (t2 > t1) {
+                        layoverText = formatDuration(Math.round((t2 - t1) / 60000));
+                      }
+                    } catch {}
+                  }
+                  if (!layoverText && leg.layoverMinutes) {
+                    layoverText = formatDuration(leg.layoverMinutes);
+                  }
+                }
+
+                return (
+                  <React.Fragment key={idx}>
+                    <div className="rounded-xl border border-white/10 bg-[#161B22] p-4 text-xs space-y-2.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded bg-[#E8B04A]/10 border border-[#E8B04A]/30 px-2 py-0.5 text-[10px] font-mono font-bold text-[#E8B04A]">
+                            LEG {idx + 1}
+                          </span>
+                          <span className="font-bold text-text-primary text-sm">
+                            {legTrainNo ? `${legTrainNo} · ` : ''}{legTrainName}
+                          </span>
+                          <span className="rounded bg-white/5 px-2 py-0.5 text-[10px] text-text-secondary font-semibold">
+                            {legClass}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {isAvail ? (
+                            <span className="inline-flex items-center rounded-full bg-[#4CC38A]/10 border border-[#4CC38A]/30 px-2.5 py-0.5 text-[10px] font-bold text-[#4CC38A]">
+                              AVAILABLE
+                            </span>
+                          ) : isWl ? (
+                            <span className="inline-flex items-center rounded-full bg-[#E8B04A]/10 border border-[#E8B04A]/30 px-2.5 py-0.5 text-[10px] font-bold text-[#E8B04A]">
+                              WAITLIST
+                            </span>
+                          ) : isUnavail ? (
+                            <span className="inline-flex items-center rounded-full bg-[#E5484D]/10 border border-[#E5484D]/30 px-2.5 py-0.5 text-[10px] font-bold text-[#E5484D]">
+                              UNAVAILABLE
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[10px] font-medium text-text-secondary">
+                              SCHEDULE VERIFIED
+                            </span>
+                          )}
+                          <span className="font-mono font-bold text-[#E8B04A]">
+                            {formatPrice(legFareVal * passengers.length)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Boarding and Deboarding corridor */}
+                      <div className="grid grid-cols-2 gap-4 text-text-secondary">
+                        <div>
+                          <span className="text-[10px] uppercase font-semibold text-text-tertiary">Boarding Station</span>
+                          <div className="font-bold text-text-primary mt-0.5">{legFromName} ({legFromCode})</div>
+                          <div className="font-mono text-[11px] text-text-secondary mt-0.5">{legDepTime} IST</div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase font-semibold text-text-tertiary">Deboarding Station</span>
+                          <div className="font-bold text-text-primary mt-0.5">{legToName} ({legToCode})</div>
+                          <div className="font-mono text-[11px] text-text-secondary mt-0.5">{legArrTime} IST</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Transfer connection callout between legs */}
+                    {nextLeg && (
+                      <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-300 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-amber-400 shrink-0" />
+                          <span>
+                            <strong>Transfer at {legToCode} ({legToName})</strong>
+                            {layoverText ? ` · Layover: ${layoverText}` : ''}
+                          </span>
+                        </div>
+                        <span className="text-[10px] uppercase font-bold text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
+                          Same-Station Connection Validated
+                        </span>
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+
+              {/* Onward destination difference disclosure */}
+              {(() => {
+                const lastLeg = legs[legs.length - 1];
+                const trainTerminus = lastLeg?.toCode || lastLeg?.to;
+                const requestedTarget = journeyData.requestedDestination || journeyData.toCode || journeyData.destination?.code;
+                const hasShift = requestedTarget && trainTerminus && requestedTarget !== trainTerminus;
+                if (!hasShift) return null;
+                return (
+                  <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-3 text-xs text-sky-200 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-sky-400 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="block text-sky-100">Onward Transit Required:</strong>
+                      Train terminates at {trainTerminus}. Passenger must arrange onward local connection to reach requested destination {requestedTarget}.
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Passenger List Summary Table */}
           <div className="rounded-2xl border border-white/10 bg-surface-primary p-5 sm:p-6 shadow-xl space-y-4">
             <h3 className="text-sm font-bold text-text-primary uppercase tracking-wider border-b border-white/10 pb-3">
-              Review Itinerary & Travellers
+              Traveller Details ({passengers.length} Person{passengers.length > 1 ? 's' : ''})
             </h3>
 
-            {/* Passenger List Summary Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
@@ -937,17 +1097,29 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
             </h3>
 
             <div className="space-y-2 text-xs">
-              <div className="flex justify-between text-text-secondary">
-                <span>Base Journey Fare ({passengers.length} × {formatPrice(basePricePerPerson)}):</span>
-                <span className="font-mono text-text-primary">{formatPrice(totalCalculatedFare)}</span>
-              </div>
+              {legs.length > 1 ? (
+                legs.map((leg, idx) => {
+                  const lFare = Number(leg.fare || leg.price || (basePricePerPerson / legs.length)) * passengers.length;
+                  return (
+                    <div key={idx} className="flex justify-between text-text-secondary">
+                      <span>Leg {idx + 1} Fare ({leg.trainNo || leg.trainNumber || ''} · {leg.from || leg.fromCode} → {leg.to || leg.toCode}):</span>
+                      <span className="font-mono text-text-primary">{formatPrice(lFare)}</span>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="flex justify-between text-text-secondary">
+                  <span>Base Journey Fare ({passengers.length} × {formatPrice(basePricePerPerson)}):</span>
+                  <span className="font-mono text-text-primary">{formatPrice(totalCalculatedFare)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-text-secondary">
                 <span>IRCTC & Partner Convenience Surcharge:</span>
-                <span className="font-mono text-emerald-400">₹0 (Transparent)</span>
+                <span className="font-mono text-[#4CC38A]">₹0 (Transparent)</span>
               </div>
               <div className="flex justify-between border-t border-white/10 pt-2 text-sm font-bold text-text-primary">
                 <span>Estimated Total Fare:</span>
-                <span className="font-mono text-base text-emerald-400">{formatPrice(totalCalculatedFare)}</span>
+                <span className="font-mono text-base text-[#4CC38A]">{formatPrice(totalCalculatedFare)}</span>
               </div>
             </div>
           </div>
@@ -1055,6 +1227,32 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
               Per Indian Railways (IRCTC) regulations and direct integration policies, this itinerary summary does not confirm seat reservation and cannot be used to board trains. Download your PDF summary below or continue to IRCTC to complete your seat reservation with these verified train details.
             </div>
 
+            {/* Multi-Leg Booked Segments Breakdown */}
+            {Array.isArray(bookingResult.legs) && bookingResult.legs.length > 0 && (
+              <div className="space-y-2 border-t border-white/10 pt-4">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[#E8B04A]">
+                  Booked Journey Segments ({bookingResult.legs.length} Train Legs)
+                </div>
+                {bookingResult.legs.map((leg, idx) => (
+                  <div key={idx} className="rounded-xl border border-white/5 bg-[#161B22] p-3 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-[#E8B04A]">Leg {leg.legIndex || idx + 1}: </span>
+                      <span className="font-semibold text-text-primary">{leg.trainNumber} {leg.trainName}</span>
+                      <span className="text-text-secondary ml-2">
+                        {leg.fromStationCode} ({formatTime(leg.departureTime)}) → {leg.toStationCode} ({formatTime(leg.arrivalTime)})
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-text-secondary">{leg.travelClass}</span>
+                      <span className="rounded bg-[#E8B04A]/10 border border-[#E8B04A]/30 px-2 py-0.5 text-[10px] font-bold text-[#E8B04A]">
+                        {leg.pnr ? `PNR: ${leg.pnr}` : (leg.bookingStatus || 'SCHEDULE VERIFIED')}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Quick Details Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 border-t border-white/10 pt-4 text-xs">
               {bookingResult.pnr && (
@@ -1077,18 +1275,18 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
               </div>
               <div>
                 <span className="text-text-tertiary uppercase text-[10px] font-semibold">Total Fare</span>
-                <div className="font-mono font-bold text-emerald-400">{formatPrice(bookingResult.fare?.totalFare || totalCalculatedFare)}</div>
+                <div className="font-mono font-bold text-[#4CC38A]">{formatPrice(bookingResult.fare?.totalFare || totalCalculatedFare)}</div>
               </div>
             </div>
 
-            {/* Primary Action Buttons (Section 5) */}
+            {/* Primary Action Buttons (Graphite & Amber Theme) */}
             <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-white/10">
               <button
                 type="button"
                 onClick={() => setShowTicketModal(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-3 text-xs font-bold text-white shadow-lg hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer"
+                className="inline-flex items-center gap-2 rounded-xl bg-[#E8B04A] hover:bg-[#F0C066] px-5 py-3 text-xs font-bold text-[#0B0D10] shadow-lg active:scale-[0.98] transition-all cursor-pointer"
               >
-                <Ticket className="h-4 w-4 text-amber-300" />
+                <Ticket className="h-4 w-4 text-[#0B0D10]" />
                 <span>View Official E-Ticket</span>
               </button>
 
@@ -1097,16 +1295,16 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
                 id="download-ticket-pdf-btn"
                 onClick={handleDownloadPdf}
                 disabled={downloadingPdf}
-                className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-5 py-3 text-xs font-bold text-white shadow-lg hover:bg-brand-hover active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer"
+                className="inline-flex items-center gap-2 rounded-xl border border-[#303640] bg-[#181C22] px-5 py-3 text-xs font-bold text-[#EDEFF2] hover:bg-[#232830] hover:border-[#E8B04A] active:scale-[0.98] disabled:opacity-50 transition-all cursor-pointer"
               >
                 {downloadingPdf ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin text-[#E8B04A]" />
                     <span>Generating E-Ticket...</span>
                   </>
                 ) : (
                   <>
-                    <Download className="h-4 w-4" />
+                    <Download className="h-4 w-4 text-[#E8B04A]" />
                     <span>Download E-Ticket (PDF)</span>
                   </>
                 )}

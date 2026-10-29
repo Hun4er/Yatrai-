@@ -30,11 +30,15 @@ export function setOnSessionExpired(cb) {
 /**
  * Deduplicated, single-flight token refresh executor.
  * Concurrent callers share the exact same active refresh promise.
+ *
+ * @param {boolean} [isStartup=false] - True if executed during passive startup check
  */
-async function performTokenRefresh() {
+async function performTokenRefresh(isStartup = false) {
   if (activeRefreshPromise) {
     return activeRefreshPromise;
   }
+
+  const hadActiveToken = Boolean(inMemoryAccessToken);
 
   activeRefreshPromise = (async () => {
     try {
@@ -58,7 +62,8 @@ async function performTokenRefresh() {
 
       if (!response.ok || !data?.data?.accessToken) {
         setAccessToken(null);
-        if (sessionExpiredCallback) {
+        // Only trigger sessionExpiredCallback if the user was actively logged in and this is not a passive startup check
+        if (!isStartup && hadActiveToken && sessionExpiredCallback) {
           sessionExpiredCallback('Your session has expired. Please sign in again.');
         }
         const error = new Error(
@@ -187,13 +192,19 @@ export const api = {
         body: JSON.stringify({ name, email, password }),
       }),
 
+    signup: (name, email, password) =>
+      request('/auth/signup', {
+        method: 'POST',
+        body: JSON.stringify({ name, email, password }),
+      }),
+
     login: (email, password) =>
       request('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       }),
 
-    refresh: () => performTokenRefresh(),
+    refresh: (isStartup = false) => performTokenRefresh(isStartup),
 
     logout: () =>
       request('/auth/logout', {

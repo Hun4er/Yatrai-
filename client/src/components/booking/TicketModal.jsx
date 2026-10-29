@@ -31,35 +31,70 @@ import {
 export default function TicketModal({ booking, onClose, onDownload, isDownloading }) {
   const printRef = useRef(null);
 
-  if (!booking) return null;
-
-  // ─── Data Extraction ─────────────────────────────────────────────────────
+  if (!booking) return null;  // ─── Data Extraction & Normalization ─────────────────────────────────────
   const snap = booking.journeySnapshot || {};
-  const legs = Array.isArray(snap.legs) && snap.legs.length > 0 ? snap.legs : [];
-  const primaryLeg = legs[0] || {};
-  const lastLeg = legs[legs.length - 1] || primaryLeg;
+  const bookingLegs = Array.isArray(booking.legs) && booking.legs.length > 0
+    ? booking.legs
+    : (Array.isArray(snap.legs) && snap.legs.length > 0 ? snap.legs : []);
+
+  const normalizedLegs = bookingLegs.map((l, idx) => {
+    const trainNum = String(l.trainNumber || l.trainNo || l.vehicle?.identifier || l.service?.number || '').trim();
+    const trainName = String(l.trainName || l.service?.name || l.vehicle?.type || 'Express Train').trim();
+    const fromCode = String(l.fromStationCode || l.fromCode || l.from || l.origin?.code || '').toUpperCase().trim();
+    const fromName = String(l.fromStationName || l.fromName || l.origin?.name || fromCode).trim();
+    const toCode = String(l.toStationCode || l.toCode || l.to || l.destination?.code || '').toUpperCase().trim();
+    const toName = String(l.toStationName || l.toName || l.destination?.name || toCode).trim();
+    const depTime = l.departureTime || l.depTime;
+    const arrTime = l.arrivalTime || l.arrTime;
+    const travelClass = l.travelClass || l.class || l.service?.class || '3A';
+    const quota = l.quota || 'GN';
+    const fare = Number(l.fare || l.price || 0);
+    const legStatus = l.bookingStatus || (booking.isConfirmed ? 'CONFIRMED' : 'SCHEDULE_VERIFIED');
+    const legPnr = l.pnr || (booking.isConfirmed ? booking.pnr : null);
+
+    return {
+      legIndex: idx + 1,
+      trainNum,
+      trainName,
+      fromCode,
+      fromName,
+      toCode,
+      toName,
+      depTime,
+      arrTime,
+      travelClass,
+      quota,
+      fare,
+      legStatus,
+      legPnr,
+    };
+  });
+
+  const isMultiLeg = normalizedLegs.length > 1;
+  const primaryLeg = normalizedLegs[0] || {};
+  const lastLeg = normalizedLegs[normalizedLegs.length - 1] || primaryLeg;
 
   const bookingRef = booking.bookingReference || 'YTR-BK-UNKNOWN';
-  // booking.pnr is now always set (Yatrai-generated) for every new booking
   const yatraiPnr = booking.pnr || null;
   const rawStatus = (booking.status || 'unconfirmed').toLowerCase();
 
-  const fromCode = (snap.origin?.code || primaryLeg.origin?.code || 'ORIG').toUpperCase();
-  const fromName = snap.origin?.name || snap.origin?.city || primaryLeg.origin?.name || 'Origin Station';
-  const toCode = (snap.destination?.code || lastLeg.destination?.code || 'DEST').toUpperCase();
-  const toName = snap.destination?.name || snap.destination?.city || lastLeg.destination?.name || 'Destination Station';
+  const fromCode = (snap.origin?.code || primaryLeg.fromCode || 'ORIG').toUpperCase();
+  const fromName = snap.origin?.name || snap.origin?.city || primaryLeg.fromName || 'Origin Station';
+  const toCode = (snap.destination?.code || lastLeg.toCode || 'DEST').toUpperCase();
+  const toName = snap.destination?.name || snap.destination?.city || lastLeg.toName || 'Destination Station';
 
-  const depDateTime = snap.departureTime || primaryLeg.departureTime || booking.createdAt;
-  const arrDateTime = snap.arrivalTime || lastLeg.arrivalTime || null;
+  // Check for onward destination difference
+  const requestedDestCode = (snap.requestedDestination || snap.destination?.code || toCode).toUpperCase();
+  const trainFinalDestCode = (lastLeg.toCode || toCode).toUpperCase();
+  const hasOnwardNotice = requestedDestCode && trainFinalDestCode && requestedDestCode !== trainFinalDestCode;
+
+  const depDateTime = snap.departureTime || primaryLeg.depTime || booking.createdAt;
+  const arrDateTime = snap.arrivalTime || lastLeg.arrTime || null;
   const durationMins = snap.duration || null;
 
-  const trainNum = String(
-    primaryLeg.vehicle?.identifier || primaryLeg.service?.number || primaryLeg.trainNumber || ''
-  ).trim();
-  const trainName = (
-    primaryLeg.service?.name || primaryLeg.vehicle?.type || primaryLeg.trainName || 'Express Rail Service'
-  ).trim();
-  const travelClass = primaryLeg.service?.class || primaryLeg.travelClass || booking.metadata?.travelClass || '3A';
+  const trainNum = primaryLeg.trainNum || '';
+  const trainName = primaryLeg.trainName || 'Express Rail Service';
+  const travelClass = primaryLeg.travelClass || booking.metadata?.travelClass || '3A';
   const quota = primaryLeg.quota || booking.metadata?.quota || 'GN';
   const distanceKm = snap.totalDistance ? Math.round(snap.totalDistance) : null;
 
@@ -142,22 +177,12 @@ export default function TicketModal({ booking, onClose, onDownload, isDownloadin
   };
   const sc = statusConfig[rawStatus] || statusConfig.unconfirmed;
 
-  // ─── Seat Assignment ──────────────────────────────────────────────────────
-  const getSeat = (p, idx) => {
-    // If the booking data already has a seat, use it
+  // ─── Seat Assignment (No fabricated coach / berth assignments) ────────────
+  const getSeat = (p) => {
     if (p.seat && String(p.seat).trim().length > 0) return p.seat;
-    if (p.coach && p.berth) return `${p.coach} / ${p.berth} / ${p.berthType || ''}`.replace(/ \/$/, '');
-    // Only generate a berth reference if booking is confirmed
-    if (!booking.isConfirmed) return 'Not yet allocated';
-    const pref = (p.berthPreference || 'lower').replace(/_/g, ' ');
-    const cap = pref.charAt(0).toUpperCase() + pref.slice(1);
-    const cls = String(travelClass).toUpperCase();
-    if (cls.includes('1A')) return `H1 / ${4 + idx * 2} / Cabin`;
-    if (cls.includes('2A')) return `A1 / ${12 + idx * 3} / ${cap}`;
-    if (cls.includes('3E')) return `M1 / ${24 + idx * 4} / ${cap}`;
-    if (cls.includes('CC') || cls.includes('EC')) return `C1 / ${18 + idx * 2} / Window`;
-    if (cls.includes('SL') || cls.includes('SLEEPER')) return `S3 / ${42 + idx * 6} / ${cap}`;
-    return `B2 / ${31 + idx * 4} / ${cap}`;
+    if (p.coach && p.berth) return `${p.coach} / ${p.berth} ${p.berthType || ''}`.trim();
+    if (booking.isConfirmed) return 'Seat on Chart Prep';
+    return 'Not allocated';
   };
 
   const handlePrint = () => window.print();
@@ -271,7 +296,7 @@ export default function TicketModal({ booking, onClose, onDownload, isDownloadin
                 {yatraiPnr && (
                   <div className="flex items-center gap-2">
                     <span className="text-slate-400 uppercase font-bold tracking-wider text-[10px]">Yatrai PNR ·</span>
-                    <span className="font-mono font-black text-indigo-700 text-base tracking-wider">{yatraiPnr}</span>
+                    <span className="font-mono font-black text-slate-900 text-base tracking-wider">{yatraiPnr}</span>
                   </div>
                 )}
                 {yatraiPnr && <span className="text-slate-300">|</span>}
@@ -312,7 +337,7 @@ export default function TicketModal({ booking, onClose, onDownload, isDownloadin
                 {/* Duration / Route Line */}
                 <div className="sm:col-span-3 flex flex-col items-center gap-1.5 py-1">
                   {fmt.duration(durationMins) && (
-                    <div className="text-[11px] font-bold text-indigo-600 flex items-center gap-1">
+                    <div className="text-[11px] font-bold text-[#E8B04A] flex items-center gap-1">
                       <Clock className="h-3 w-3" />
                       <span>{fmt.duration(durationMins)}</span>
                     </div>
@@ -326,8 +351,8 @@ export default function TicketModal({ booking, onClose, onDownload, isDownloadin
                   {distanceKm && (
                     <div className="text-[10px] text-slate-400 font-medium">{distanceKm} km</div>
                   )}
-                  <div className="text-[10px] text-slate-400 font-medium">
-                    {legs.length <= 1 ? 'Direct' : `${legs.length - 1} change(s)`}
+                  <div className="text-[10px] font-semibold text-slate-600">
+                    {isMultiLeg ? `Multi-Leg Connection (${normalizedLegs.length} Trains)` : 'Direct Train Service'}
                   </div>
                 </div>
 
@@ -358,62 +383,145 @@ export default function TicketModal({ booking, onClose, onDownload, isDownloadin
               </div>
             </div>
 
-            {/* ═══════ 4. RESERVATION DETAILS GRID ═══════ */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-slate-200 mx-0 border-b border-slate-200">
-              {[
-                {
-                  label: 'YATRAI PNR',
-                  value: yatraiPnr || '—',
-                  custom: yatraiPnr ? (
-                    <div className="font-mono font-black text-indigo-700 text-sm tracking-wider">{yatraiPnr}</div>
-                  ) : null,
-                },
-                {
-                  label: 'TRAIN',
-                  value: trainNum ? `${trainNum} · ${trainName}` : trainName || 'N/A',
-                },
-                {
-                  label: 'CLASS',
-                  value: travelClass || 'N/A',
-                },
-                {
-                  label: 'QUOTA',
-                  value: quota || 'GN',
-                },
-                {
-                  label: 'BOARDING AT',
-                  value: `${fromName} (${fromCode})`,
-                },
-                {
-                  label: 'BOOKED ON (IST)',
-                  value: `${fmt.date(booking.createdAt)}, ${fmt.time(booking.createdAt)}`,
-                },
-                {
-                  label: 'PASSENGERS',
-                  value: passengers.length > 0 ? `${passengers.length} Traveller${passengers.length > 1 ? 's' : ''}` : '—',
-                },
-                {
-                  label: 'JOURNEY DISTANCE',
-                  value: distanceKm ? `${distanceKm} km` : 'N/A',
-                },
-                {
-                  label: 'RESERVATION STATUS',
-                  value: sc.label,
-                  custom: (
-                    <span className={`font-bold text-xs ${sc.color}`}>{sc.label}</span>
-                  ),
-                },
-              ].map(({ label, value, custom }) => (
-                <div key={label} className="bg-white p-3 sm:p-3.5">
-                  <div className="text-[9px] uppercase font-black tracking-widest text-slate-400 mb-0.5">{label}</div>
-                  {custom || (
-                    <div className="font-semibold text-xs text-slate-800 leading-snug truncate" title={value}>
-                      {value}
-                    </div>
-                  )}
+            {/* ═══════ 4. JOURNEY LEGS & TRANSFER DETAILS ═══════ */}
+            {isMultiLeg ? (
+              <div className="px-5 sm:px-6 py-4 bg-slate-50 border-b border-slate-200 space-y-3">
+                <div className="text-[10px] font-black uppercase tracking-widest text-[#E8B04A] flex items-center gap-1.5">
+                  <Train className="h-3 w-3" />
+                  COMPLETE MULTI-LEG ITINERARY ({normalizedLegs.length} TRAIN SEGMENTS)
                 </div>
-              ))}
-            </div>
+
+                <div className="space-y-2.5">
+                  {normalizedLegs.map((leg, idx) => (
+                    <React.Fragment key={leg.legIndex}>
+                      <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm text-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="rounded bg-slate-900 text-[#E8B04A] px-2 py-0.5 text-[10px] font-mono font-bold">
+                              LEG {leg.legIndex}
+                            </span>
+                            <span className="font-bold text-slate-900 text-sm">
+                              {leg.trainNum ? `${leg.trainNum} · ` : ''}{leg.trainName}
+                            </span>
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600 font-semibold">
+                              {leg.travelClass} · {leg.quota}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-right">
+                            <span className="font-mono font-bold text-slate-900">
+                              {leg.fare > 0 ? fmt.price(leg.fare) : 'Included'}
+                            </span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              {leg.legPnr ? `PNR: ${leg.legPnr}` : leg.legStatus}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 pt-2 text-slate-600">
+                          <div>
+                            <span className="text-[10px] text-slate-400 uppercase font-semibold">Boarding</span>
+                            <div className="font-bold text-slate-800 text-xs mt-0.5">
+                              {leg.fromName} ({leg.fromCode})
+                            </div>
+                            <div className="font-mono text-[11px] text-slate-500 mt-0.5">
+                              {fmt.time(leg.depTime)} IST · {fmt.date(leg.depTime)}
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <span className="text-[10px] text-slate-400 uppercase font-semibold">Deboarding</span>
+                            <div className="font-bold text-slate-800 text-xs mt-0.5">
+                              {leg.toName} ({leg.toCode})
+                            </div>
+                            <div className="font-mono text-[11px] text-slate-500 mt-0.5">
+                              {fmt.time(leg.arrTime)} IST · {fmt.date(leg.arrTime)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Transfer between consecutive legs */}
+                      {idx < normalizedLegs.length - 1 && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                            <span>
+                              <strong>Transfer at {leg.toCode} ({leg.toName})</strong>: Arrive {fmt.time(leg.arrTime)} · Next departure {fmt.time(normalizedLegs[idx + 1].depTime)}
+                            </span>
+                          </div>
+                          <span className="text-[10px] uppercase font-bold text-amber-700 bg-white/70 px-2 py-0.5 rounded border border-amber-200 shrink-0">
+                            Connection Validated
+                          </span>
+                        </div>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
+
+                {hasOnwardNotice && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-2.5 text-xs text-blue-900 flex items-center gap-2">
+                    <AlertCircle className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                    <span>
+                      <strong>Onward Transit Notice:</strong> Train arrives at {trainFinalDestCode}. Passenger must arrange onward local transit to final destination {requestedDestCode}.
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Single Train Grid */
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-slate-200 mx-0 border-b border-slate-200">
+                {[
+                  {
+                    label: 'YATRAI PNR',
+                    value: yatraiPnr || '—',
+                    custom: yatraiPnr ? (
+                      <div className="font-mono font-black text-slate-900 text-sm tracking-wider">{yatraiPnr}</div>
+                    ) : null,
+                  },
+                  {
+                    label: 'TRAIN',
+                    value: trainNum ? `${trainNum} · ${trainName}` : trainName || 'N/A',
+                  },
+                  {
+                    label: 'CLASS',
+                    value: travelClass || 'N/A',
+                  },
+                  {
+                    label: 'QUOTA',
+                    value: quota || 'GN',
+                  },
+                  {
+                    label: 'BOARDING AT',
+                    value: `${fromName} (${fromCode})`,
+                  },
+                  {
+                    label: 'BOOKED ON (IST)',
+                    value: `${fmt.date(booking.createdAt)}, ${fmt.time(booking.createdAt)}`,
+                  },
+                  {
+                    label: 'PASSENGERS',
+                    value: passengers.length > 0 ? `${passengers.length} Traveller${passengers.length > 1 ? 's' : ''}` : '—',
+                  },
+                  {
+                    label: 'RESERVATION STATUS',
+                    value: sc.label,
+                    custom: (
+                      <span className={`font-bold text-xs ${sc.color}`}>{sc.label}</span>
+                    ),
+                  },
+                ].map(({ label, value, custom }) => (
+                  <div key={label} className="bg-white p-3 sm:p-3.5">
+                    <div className="text-[9px] uppercase font-black tracking-widest text-slate-400 mb-0.5">{label}</div>
+                    {custom || (
+                      <div className="font-semibold text-xs text-slate-800 leading-snug truncate" title={value}>
+                        {value}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* ═══════ 5. PASSENGER TABLE ═══════ */}
             <div className="px-5 sm:px-6 py-5 border-b border-slate-100">
@@ -449,7 +557,7 @@ export default function TicketModal({ booking, onClose, onDownload, isDownloadin
                               {(p.berthPreference || 'No Preference').replace(/_/g, ' ')}
                             </td>
                             <td className="py-2.5 px-3 font-mono font-bold text-slate-700">
-                              {getSeat(p, idx)}
+                              {getSeat(p)}
                             </td>
                             <td className="py-2.5 px-3 text-right">
                               {booking.isConfirmed ? (
@@ -493,7 +601,7 @@ export default function TicketModal({ booking, onClose, onDownload, isDownloadin
                         </div>
                         <div className="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
                           <span>Berth: <strong className="text-slate-700">{(p.berthPreference || 'No pref.').replace(/_/g, ' ')}</strong></span>
-                          <span>Seat: <strong className="font-mono text-slate-700">{getSeat(p, idx)}</strong></span>
+                          <span>Seat: <strong className="font-mono text-slate-700">{getSeat(p)}</strong></span>
                         </div>
                       </div>
                     ))}
@@ -514,11 +622,25 @@ export default function TicketModal({ booking, onClose, onDownload, isDownloadin
 
               <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <div className="divide-y divide-slate-100 text-xs">
-                  {baseFare > 0 && (
-                    <div className="flex justify-between items-center px-4 py-2.5 bg-white">
-                      <span className="text-slate-600">Base Ticket Fare</span>
-                      <span className="font-mono font-semibold text-slate-900">{fmt.price(baseFare)}</span>
-                    </div>
+                  {isMultiLeg ? (
+                    normalizedLegs.map((leg) => {
+                      const legFareVal = leg.fare > 0 ? leg.fare : (baseFare / normalizedLegs.length);
+                      return (
+                        <div key={leg.legIndex} className="flex justify-between items-center px-4 py-2.5 bg-white">
+                          <span className="text-slate-600">
+                            Leg {leg.legIndex} Ticket Fare ({leg.trainNum ? `${leg.trainNum} · ` : ''}{leg.fromCode} → {leg.toCode})
+                          </span>
+                          <span className="font-mono font-semibold text-slate-900">{fmt.price(legFareVal)}</span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    baseFare > 0 && (
+                      <div className="flex justify-between items-center px-4 py-2.5 bg-white">
+                        <span className="text-slate-600">Base Ticket Fare</span>
+                        <span className="font-mono font-semibold text-slate-900">{fmt.price(baseFare)}</span>
+                      </div>
+                    )
                   )}
                   {taxesAndFees > 0 && (
                     <div className="flex justify-between items-center px-4 py-2.5 bg-white">
@@ -528,7 +650,7 @@ export default function TicketModal({ booking, onClose, onDownload, isDownloadin
                   )}
                   <div className="flex justify-between items-center px-4 py-3 bg-slate-50">
                     <span className="font-bold text-slate-800">Total Fare (All Inclusive)</span>
-                    <span className="font-mono font-black text-lg text-indigo-700">{fmt.price(totalFare)}</span>
+                    <span className="font-mono font-black text-lg text-[#E8B04A]">{fmt.price(totalFare)}</span>
                   </div>
                 </div>
               </div>

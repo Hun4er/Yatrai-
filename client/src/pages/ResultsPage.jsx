@@ -212,7 +212,7 @@ export function ResultsPage({
   const [isSearchingDeeper, setIsSearchingDeeper] = useState(false);
 
   useEffect(() => {
-    if (data?.direct) {
+    if (data?.direct || data?.alternatives) {
       setP0Direct(data.direct || []);
       setP0Waiting(data.waitingTrains || []);
       setP0Alternatives(data.alternatives || []);
@@ -222,13 +222,13 @@ export function ResultsPage({
       setP0Degraded(Boolean(data.degraded));
 
       // Check if any train has a confirmed seat
-      const hasConfirmed = hasConfirmedDirect(data.direct);
+      const hasConfirmed = hasConfirmedDirect(data.direct || []);
 
       // Auto alternatives flow: If no train is CONFIRMED and not degraded, trigger alternatives with SAME actionId
       if (!hasConfirmed && (!data.alternatives || data.alternatives.length === 0) && !data.degraded) {
         setIsLoadingAlternatives(true);
-        const originCode = data.direct[0]?.from || searchParams?.origin || searchParams?.from || 'NDLS';
-        const destCode = data.direct[0]?.to || searchParams?.destination || searchParams?.to || 'PNBE';
+        const originCode = data?.requestedOrigin || data.direct?.[0]?.from || searchParams?.origin || searchParams?.from || 'NDLS';
+        const destCode = data?.requestedDestination || data.direct?.[0]?.to || searchParams?.destination || searchParams?.to || 'PNBE';
         api.journeysV2
           .search({
             actionId: data.actionId || generateActionId(),
@@ -338,8 +338,8 @@ export function ResultsPage({
     if (isSearchingDeeper) return;
     setIsSearchingDeeper(true);
     try {
-      const originCode = p0Direct[0]?.from || searchParams?.origin || searchParams?.from || 'NDLS';
-      const destCode = p0Direct[0]?.to || searchParams?.destination || searchParams?.to || 'PNBE';
+      const originCode = data?.requestedOrigin || data?.origin?.code || p0Direct[0]?.from || searchParams?.origin || searchParams?.from || 'NDLS';
+      const destCode = data?.requestedDestination || data?.destination?.code || p0Direct[0]?.to || searchParams?.destination || searchParams?.to || 'PNBE';
       const res = await api.journeysV2.search({
         actionId: generateActionId(),
         origins: [originCode],
@@ -362,8 +362,8 @@ export function ResultsPage({
     if (isLoadingAlternatives) return;
     setIsLoadingAlternatives(true);
     try {
-      const originCode = p0Direct[0]?.from || searchParams?.origin || searchParams?.from || 'NDLS';
-      const destCode = p0Direct[0]?.to || searchParams?.destination || searchParams?.to || 'PNBE';
+      const originCode = data?.requestedOrigin || data?.origin?.code || p0Direct[0]?.from || searchParams?.origin || searchParams?.from || 'NDLS';
+      const destCode = data?.requestedDestination || data?.destination?.code || p0Direct[0]?.to || searchParams?.destination || searchParams?.to || 'PNBE';
       const res = await api.journeysV2.search({
         actionId: generateActionId(),
         origins: [originCode],
@@ -919,7 +919,17 @@ export function ResultsPage({
 
       {/* Backend Empty State (Section 29) */}
       {!isLoading && !isRateLimited && (status === 'empty' || (status === 'success' && validatedJourneys.length === 0)) && (
-        <EmptyState onModifySearch={onNavigateHome} />
+        <EmptyState
+          onModifySearch={onNavigateHome}
+          onRetry={onRetry}
+          onExploreAlternatives={handleP0ExploreAlternativesButton}
+          isLoadingAlternatives={isLoadingAlternatives}
+          isProviderUnavailable={hasPartialFailures}
+          origin={userOrigin}
+          destination={userDest}
+          date={formattedDate}
+          travelClass={searchParams?.class || 'ANY'}
+        />
       )}
 
       {/* Success State with Journeys */}
@@ -969,6 +979,10 @@ export function ResultsPage({
                 extension={data?.extension || null}
                 date={travelDate}
                 quota={searchParams?.quota || 'GN'}
+                originCode={userOrigin}
+                originName={exactOriginName}
+                requestedOrigin={data?.requestedOrigin || null}
+                requestedOriginName={data?.requestedOriginName || null}
                 destinationCode={userDest}
                 destinationName={exactDestName}
                 requestedDestination={data?.requestedDestination || null}
@@ -983,6 +997,7 @@ export function ResultsPage({
                 onExploreAlternatives={handleP0ExploreAlternativesButton}
                 onCheckMoreTrains={handleP0CheckMoreTrains}
                 onSearchDeeper={handleP0SearchDeeper}
+                onModifySearch={onNavigateHome}
                 onSelectDate={(newDate) => {
                   const cleanDate = normalizeDate(newDate) || newDate;
                   window.history.pushState(null, '', `?from=${userOrigin}&to=${userDest}&date=${cleanDate}`);

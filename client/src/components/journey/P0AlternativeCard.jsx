@@ -113,18 +113,20 @@ export function P0AlternativeCardInner({
           {/* Tier Badge */}
           <span
             className={`rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${
-              tier === 'CONFIRMED'
-                ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
-                : tier === 'RISKY' || tier === 'WAITLIST'
-                ? 'bg-amber-500/15 border border-amber-500/30 text-amber-400'
-                : 'bg-blue-500/15 border border-blue-500/30 text-blue-400'
+              tier === 'CONFIRMED' || tier === 'AVAILABLE'
+                ? 'bg-[#4CC38A]/15 border border-[#4CC38A]/30 text-[#4CC38A]'
+                : tier === 'RISKY' || tier === 'WAITLIST' || tier === 'WL'
+                ? 'bg-[#E8B04A]/15 border border-[#E8B04A]/30 text-[#E8B04A]'
+                : tier === 'UNAVAILABLE' || tier === 'NOT_AVAILABLE'
+                ? 'bg-[#E5484D]/15 border border-[#E5484D]/30 text-[#E5484D]'
+                : 'bg-[#181C22] border border-[#232830] text-[#9AA3AF]'
             }`}
           >
             {tier}
           </span>
 
           {/* Lane Class Tag */}
-          <span className="rounded-lg bg-[#1F242C] border border-[#303640] px-2 py-0.5 text-xs font-bold text-[#F0F1F3]">
+          <span className="rounded-lg bg-[#181C22] border border-[#232830] px-2 py-0.5 text-xs font-bold text-[#EDEFF2]">
             {laneClass}
           </span>
 
@@ -211,12 +213,52 @@ export function P0AlternativeCardInner({
 
             const isErrorLeg = leg.tier === 'ERROR' || leg.normalizedStatus === 'ERROR' || leg.isError;
             const isUncheckedLeg = leg.normalizedStatus === 'UNCHECKED' || leg.tier === 'UNCHECKED';
+            const isUnverifiedLeg = leg.normalizedStatus === 'UNVERIFIED' || leg.tier === 'UNVERIFIED' || leg.tier === 'SCHEDULE_VALID';
+            const isAvailableLeg = !isErrorLeg && !isUncheckedLeg && !isUnverifiedLeg &&
+              (leg.normalizedStatus === 'AVAILABLE' || leg.tier === 'AVAILABLE' || leg.isAvailable === true ||
+                (!/NOT|REGRET|CANCEL/i.test(leg.availabilityText || '') && /AVL|\bAVAILABLE\b/i.test(leg.availabilityText || '')));
+            const isWaitlistLeg = !isErrorLeg && !isUncheckedLeg && !isUnverifiedLeg && !isAvailableLeg &&
+              (leg.normalizedStatus === 'WAITLIST' || leg.normalizedStatus === 'RAC' || leg.tier === 'WAITLIST' || /WL|RAC/i.test(leg.availabilityText || ''));
+            const isUnavailableLeg = !isErrorLeg && !isUncheckedLeg && !isUnverifiedLeg && !isAvailableLeg && !isWaitlistLeg &&
+              (leg.normalizedStatus === 'NOT_AVAILABLE' || leg.normalizedStatus === 'UNAVAILABLE' || /NOT AVAILABLE|REGRET|CANCEL/i.test(leg.availabilityText || ''));
 
-            const availText = isErrorLeg
-              ? "couldn't check"
-              : isUncheckedLeg
-              ? 'tap to check'
-              : (leg.availabilityText || (leg.normalizedStatus === 'AVAILABLE' ? 'Confirmed (AVL)' : leg.rawStatus || 'Confirmed'));
+            let availBadge = null;
+            if (isErrorLeg || isUncheckedLeg) {
+              availBadge = (
+                <button
+                  type="button"
+                  onClick={() => onRetryLeg && onRetryLeg(leg)}
+                  className="inline-flex items-center gap-1 rounded-lg bg-red-500/10 border border-red-500/30 px-2 py-1 text-[11px] font-semibold text-red-300 hover:bg-red-500/20 transition-all cursor-pointer"
+                >
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  <span>couldn't check — tap to retry</span>
+                </button>
+              );
+            } else if (isAvailableLeg) {
+              availBadge = (
+                <span className="font-semibold text-[#4CC38A] bg-[#4CC38A]/10 border border-[#4CC38A]/20 px-2 py-0.5 rounded-lg text-xs">
+                  {leg.availabilityText || 'Available'}
+                </span>
+              );
+            } else if (isWaitlistLeg) {
+              availBadge = (
+                <span className="font-semibold text-[#E8B04A] bg-[#E8B04A]/10 border border-[#E8B04A]/20 px-2 py-0.5 rounded-lg text-xs">
+                  {leg.availabilityText || 'Waitlist'}
+                </span>
+              );
+            } else if (isUnavailableLeg) {
+              availBadge = (
+                <span className="font-semibold text-[#E5484D] bg-[#E5484D]/10 border border-[#E5484D]/20 px-2 py-0.5 rounded-lg text-xs">
+                  {leg.availabilityText || 'Not available'}
+                </span>
+              );
+            } else {
+              availBadge = (
+                <span className="font-medium text-[#9AA3AF] bg-[#181C22] border border-[#232830] px-2 py-0.5 rounded-lg text-xs" title="Scheduled train verified from Indian Railways timetable. Live seat booking is unverified.">
+                  {leg.availabilityText || leg.statusText || 'Schedule verified'}
+                </span>
+              );
+            }
 
             return (
               <React.Fragment key={idx}>
@@ -237,21 +279,7 @@ export function P0AlternativeCardInner({
                   </div>
 
                   <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
-                    {/* Status / Retry Chip */}
-                    {isErrorLeg || isUncheckedLeg ? (
-                      <button
-                        type="button"
-                        onClick={() => onRetryLeg && onRetryLeg(leg)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-red-500/10 border border-red-500/30 px-2 py-1 text-[11px] font-semibold text-red-300 hover:bg-red-500/20 transition-all cursor-pointer"
-                      >
-                        <RefreshCw className="h-3 w-3 animate-spin" />
-                        <span>couldn't check — tap to retry</span>
-                      </button>
-                    ) : (
-                      <span className="font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-lg text-xs">
-                        {availText}
-                      </span>
-                    )}
+                    {availBadge}
 
                     <span className="font-medium text-[#E8B04A] text-xs min-w-[70px] text-right">
                       {legFare}
@@ -288,13 +316,27 @@ export function P0AlternativeCardInner({
           >
             View Itinerary
           </button>
-          <button
-            type="button"
-            onClick={() => onBook && onBook(alternative)}
-            className="inline-flex items-center justify-center rounded-xl bg-[#E8B04A] px-4 py-1.5 text-xs font-bold text-[#0B0D10] hover:bg-[#F2BE62] transition-colors shadow-sm cursor-pointer"
-          >
-            Book Combination
-          </button>
+          {(() => {
+            const hasUnchecked = legs.some((l) => l.normalizedStatus === 'UNCHECKED' || l.tier === 'UNCHECKED' || l.tier === 'ERROR');
+            const allUnavailable = legs.length > 0 && legs.every((l) =>
+              l.normalizedStatus === 'NOT_AVAILABLE' || l.normalizedStatus === 'UNAVAILABLE' || /NOT AVAILABLE|REGRET/i.test(l.availabilityText || '')
+            );
+            const buttonLabel = hasUnchecked ? 'Check Availability' : (allUnavailable ? 'Unavailable' : 'Continue to Booking');
+            return (
+              <button
+                type="button"
+                disabled={allUnavailable}
+                onClick={() => onBook && onBook(alternative)}
+                className={`inline-flex items-center justify-center rounded-xl px-4 py-1.5 text-xs font-bold transition-colors shadow-sm cursor-pointer ${
+                  allUnavailable
+                    ? 'bg-[#232830] text-[#6B7480] cursor-not-allowed border border-[#303640]'
+                    : 'bg-[#E8B04A] text-[#0B0D10] hover:bg-[#F0C066]'
+                }`}
+              >
+                {buttonLabel}
+              </button>
+            );
+          })()}
         </div>
       </div>
     </div>

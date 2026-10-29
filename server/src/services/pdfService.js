@@ -62,31 +62,13 @@ function formatDuration(minutes) {
 }
 
 /**
- * Helper to derive realistic confirmed coach and berth assignment
+ * Helper to derive realistic confirmed coach and berth assignment without fabricating seats
  */
-function getSeatAssignment(p, idx, travelClass) {
+function getSeatAssignment(p, isConfirmed) {
   if (p.seat && String(p.seat).trim().length > 0) return p.seat;
-
-  const pref = (p.berthPreference || 'lower').replace(/_/g, ' ');
-  const capitalizedPref = pref.charAt(0).toUpperCase() + pref.slice(1);
-  const cls = String(travelClass || '3A').toUpperCase();
-
-  if (cls.includes('1A')) {
-    return `H1 / ${4 + idx * 2} / Cabin`;
-  }
-  if (cls.includes('2A')) {
-    return `A1 / ${12 + idx * 3} / ${capitalizedPref}`;
-  }
-  if (cls.includes('3E')) {
-    return `M1 / ${24 + idx * 4} / ${capitalizedPref}`;
-  }
-  if (cls.includes('CC') || cls.includes('EC')) {
-    return `C1 / ${18 + idx * 2} / ${capitalizedPref.includes('Window') ? 'Window' : 'Aisle'}`;
-  }
-  if (cls.includes('SL') || cls.includes('SLEEPER')) {
-    return `S3 / ${42 + idx * 6} / ${capitalizedPref}`;
-  }
-  return `B2 / ${31 + idx * 4} / ${capitalizedPref}`;
+  if (p.coach && p.berth) return `${p.coach} / ${p.berth} ${p.berthType || ''}`.trim();
+  if (isConfirmed) return 'Seat on Chart Prep';
+  return 'Not allocated';
 }
 
 export const pdfService = {
@@ -99,76 +81,104 @@ export const pdfService = {
    */
   async generateBookingPdf(booking) {
     const snap = booking.journeySnapshot || {};
-    const legs = Array.isArray(snap.legs) && snap.legs.length > 0 ? snap.legs : [];
-    const primaryLeg = legs[0] || {};
+    const bookingLegs = Array.isArray(booking.legs) && booking.legs.length > 0
+      ? booking.legs
+      : (Array.isArray(snap.legs) ? snap.legs : []);
+
+    // Reconstruct normalized legs list for display
+    const normalizedLegs = bookingLegs.map((l, idx) => {
+      const trainNum = String(l.trainNumber || l.trainNo || l.vehicle?.identifier || l.service?.number || '').trim();
+      const trainName = String(l.trainName || l.service?.name || l.vehicle?.type || 'Express Service').trim();
+      const fromCode = String(l.fromStationCode || l.fromCode || l.from || l.origin?.code || '').toUpperCase().trim();
+      const fromName = String(l.fromStationName || l.fromName || l.origin?.name || fromCode).trim();
+      const toCode = String(l.toStationCode || l.toCode || l.to || l.destination?.code || '').toUpperCase().trim();
+      const toName = String(l.toStationName || l.toName || l.destination?.name || toCode).trim();
+      const depTime = l.departureTime || l.depTime;
+      const arrTime = l.arrivalTime || l.arrTime;
+      const travelClass = l.travelClass || l.class || l.service?.class || '3A';
+      const quota = l.quota || 'GN';
+      const fare = Number(l.fare || l.price || 0);
+      const legStatus = l.bookingStatus || (booking.isConfirmed ? 'CONFIRMED' : 'SCHEDULE_VERIFIED');
+      const legPnr = l.pnr || (booking.isConfirmed ? booking.pnr : null);
+
+      return {
+        legIndex: idx + 1,
+        trainNum,
+        trainName,
+        fromCode,
+        fromName,
+        toCode,
+        toName,
+        depTime,
+        arrTime,
+        travelClass,
+        quota,
+        fare,
+        legStatus,
+        legPnr,
+      };
+    });
+
+    const isMultiLeg = normalizedLegs.length > 1;
+    const firstLeg = normalizedLegs[0] || {};
+    const lastLeg = normalizedLegs[normalizedLegs.length - 1] || firstLeg;
 
     // Station details
-    const fromCode = (
+    const overallFromCode = (
       snap.origin?.code ||
-      primaryLeg.origin?.code ||
+      firstLeg.fromCode ||
       'ORIG'
     ).toUpperCase();
-    const fromName = snap.origin?.name || snap.origin?.city || primaryLeg.origin?.name || 'Origin Station';
+    const overallFromName = snap.origin?.name || snap.origin?.city || firstLeg.fromName || 'Origin Station';
 
-    const toCode = (
+    const overallToCode = (
       snap.destination?.code ||
-      primaryLeg.destination?.code ||
-      (legs.length > 0 ? legs[legs.length - 1].destination?.code : null) ||
+      lastLeg.toCode ||
       'DEST'
     ).toUpperCase();
-    const toName = snap.destination?.name || snap.destination?.city || (legs.length > 0 ? legs[legs.length - 1].destination?.name : null) || 'Destination Station';
+    const overallToName = snap.destination?.name || snap.destination?.city || lastLeg.toName || 'Destination Station';
 
-    // Train details
-    const trainNum = String(
-      primaryLeg.vehicle?.identifier ||
-      primaryLeg.service?.number ||
-      primaryLeg.trainNumber ||
-      '22361'
-    ).trim();
-    const trainName = (
-      primaryLeg.service?.name ||
-      primaryLeg.vehicle?.type ||
-      primaryLeg.trainName ||
-      'Express'
-    ).trim();
+    // Check for onward destination difference
+    const requestedDestCode = (snap.requestedDestination || snap.destination?.code || overallToCode).toUpperCase();
+    const trainFinalDestCode = (lastLeg.toCode || overallToCode).toUpperCase();
+    const hasOnwardNotice = requestedDestCode && trainFinalDestCode && requestedDestCode !== trainFinalDestCode;
 
-    // Class & Quota
-    const travelClass = primaryLeg.service?.class || primaryLeg.travelClass || booking.metadata?.travelClass || 'Sleeper (SL)';
-    const quota = booking.metadata?.quota || 'General (GN)';
-    const distanceKm = snap.totalDistance ? Math.round(snap.totalDistance) : 998;
-    const durationStr = formatDuration(snap.duration);
+    // Duration & Distance
+    const distanceKm = snap.totalDistance ? Math.round(snap.totalDistance) : null;
+    const durationStr = formatDuration(snap.duration || snap.totalDurationMinutes);
 
     // Timings
-    const depDate = snap.departureTime || primaryLeg.departureTime || booking.createdAt || new Date();
-    const arrDate = snap.arrivalTime || (legs.length > 0 ? legs[legs.length - 1].arrivalTime : null) || new Date();
-
+    const depDate = snap.departureTime || firstLeg.depTime || booking.createdAt || new Date();
+    const arrDate = snap.arrivalTime || lastLeg.arrTime || new Date();
     const fromDateStr = formatIstDate(depDate);
     const fromTimeStr = `${formatIstTime(depDate)} IST`;
     const toDateStr = formatIstDate(arrDate);
     const toTimeStr = `${formatIstTime(arrDate)} IST`;
 
-    // Reference & PNR
-    const pnr = booking.pnr || booking.bookingReference || 'YI-4820917365';
+    // Reference & PNR (no fake PNR numbers)
+    const pnr = booking.pnr || null;
+    const bookingRef = booking.bookingReference || `YTR-${Date.now().toString().slice(-8)}`;
+    const isConfirmed = Boolean(booking.isConfirmed && booking.status === 'confirmed');
     const txnId =
       booking.metadata?.transactionId ||
-      `TXN${(booking._id ? String(booking._id).slice(-12) : '100006800637279').toUpperCase()}`;
+      (booking._id ? `TXN${String(booking._id).slice(-12).toUpperCase()}` : `TXN${Date.now().toString().slice(-10)}`);
     const bookedOnStr = `${formatIstDate(booking.createdAt)}, ${formatIstTime(booking.createdAt)}`;
 
     // Fare calculation
-    const baseFare = Number(booking.fare?.baseFare || booking.fare?.totalFare || 780);
-    const convenienceFee = Number(booking.fare?.taxesAndFees > 0 ? booking.fare.taxesAndFees : 11.8);
+    const baseFare = Number(booking.fare?.baseFare || booking.fare?.totalFare || 0);
+    const convenienceFee = Number(booking.fare?.taxesAndFees || 0);
     const passengersList = Array.isArray(booking.passengerDetails) && booking.passengerDetails.length > 0
       ? booking.passengerDetails
       : [{ name: 'Passenger 1', age: 28, gender: 'male', berthPreference: 'lower' }];
-    const insuranceFee = Number((0.45 * passengersList.length).toFixed(2));
-    const totalFare = Number((baseFare + convenienceFee + insuranceFee).toFixed(2));
+    const totalFare = Number(booking.fare?.totalFare || (baseFare + convenienceFee));
 
     // Generate Scannable QR Code PNG Buffer
     const qrPayload = JSON.stringify({
-      pnr,
-      train: trainNum,
-      from: fromCode,
-      to: toCode,
+      ref: bookingRef,
+      pnr: pnr || 'PENDING',
+      train: isMultiLeg ? `${normalizedLegs.length} Trains` : (firstLeg.trainNum || 'Train'),
+      from: overallFromCode,
+      to: overallToCode,
       date: fromDateStr,
       passengers: passengersList.length,
       txn: txnId,
@@ -177,7 +187,7 @@ export const pdfService = {
     let qrPngBuffer = null;
     try {
       qrPngBuffer = await QRCode.toBuffer(qrPayload, {
-        width: 160,
+        width: 140,
         margin: 1,
         color: { dark: '#0f172a', light: '#ffffff' },
       });
@@ -189,14 +199,14 @@ export const pdfService = {
       try {
         const doc = new PDFDocument({
           size: 'A4',
-          margin: 24,
+          margin: 20,
           autoFirstPage: true,
           bufferPages: true,
           info: {
-            Title: `YatraI E-Ticket - ${pnr}`,
+            Title: `YatraI E-Ticket - ${bookingRef}`,
             Author: 'Yatrai Travel Intelligence Platform',
             Subject: 'Electronic Reservation Slip / E-Ticket',
-            Keywords: 'Yatrai, IRCTC, Railway, Travel, E-Ticket',
+            Keywords: 'Yatrai, IRCTC, Railway, Travel, E-Ticket, Multi-Leg',
           },
         });
 
@@ -205,253 +215,340 @@ export const pdfService = {
         doc.on('end', () => resolve(Buffer.concat(buffers)));
         doc.on('error', (err) => reject(err));
 
-        const pageLeft = 24;
-        const pageWidth = 595.28 - 48; // 547.28 pt
-        let currentY = 24;
+        const pageLeft = 20;
+        const pageWidth = 595.28 - 40; // 555.28 pt
+        let currentY = 20;
 
-        const primaryIndigo = '#4f46e5';
-        const darkInk = '#0f172a';
-        const mutedGray = '#64748b';
-        const lineGray = '#e2e8f0';
+        const brandAmber = '#D97706'; // rich amber for print legibility
+        const darkGraphite = '#0f172a';
         const cardBg = '#f8fafc';
-        const okGreen = '#16a34a';
-        const okBg = '#dcfce7';
+        const lineGray = '#cbd5e1';
+        const mutedGray = '#64748b';
+        const successGreen = '#15803d';
+        const warningAmber = '#b45309';
 
         // 1. Header Banner
-        const headerHeight = 52;
-        doc.roundedRect(pageLeft, currentY, pageWidth, headerHeight, 8).fill(primaryIndigo);
+        const headerHeight = 44;
+        doc.roundedRect(pageLeft, currentY, pageWidth, headerHeight, 6).fill(darkGraphite);
 
-        // Logo mark & text
-        doc.fillColor('#ffffff').fontSize(22).font('Helvetica-Bold').text('Yatra', pageLeft + 16, currentY + 12, { continued: true });
-        doc.fillColor('#f59e0b').text('I');
-        doc.fillColor('#e0e7ff').fontSize(7.5).font('Helvetica').text('SMART TRAVEL, SIMPLIFIED', pageLeft + 16, currentY + 35);
+        // Logo text
+        doc.fillColor('#ffffff').fontSize(18).font('Helvetica-Bold').text('Yatra', pageLeft + 14, currentY + 10, { continued: true });
+        doc.fillColor('#F59E0B').text('i');
+        doc.fillColor('#94a3b8').fontSize(7).font('Helvetica').text('INTELLIGENT RAILWAY ROUTING & TICKETING', pageLeft + 14, currentY + 30);
 
-        // Title on Right
-        doc.fillColor('#ffffff').fontSize(13).font('Helvetica-Bold').text('E-Ticket / Reservation Slip', pageLeft + 250, currentY + 11, {
-          width: pageWidth - 266,
+        // Title and status on Right
+        doc.fillColor('#ffffff').fontSize(11).font('Helvetica-Bold').text('E-TICKET / RESERVATION SLIP', pageLeft + 230, currentY + 9, {
+          width: pageWidth - 244,
           align: 'right',
         });
 
-        // Status Badge Pill
-        const pillW = 100;
-        const pillH = 17;
-        const pillX = pageLeft + pageWidth - pillW - 16;
-        const pillY = currentY + 28;
-        doc.roundedRect(pillX, pillY, pillW, pillH, 8).fill('#4338ca');
-        doc.circle(pillX + 11, pillY + 8.5, 3.5).fill('#4ade80');
-        doc.fillColor('#ffffff').fontSize(8.5).font('Helvetica-Bold').text('CONFIRMED', pillX + 18, pillY + 4, {
-          width: pillW - 20,
-          align: 'center',
-        });
+        const pillW = 92;
+        const pillH = 15;
+        const pillX = pageLeft + pageWidth - pillW - 14;
+        const pillY = currentY + 23;
+        doc.roundedRect(pillX, pillY, pillW, pillH, 4).fill(isConfirmed ? successGreen : warningAmber);
+        doc.fillColor('#ffffff').fontSize(7.5).font('Helvetica-Bold').text(
+          isConfirmed ? 'CONFIRMED' : 'ITINERARY SUMMARY',
+          pillX,
+          pillY + 3.5,
+          { width: pillW, align: 'center' }
+        );
 
-        currentY += headerHeight + 10;
+        currentY += headerHeight + 8;
 
-        // 2. Journey Section
-        const journeyY = currentY;
-        const journeyH = 68;
-        doc.roundedRect(pageLeft, journeyY, pageWidth, journeyH, 8).fillAndStroke(cardBg, lineGray);
-
-        // From Station
-        doc.fillColor(darkInk).fontSize(26).font('Courier-Bold').text(fromCode, pageLeft + 16, journeyY + 8);
-        doc.fillColor(darkInk).fontSize(11).font('Helvetica-Bold').text(fromName.slice(0, 26), pageLeft + 16, journeyY + 34);
-        doc.fillColor(mutedGray).fontSize(8).font('Helvetica').text(fromDateStr, pageLeft + 16, journeyY + 48);
-        doc.fillColor(darkInk).fontSize(9.5).font('Helvetica-Bold').text(fromTimeStr, pageLeft + 92, journeyY + 47);
-
-        // Center track & duration
-        const midX = pageLeft + 185;
-        const midW = pageWidth - 370;
-        doc.fillColor(primaryIndigo).fontSize(8.5).font('Helvetica-Bold').text(durationStr, midX, journeyY + 14, { width: midW, align: 'center' });
-
-        // Track line with TRAIN center badge
-        doc.strokeColor(primaryIndigo).lineWidth(1).dash(4, { space: 3 }).moveTo(midX + 10, journeyY + 32).lineTo(midX + midW - 10, journeyY + 32).stroke().undash();
-        doc.roundedRect(midX + (midW / 2) - 18, journeyY + 24, 36, 15, 4).fillAndStroke('#ffffff', primaryIndigo);
-        doc.fillColor(primaryIndigo).fontSize(7).font('Helvetica-Bold').text('TRAIN', midX + (midW / 2) - 18, journeyY + 28, { width: 36, align: 'center' });
-        doc.fillColor(mutedGray).fontSize(8).font('Helvetica').text(`${distanceKm} km`, midX, journeyY + 46, { width: midW, align: 'center' });
-
-        // To Station
-        doc.fillColor(darkInk).fontSize(26).font('Courier-Bold').text(toCode, pageLeft + pageWidth - 160, journeyY + 8, { width: 144, align: 'right' });
-        doc.fillColor(darkInk).fontSize(11).font('Helvetica-Bold').text(toName.slice(0, 26), pageLeft + pageWidth - 160, journeyY + 34, { width: 144, align: 'right' });
-        doc.fillColor(mutedGray).fontSize(8).font('Helvetica').text(toDateStr, pageLeft + pageWidth - 160, journeyY + 48, { width: 85, align: 'right' });
-        doc.fillColor(darkInk).fontSize(9.5).font('Helvetica-Bold').text(toTimeStr, pageLeft + pageWidth - 70, journeyY + 47, { width: 54, align: 'right' });
-
-        currentY += journeyH + 10;
-
-        // 3. 8-Cell Info Grid
-        const gridY = currentY;
-        const gridCols = 4;
-        const colW = pageWidth / gridCols;
-        const rowH = 28;
-        const gridH = rowH * 2;
-
-        doc.roundedRect(pageLeft, gridY, pageWidth, gridH, 6).fillAndStroke('#ffffff', lineGray);
-        doc.strokeColor(lineGray).lineWidth(0.5);
-        doc.moveTo(pageLeft, gridY + rowH).lineTo(pageLeft + pageWidth, gridY + rowH).stroke();
-        for (let c = 1; c < gridCols; c++) {
-          doc.moveTo(pageLeft + c * colW, gridY).lineTo(pageLeft + c * colW, gridY + gridH).stroke();
+        // 2. Journey Overview Bar
+        const barH = 22;
+        doc.roundedRect(pageLeft, currentY, pageWidth, barH, 4).fillAndStroke('#f1f5f9', lineGray);
+        doc.fillColor(darkGraphite).fontSize(8).font('Helvetica-Bold').text(
+          `BOOKING REF: ${bookingRef}  |  BOOKED ON: ${bookedOnStr}`,
+          pageLeft + 10,
+          currentY + 6.5
+        );
+        if (pnr) {
+          doc.fillColor(brandAmber).fontSize(8.5).font('Courier-Bold').text(
+            `PNR: ${pnr}`,
+            pageLeft + pageWidth - 140,
+            currentY + 6,
+            { width: 130, align: 'right' }
+          );
+        } else {
+          doc.fillColor(mutedGray).fontSize(7.5).font('Helvetica').text(
+            'PNR: Pending IRCTC Handoff',
+            pageLeft + pageWidth - 160,
+            currentY + 6.5,
+            { width: 150, align: 'right' }
+          );
         }
 
-        const cells = [
-          { label: 'PNR NUMBER', val: pnr, isHl: true },
-          { label: 'TRAIN', val: `${trainNum} · ${trainName}` },
-          { label: 'CLASS', val: travelClass },
-          { label: 'QUOTA', val: quota },
-          { label: 'BOARDING AT', val: `${fromName} (${fromCode})` },
-          { label: 'BOOKED ON (IST)', val: bookedOnStr },
-          { label: 'PASSENGERS', val: `${passengersList.length} Traveller(s)` },
-          { label: 'DISTANCE', val: `${distanceKm} km` },
-        ];
+        currentY += barH + 8;
 
-        cells.forEach((cell, idx) => {
-          const r = Math.floor(idx / gridCols);
-          const c = idx % gridCols;
-          const cx = pageLeft + c * colW + 8;
-          const cy = gridY + r * rowH + 4;
+        // 3. Overall Corridor Card
+        const corrH = 44;
+        doc.roundedRect(pageLeft, currentY, pageWidth, corrH, 6).fillAndStroke(cardBg, lineGray);
 
-          doc.fillColor(mutedGray).fontSize(6.5).font('Helvetica-Bold').text(cell.label, cx, cy);
-          if (cell.isHl) {
-            doc.fillColor(primaryIndigo).fontSize(9.5).font('Courier-Bold').text(cell.val, cx, cy + 10);
-          } else {
-            doc.fillColor(darkInk).fontSize(8).font('Helvetica-Bold').text(cell.val.slice(0, 26), cx, cy + 10);
+        // Origin
+        doc.fillColor(darkGraphite).fontSize(16).font('Courier-Bold').text(overallFromCode, pageLeft + 12, currentY + 6);
+        doc.fillColor(darkGraphite).fontSize(8.5).font('Helvetica-Bold').text(overallFromName.slice(0, 24), pageLeft + 12, currentY + 22);
+        doc.fillColor(mutedGray).fontSize(7).font('Helvetica').text(`${fromDateStr} · ${fromTimeStr}`, pageLeft + 12, currentY + 32);
+
+        // Center Duration / Type
+        const centerMidX = pageLeft + 150;
+        const centerMidW = pageWidth - 300;
+        doc.fillColor(brandAmber).fontSize(8).font('Helvetica-Bold').text(
+          isMultiLeg ? `Multi-Leg Connection (${normalizedLegs.length} Trains)` : 'Direct Rail Service',
+          centerMidX,
+          currentY + 8,
+          { width: centerMidW, align: 'center' }
+        );
+        doc.strokeColor(brandAmber).lineWidth(0.8).dash(3, { space: 2 })
+          .moveTo(centerMidX + 20, currentY + 23)
+          .lineTo(centerMidX + centerMidW - 20, currentY + 23)
+          .stroke().undash();
+        doc.fillColor(mutedGray).fontSize(7.5).font('Helvetica').text(
+          durationStr + (distanceKm ? ` · ${distanceKm} km` : ''),
+          centerMidX,
+          currentY + 28,
+          { width: centerMidW, align: 'center' }
+        );
+
+        // Destination
+        doc.fillColor(darkGraphite).fontSize(16).font('Courier-Bold').text(overallToCode, pageLeft + pageWidth - 130, currentY + 6, { width: 118, align: 'right' });
+        doc.fillColor(darkGraphite).fontSize(8.5).font('Helvetica-Bold').text(overallToName.slice(0, 24), pageLeft + pageWidth - 130, currentY + 22, { width: 118, align: 'right' });
+        doc.fillColor(mutedGray).fontSize(7).font('Helvetica').text(`${toDateStr} · ${toTimeStr}`, pageLeft + pageWidth - 130, currentY + 32, { width: 118, align: 'right' });
+
+        currentY += corrH + 8;
+
+        // 4. Multi-Leg Segments & Transfers (Requirement 1 & 2)
+        doc.fillColor(darkGraphite).fontSize(8.5).font('Helvetica-Bold').text(
+          isMultiLeg ? `JOURNEY TRAIN SEGMENTS (${normalizedLegs.length} LEGS)` : 'TRAIN SERVICE DETAILS',
+          pageLeft,
+          currentY
+        );
+        currentY += 11;
+
+        normalizedLegs.forEach((leg, idx) => {
+          const legH = 40;
+          doc.roundedRect(pageLeft, currentY, pageWidth, legH, 4).fillAndStroke('#ffffff', lineGray);
+
+          // Leg Tag
+          doc.roundedRect(pageLeft + 6, currentY + 6, 42, 13, 2).fill(isMultiLeg ? '#f1f5f9' : '#f8fafc');
+          doc.fillColor(darkGraphite).fontSize(6.5).font('Helvetica-Bold').text(
+            `LEG ${leg.legIndex}`,
+            pageLeft + 6,
+            currentY + 9,
+            { width: 42, align: 'center' }
+          );
+
+          // Train info
+          const tText = leg.trainNum ? `${leg.trainNum} · ${leg.trainName}` : leg.trainName;
+          doc.fillColor(darkGraphite).fontSize(8).font('Helvetica-Bold').text(
+            tText.slice(0, 32),
+            pageLeft + 54,
+            currentY + 7
+          );
+          doc.fillColor(mutedGray).fontSize(7).font('Helvetica').text(
+            `Class: ${leg.travelClass}  |  Quota: ${leg.quota}`,
+            pageLeft + 54,
+            currentY + 20
+          );
+
+          // Dep -> Arr
+          const depArrStr = `${leg.fromCode} (${formatIstTime(leg.depTime)}) → ${leg.toCode} (${formatIstTime(leg.arrTime)})`;
+          doc.fillColor(darkGraphite).fontSize(8).font('Courier-Bold').text(
+            depArrStr,
+            pageLeft + 220,
+            currentY + 7
+          );
+          doc.fillColor(mutedGray).fontSize(7).font('Helvetica').text(
+            `${leg.fromName} to ${leg.toName}`,
+            pageLeft + 220,
+            currentY + 20
+          );
+
+          // Leg Fare & Status
+          const legFareStr = leg.fare > 0 ? `Rs. ${leg.fare.toFixed(2)}` : 'Included';
+          doc.fillColor(darkGraphite).fontSize(8).font('Helvetica-Bold').text(
+            legFareStr,
+            pageLeft + pageWidth - 100,
+            currentY + 7,
+            { width: 92, align: 'right' }
+          );
+          doc.fillColor(isConfirmed ? successGreen : warningAmber).fontSize(6.5).font('Helvetica-Bold').text(
+            leg.legPnr ? `PNR: ${leg.legPnr}` : leg.legStatus,
+            pageLeft + pageWidth - 110,
+            currentY + 20,
+            { width: 102, align: 'right' }
+          );
+
+          currentY += legH + 4;
+
+          // Transfer junction between legs
+          if (idx < normalizedLegs.length - 1) {
+            const nextLeg = normalizedLegs[idx + 1];
+            const transH = 20;
+            const transX = pageLeft + 16;
+            const transW = pageWidth - 32;
+
+            doc.roundedRect(transX, currentY, transW, transH, 3).fillAndStroke('#fffbeb', '#fde68a');
+            doc.fillColor('#92400e').fontSize(7).font('Helvetica-Bold').text(
+              `TRANSFER AT ${leg.toCode} (${leg.toName}):`,
+              transX + 8,
+              currentY + 5.5,
+              { continued: true }
+            );
+            doc.font('Helvetica').text(
+              ` Arrive ${formatIstTime(leg.arrTime)} · Depart next train ${formatIstTime(nextLeg.depTime)} · Scheduled Connection timing validated`,
+              { width: transW - 16 }
+            );
+
+            currentY += transH + 4;
           }
         });
 
-        currentY += gridH + 12;
+        // Onward destination disclosure if final train != requested destination
+        if (hasOnwardNotice) {
+          const onwH = 18;
+          doc.roundedRect(pageLeft, currentY, pageWidth, onwH, 3).fillAndStroke('#eff6ff', '#bfdbfe');
+          doc.fillColor('#1e40af').fontSize(6.5).font('Helvetica-Bold').text(
+            'ONWARD JOURNEY REQUIRED: ',
+            pageLeft + 8,
+            currentY + 5,
+            { continued: true }
+          );
+          doc.font('Helvetica').text(
+            `Final train terminates at ${trainFinalDestCode}. Passenger must arrange onward local transit to final destination ${requestedDestCode}.`,
+            { width: pageWidth - 16 }
+          );
+          currentY += onwH + 6;
+        }
 
-        // 4. Passenger Details Table
-        doc.fillColor(primaryIndigo).fontSize(9.5).font('Helvetica-Bold').text('PASSENGER DETAILS', pageLeft, currentY);
-        currentY += 13;
+        // 5. Passenger Table (Real seat logic, no fake H1/A1 allocations)
+        doc.fillColor(darkGraphite).fontSize(8.5).font('Helvetica-Bold').text('PASSENGER DETAILS', pageLeft, currentY);
+        currentY += 10;
 
-        // Header row
-        doc.rect(pageLeft, currentY, pageWidth, 16).fillAndStroke('#f1f5f9', lineGray);
-        doc.fillColor(mutedGray).fontSize(7).font('Helvetica-Bold');
-        doc.text('#', pageLeft + 8, currentY + 4);
-        doc.text('PASSENGER NAME', pageLeft + 30, currentY + 4);
-        doc.text('AGE', pageLeft + 220, currentY + 4);
-        doc.text('GENDER', pageLeft + 265, currentY + 4);
-        doc.text('SEAT / BERTH', pageLeft + 325, currentY + 4);
-        doc.text('STATUS', pageLeft + 475, currentY + 4);
-        currentY += 16;
+        // Table header
+        const thH = 14;
+        doc.rect(pageLeft, currentY, pageWidth, thH).fillAndStroke('#f1f5f9', lineGray);
+        doc.fillColor(mutedGray).fontSize(6.5).font('Helvetica-Bold');
+        doc.text('#', pageLeft + 8, currentY + 3.5);
+        doc.text('PASSENGER NAME', pageLeft + 26, currentY + 3.5);
+        doc.text('AGE', pageLeft + 200, currentY + 3.5);
+        doc.text('GENDER', pageLeft + 240, currentY + 3.5);
+        doc.text('BERTH PREFERENCE', pageLeft + 300, currentY + 3.5);
+        doc.text('SEAT / BERTH ALLOCATION', pageLeft + 390, currentY + 3.5);
+        doc.text('STATUS', pageLeft + pageWidth - 55, currentY + 3.5);
+        currentY += thH;
 
         passengersList.forEach((p, idx) => {
-          const rowHeight = 22;
-          doc.rect(pageLeft, currentY, pageWidth, rowHeight).fillAndStroke(idx % 2 === 0 ? '#ffffff' : '#fafafa', lineGray);
+          const trH = 18;
+          doc.rect(pageLeft, currentY, pageWidth, trH).fillAndStroke(idx % 2 === 0 ? '#ffffff' : '#fafafa', lineGray);
 
-          const seatFormatted = getSeatAssignment(p, idx, travelClass);
+          const seatText = getSeatAssignment(p, isConfirmed);
 
-          doc.fillColor(darkInk).fontSize(8).font('Helvetica-Bold').text(String(idx + 1), pageLeft + 8, currentY + 6);
-          doc.text((p.name || 'Traveller').slice(0, 30), pageLeft + 30, currentY + 6);
-          doc.font('Helvetica').text(String(p.age || 25), pageLeft + 220, currentY + 6);
-          doc.text((p.gender || 'M').charAt(0).toUpperCase() + (p.gender || 'M').slice(1), pageLeft + 265, currentY + 6);
-          doc.font('Courier-Bold').text(seatFormatted, pageLeft + 325, currentY + 6);
+          doc.fillColor(darkGraphite).fontSize(7.5).font('Helvetica-Bold').text(String(idx + 1), pageLeft + 8, currentY + 5);
+          doc.text((p.name || `Passenger ${idx + 1}`).slice(0, 28), pageLeft + 26, currentY + 5);
+          doc.font('Helvetica').text(String(p.age || '—'), pageLeft + 200, currentY + 5);
+          doc.text(String(p.gender || '—').toUpperCase(), pageLeft + 240, currentY + 5);
+          doc.text(String(p.berthPreference || 'No preference').replace(/_/g, ' '), pageLeft + 300, currentY + 5);
+          doc.font('Courier-Bold').text(seatText, pageLeft + 390, currentY + 5);
 
-          // Status pill
-          const sPillW = 42;
-          const sPillH = 14;
-          const sPillX = pageLeft + 475;
-          const sPillY = currentY + 4;
-          doc.roundedRect(sPillX, sPillY, sPillW, sPillH, 7).fill(okBg);
-          doc.fillColor(okGreen).fontSize(7.5).font('Helvetica-Bold').text('CNF', sPillX, sPillY + 3, {
-            width: sPillW,
-            align: 'center',
-          });
+          doc.fillColor(isConfirmed ? successGreen : warningAmber).fontSize(7).font('Helvetica-Bold').text(
+            isConfirmed ? 'CNF' : 'SUMMARY',
+            pageLeft + pageWidth - 55,
+            currentY + 5
+          );
 
-          currentY += rowHeight;
+          currentY += trH;
         });
 
-        currentY += 12;
+        currentY += 8;
 
-        // 5. Payment Details + QR Section
-        doc.fillColor(primaryIndigo).fontSize(9.5).font('Helvetica-Bold').text('PAYMENT & VERIFICATION', pageLeft, currentY);
-        currentY += 13;
+        // 6. Fare Breakdown + QR Box
+        doc.fillColor(darkGraphite).fontSize(8.5).font('Helvetica-Bold').text('PAYMENT & FARE BREAKDOWN', pageLeft, currentY);
+        currentY += 10;
 
-        const paySectionY = currentY;
-        const payBoxW = pageWidth - 145;
-        const qrBoxW = 135;
+        const payBoxW = pageWidth - 125;
+        const qrBoxW = 115;
         const qrBoxX = pageLeft + pageWidth - qrBoxW;
-        const payH = 88;
+        const payH = 68;
 
-        // Fare box
-        doc.roundedRect(pageLeft, paySectionY, payBoxW, payH, 6).fillAndStroke('#ffffff', lineGray);
+        doc.roundedRect(pageLeft, currentY, payBoxW, payH, 4).fillAndStroke('#ffffff', lineGray);
 
-        const fareRows = [
-          { lbl: 'Ticket Fare', amt: `Rs. ${baseFare.toFixed(2)}` },
-          { lbl: 'YatraI Convenience Fee (incl. GST)', amt: `Rs. ${convenienceFee.toFixed(2)}` },
-          { lbl: 'Travel Insurance (incl. GST)', amt: `Rs. ${insuranceFee.toFixed(2)}` },
-        ];
+        let rY = currentY + 6;
+        if (isMultiLeg) {
+          normalizedLegs.forEach((leg) => {
+            const lFare = leg.fare > 0 ? leg.fare : (baseFare / normalizedLegs.length);
+            doc.fillColor(mutedGray).fontSize(6.5).font('Helvetica').text(
+              `Leg ${leg.legIndex} Fare (${leg.trainNum} · ${leg.fromCode}→${leg.toCode}):`,
+              pageLeft + 10,
+              rY
+            );
+            doc.fillColor(darkGraphite).fontSize(7).font('Helvetica-Bold').text(
+              `Rs. ${lFare.toFixed(2)}`,
+              pageLeft + payBoxW - 80,
+              rY,
+              { width: 70, align: 'right' }
+            );
+            rY += 12;
+          });
+        } else {
+          doc.fillColor(mutedGray).fontSize(7).font('Helvetica').text('Base Ticket Fare:', pageLeft + 10, rY);
+          doc.fillColor(darkGraphite).fontSize(7.5).font('Helvetica-Bold').text(`Rs. ${baseFare.toFixed(2)}`, pageLeft + payBoxW - 80, rY, { width: 70, align: 'right' });
+          rY += 14;
+        }
 
-        let rY = paySectionY + 8;
-        fareRows.forEach((r) => {
-          doc.fillColor(mutedGray).fontSize(7.5).font('Helvetica').text(r.lbl, pageLeft + 12, rY);
-          doc.fillColor(darkInk).fontSize(8).font('Helvetica-Bold').text(r.amt, pageLeft + payBoxW - 85, rY, { width: 73, align: 'right' });
-          rY += 16;
-        });
+        doc.fillColor(mutedGray).fontSize(6.5).font('Helvetica').text('Yatrai Platform & Surcharge (incl. GST):', pageLeft + 10, rY);
+        doc.fillColor(darkGraphite).fontSize(7).font('Helvetica-Bold').text(`Rs. ${convenienceFee.toFixed(2)}`, pageLeft + payBoxW - 80, rY, { width: 70, align: 'right' });
+        rY += 12;
 
-        // Total divider
-        doc.strokeColor(lineGray).lineWidth(0.5).dash(3, { space: 2 }).moveTo(pageLeft + 12, rY).lineTo(pageLeft + payBoxW - 12, rY).stroke().undash();
-        rY += 6;
+        doc.strokeColor(lineGray).lineWidth(0.5).dash(2, { space: 2 }).moveTo(pageLeft + 10, rY).lineTo(pageLeft + payBoxW - 10, rY).stroke().undash();
+        rY += 5;
 
-        doc.fillColor(primaryIndigo).fontSize(8.5).font('Helvetica-Bold').text('Total Fare (All Inclusive)', pageLeft + 12, rY);
-        doc.fillColor(primaryIndigo).fontSize(10).font('Helvetica-Bold').text(`Rs. ${totalFare.toFixed(2)}`, pageLeft + payBoxW - 95, rY, { width: 83, align: 'right' });
+        doc.fillColor(darkGraphite).fontSize(7.5).font('Helvetica-Bold').text('Total Journey Fare (All Inclusive):', pageLeft + 10, rY);
+        doc.fillColor(brandAmber).fontSize(8.5).font('Helvetica-Bold').text(`Rs. ${totalFare.toFixed(2)}`, pageLeft + payBoxW - 85, rY, { width: 75, align: 'right' });
 
         // QR Code Box
-        doc.roundedRect(qrBoxX, paySectionY, qrBoxW, payH, 6).fillAndStroke('#ffffff', lineGray);
-
+        doc.roundedRect(qrBoxX, currentY, qrBoxW, payH, 4).fillAndStroke('#ffffff', lineGray);
         if (qrPngBuffer) {
-          doc.image(qrPngBuffer, qrBoxX + 32, paySectionY + 6, { width: 70, height: 70 });
-        } else {
-          doc.fillColor(mutedGray).fontSize(10).font('Courier-Bold').text('YATRAI QR', qrBoxX, paySectionY + 30, { width: qrBoxW, align: 'center' });
+          doc.image(qrPngBuffer, qrBoxX + 28, currentY + 4, { width: 58, height: 58 });
         }
-        doc.fillColor(mutedGray).fontSize(6.5).font('Helvetica').text('Scan at verification', qrBoxX, paySectionY + 77, { width: qrBoxW, align: 'center' });
+        doc.fillColor(mutedGray).fontSize(5.5).font('Helvetica').text('Scan for verified summary', qrBoxX, currentY + 59, { width: qrBoxW, align: 'center' });
 
-        currentY += payH + 6;
+        currentY += payH + 8;
 
-        // Transaction ID line
-        doc.fillColor(mutedGray).fontSize(7).font('Helvetica').text('Transaction ID: ', pageLeft, currentY, { continued: true });
-        doc.fillColor(darkInk).font('Courier-Bold').text(txnId, { continued: true });
-        doc.fillColor(mutedGray).font('Helvetica').text('  ·  Payment gateway charges, if any, are included.');
+        // 7. IRCTC Regulatory Notice (Section 4 Integrity Rule)
+        const advH = 36;
+        doc.roundedRect(pageLeft, currentY, pageWidth, advH, 4).fillAndStroke('#fffbeb', '#fde68a');
+        doc.fillColor('#92400e').fontSize(6.5).font('Helvetica-Bold').text(
+          'IRCTC TICKETING & MULTI-LEG TRAVEL REGULATIONS:',
+          pageLeft + 8,
+          currentY + 5
+        );
+        doc.font('Helvetica').fontSize(6).text(
+          '1. In accordance with Indian Railways rules, multi-leg connecting journeys require individual ticket reservations for each train segment.\n' +
+          '2. This summary verifies optimal route schedules and connection timings. Confirmed IRCTC reservations must be finalized on official IRCTC channels.\n' +
+          '3. At least one traveller must carry original government photo ID (Aadhaar / Voter ID / Passport) during journey. Reselling tickets is punishable under the Railways Act.',
+          pageLeft + 8,
+          currentY + 14,
+          { width: pageWidth - 16, lineGap: 1 }
+        );
 
-        currentY += 14;
+        currentY += advH + 8;
 
-        // 6. Tear Line with coupon notches
-        const tearY = currentY;
-        doc.strokeColor(lineGray).lineWidth(1).dash(4, { space: 3 }).moveTo(pageLeft, tearY).lineTo(pageLeft + pageWidth, tearY).stroke().undash();
-        doc.circle(pageLeft - 4, tearY, 6).fill('#ffffff').stroke(lineGray);
-        doc.circle(pageLeft + pageWidth + 4, tearY, 6).fill('#ffffff').stroke(lineGray);
-
-        currentY += 12;
-
-        // 7. Travel Advisory Notice
-        const alertH = 26;
-        doc.roundedRect(pageLeft, currentY, pageWidth, alertH, 6).fillAndStroke('#fffbeb', '#fde68a');
-        doc.fillColor('#92400e').fontSize(7.5).font('Helvetica-Bold').text('TRAVEL ADVISORY: ', pageLeft + 10, currentY + 8, { continued: true });
-        doc.font('Helvetica').text('Carry a valid original photo ID of any one passenger during travel. Departure/arrival times may change — please check latest timings before boarding.', { width: pageWidth - 20 });
-
-        currentY += alertH + 10;
-
-        // 8. Important Instructions
-        doc.fillColor(primaryIndigo).fontSize(8.5).font('Helvetica-Bold').text('IMPORTANT INSTRUCTIONS', pageLeft, currentY);
-        currentY += 12;
-
-        const instructions = [
-          'Fully waitlisted ticket is cancelled automatically and refunded after applicable deductions; such passengers cannot board.',
-          'Cancel or file for refund before the scheduled departure as per railway refund rules.',
-          'Refunds are credited to the original payment source.',
-          'Buy tickets only from authorised platforms. Reselling tickets booked on personal accounts is an offence.',
-          'YatraI will never ask for OTP, card PIN or passwords. Beware of fraudulent messages and calls.',
-        ];
-
-        instructions.forEach((ins) => {
-          doc.fillColor(primaryIndigo).fontSize(8).font('Helvetica-Bold').text('•', pageLeft + 4, currentY, { continued: true });
-          doc.fillColor('#334155').fontSize(7).font('Helvetica').text(`  ${ins}`, pageLeft + 12, currentY, { width: pageWidth - 20, lineGap: 0.5 });
-          currentY += 11;
-        });
-
-        // 9. Dark Footer Banner (placed at bottom Y = 782)
-        const footY = 782;
-        const footH = 24;
-        doc.rect(pageLeft, footY, pageWidth, footH).fill('#0f172a');
-        doc.fillColor('#94a3b8').fontSize(7.5).font('Helvetica').text('YatraI Support  ·  +91-80000-YATRA  ·  support@yatrai.in', pageLeft + 12, footY + 7);
-        doc.fillColor('#ffffff').fontSize(7.5).font('Helvetica-Bold').text('yatrai.in', pageLeft + pageWidth - 60, footY + 7);
+        // 8. Dark Footer
+        const footY = 800;
+        const footH = 22;
+        doc.rect(pageLeft, footY, pageWidth, footH).fill(darkGraphite);
+        doc.fillColor('#94a3b8').fontSize(6.5).font('Helvetica').text(
+          'Yatrai Support  ·  support@yatrai.in  ·  One Goal. Every Route.',
+          pageLeft + 10,
+          footY + 7
+        );
+        doc.fillColor('#ffffff').fontSize(7).font('Helvetica-Bold').text(
+          'yatrai.in',
+          pageLeft + pageWidth - 50,
+          footY + 7
+        );
 
         doc.end();
       } catch (err) {

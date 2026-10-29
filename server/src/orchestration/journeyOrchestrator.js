@@ -880,10 +880,11 @@ export class JourneyOrchestrator {
 
     const name = (typeof stnData === 'object' ? (stnData.name || stnData.displayName) : '') || code;
 
-    if (code && /^[A-Z]{2,5}$/.test(code)) {
+    if (code && /^[A-Z]{1,5}$/.test(code)) {
       try {
         let existing = await Location.findOne({
           $or: [
+            { stationCode: code },
             { 'metadata.stationCode': code },
             { aliases: code },
           ],
@@ -900,6 +901,7 @@ export class JourneyOrchestrator {
           name: stnName,
           displayName: regStn?.displayName || `${stnName} - ${code}`,
           type: 'railway_station',
+          stationCode: code,
           city: stnCity,
           state: regStn?.state || 'India',
           country: 'India',

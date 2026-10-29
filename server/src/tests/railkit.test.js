@@ -56,7 +56,7 @@ describe('formatJourneyDate (internal format)', () => {
 
 describe('RailKit adapter station code validation', () => {
   // We test the format check logic directly (same regex as adapter)
-  const STATION_CODE_RE = /^[A-Z]{2,5}$/;
+  const STATION_CODE_RE = /^[A-Z]{1,5}$/;
 
   it('accepts valid station codes', () => {
     assert.ok(STATION_CODE_RE.test('NDLS'));
@@ -64,10 +64,10 @@ describe('RailKit adapter station code validation', () => {
     assert.ok(STATION_CODE_RE.test('MAS'));
     assert.ok(STATION_CODE_RE.test('HWH'));
     assert.ok(STATION_CODE_RE.test('SBC'));
+    assert.ok(STATION_CODE_RE.test('R')); // Raipur Jn (1-letter valid code)
   });
 
   it('rejects invalid station codes', () => {
-    assert.ok(!STATION_CODE_RE.test('N'), 'Too short');
     assert.ok(!STATION_CODE_RE.test('NDLSXX'), 'Too long');
     assert.ok(!STATION_CODE_RE.test('ndls'), 'Lowercase');
     assert.ok(!STATION_CODE_RE.test('12345'), 'Digits only');

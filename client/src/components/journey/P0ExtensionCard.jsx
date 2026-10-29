@@ -62,7 +62,7 @@ export function P0ExtensionCardInner({
   const trainNumber = plan.trainNumber || plan.trainNo || '';
   const trainName = plan.trainName || 'Express';
   const fromCode = plan.from || '';
-  const destCode = plan.to || destinationCode || '';
+  const destCode = plan.deboardStationCode || plan.to || destinationCode || '';
   const extendedTo = plan.bookedTo || plan.extendedTo || '';
   const extendedStationName = plan.extendedStationName || extendedTo;
   const laneClass = plan.laneClass || plan.class || '3A';
@@ -76,6 +76,28 @@ export function P0ExtensionCardInner({
   const arrTime = plan.destinationArrivalTime || plan.arrivalTime || '00:00';
   const extendedArrTime = plan.extendedArrivalTime || '';
 
+  // Determine actual availability status
+  const tier = (plan.tier || '').toUpperCase();
+  const rawStatusText = String(plan.status || plan.availability?.statusText || '').toUpperCase();
+  const isAvailable = (tier === 'CONFIRMED' || tier === 'AVAILABLE' || /\bAVL\b|\bAVAILABLE\b/i.test(rawStatusText)) &&
+    !rawStatusText.includes('NOT AVAILABLE') &&
+    !rawStatusText.includes('REGRET');
+  const isWaitlist = (tier === 'WAITLIST' || tier === 'RISKY' || /\bWL\b|\bGNWL\b|\bRLWL\b|\bPQWL\b/i.test(rawStatusText)) && !isAvailable;
+  const isUnavailable = tier === 'UNAVAILABLE' || /NOT AVAILABLE|REGRET|CANCEL/i.test(rawStatusText);
+
+  let badgeStyle = 'bg-[#1F242C] border border-[#303640] text-[#A7AFBA]';
+  let badgeLabel = 'SCHEDULE VERIFIED';
+  if (isAvailable) {
+    badgeStyle = 'bg-[#4CC38A]/10 border border-[#4CC38A]/30 text-[#4CC38A]';
+    badgeLabel = 'AVAILABLE';
+  } else if (isWaitlist) {
+    badgeStyle = 'bg-[#E07B39]/10 border border-[#E07B39]/30 text-[#E07B39]';
+    badgeLabel = 'WAITLIST';
+  } else if (isUnavailable) {
+    badgeStyle = 'bg-[#E5484D]/10 border border-[#E5484D]/30 text-[#E5484D]';
+    badgeLabel = 'UNAVAILABLE';
+  }
+
   const handleBookClick = () => {
     if (typeof onBook === 'function') {
       onBook({
@@ -88,24 +110,21 @@ export function P0ExtensionCardInner({
 
   return (
     <div
-      className="rounded-2xl border border-emerald-500/30 bg-[#12151A] p-4 sm:p-5 shadow-lg space-y-3.5 hover:border-emerald-500/50 transition-all relative overflow-hidden"
+      className="rounded-2xl border border-[#303640] bg-[#12151A] p-4 sm:p-5 shadow-lg space-y-3.5 hover:border-[#3E4654] transition-all relative overflow-hidden"
       data-testid="p0-extension-card"
     >
-      {/* Subtle emerald accent top bar */}
-      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400" />
-
       {/* Top Badge Strip */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#242931] pb-2.5">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Strategy A Extension Pill */}
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 px-2.5 py-0.5 text-xs font-bold text-emerald-400">
-            <Sparkles className="h-3 w-3 text-emerald-400" />
+          {/* Strategy Extension Pill */}
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E8B04A]/10 border border-[#E8B04A]/30 px-2.5 py-0.5 text-xs font-bold text-[#E8B04A]">
+            <Sparkles className="h-3 w-3 text-[#E8B04A]" />
             <span>ROUTE EXTENSION</span>
           </span>
 
-          {/* Confirmed Tier */}
-          <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-bold text-emerald-300 uppercase tracking-wider">
-            CONFIRMED
+          {/* Availability Status Badge */}
+          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${badgeStyle}`}>
+            {badgeLabel}
           </span>
 
           {/* Lane Class Tag */}
@@ -116,12 +135,12 @@ export function P0ExtensionCardInner({
 
         {/* Fare Summary */}
         <div className="text-right">
-          <div className="text-sm font-bold text-[#F0F1F3]">
+          <div className="text-sm font-bold text-[#E8B04A]">
             {totalFare !== null ? `₹${totalFare.toLocaleString('en-IN')}` : 'Fare after check'}
           </div>
           {extraFare !== null && extraFare > 0 && (
-            <div className="text-[11px] text-emerald-400 font-medium">
-              +₹{extraFare} extra fare
+            <div className="text-[11px] text-[#9AA3AF] font-medium">
+              +₹{extraFare} fare difference
             </div>
           )}
         </div>
@@ -136,21 +155,24 @@ export function P0ExtensionCardInner({
             <span className="text-xs text-[#A7AFBA]">{trainName}</span>
           </div>
 
-          <div className="text-xs text-[#7E8794]">
-            {plan.status || 'AVAILABLE'}
+          <div className="text-xs text-[#9AA3AF] font-mono">
+            {plan.status || (isAvailable ? 'AVAILABLE' : 'Schedule Verified')}
           </div>
         </div>
 
         {/* Key Strategy Insight Banner */}
-        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-200 flex items-start gap-2">
-          <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-semibold text-emerald-300">
+        <div className="rounded-xl border border-[#232830] bg-[#181C22] px-3.5 py-2.5 text-xs text-[#EDEFF2] flex items-start gap-2.5">
+          <ShieldCheck className="h-4 w-4 text-[#E8B04A] shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <div className="font-semibold text-[#EDEFF2]">
               Book to {extendedTo} ({extendedStationName}) — Deboard at {destCode}
-            </span>
-            <p className="text-[11px] text-emerald-200/80 mt-0.5">
-              Waitlisted to {destCode}, but confirmed quota exists to the next stoppage.
-              You can legally deboard at {destCode}.
+            </div>
+            <p className="text-[11px] text-[#9AA3AF] leading-relaxed">
+              {isAvailable
+                ? `Confirmed seat available to ${extendedStationName} (${extendedTo}). Passengers can legally alight at ${destCode} as it is a scheduled stoppage.`
+                : isWaitlist
+                ? `Shorter waitlist quota to ${extendedStationName} (${extendedTo}). You can legally deboard at ${destCode}.`
+                : `Verified route stops at ${destCode} and extends to ${extendedStationName} (${extendedTo}). Check live availability.`}
             </p>
           </div>
         </div>
@@ -165,8 +187,8 @@ export function P0ExtensionCardInner({
         </div>
 
         <div>
-          <span className="text-[10px] uppercase tracking-wider text-emerald-400 block font-semibold">Deboard at</span>
-          <span className="font-bold text-emerald-300">{destCode}</span>
+          <span className="text-[10px] uppercase tracking-wider text-[#E8B04A] block font-semibold">Deboard at</span>
+          <span className="font-bold text-[#F0F1F3]">{destCode}</span>
           <span className="text-[#A7AFBA] block text-[11px]">{arrTime}</span>
         </div>
 
@@ -191,10 +213,23 @@ export function P0ExtensionCardInner({
         <button
           type="button"
           onClick={handleBookClick}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow-md transition-all cursor-pointer"
+          disabled={isUnavailable}
+          className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
+            isUnavailable
+              ? 'bg-[#232830] text-[#7E8794] cursor-not-allowed border border-[#303640]'
+              : 'bg-[#E8B04A] hover:bg-[#F0C066] text-[#0B0D10] shadow-sm active:scale-[0.98]'
+          }`}
         >
-          <span>Book Confirmed Berth</span>
-          <ArrowRight className="h-3.5 w-3.5" />
+          <span>
+            {isAvailable
+              ? 'Book Ticket'
+              : isWaitlist
+              ? 'Continue to Booking'
+              : isUnavailable
+              ? 'Unavailable'
+              : 'Check Availability'}
+          </span>
+          {!isUnavailable && <ArrowRight className="h-3.5 w-3.5" />}
         </button>
       </div>
 
@@ -210,13 +245,13 @@ export function P0ExtensionCardInner({
             <span className="font-mono text-[#F0F1F3]">{destCode}</span>
           </div>
           {extraFare !== null && (
-            <div className="flex items-center justify-between text-emerald-400">
-              <span>Extra fare paid for confirmed berth:</span>
+            <div className="flex items-center justify-between text-[#E8B04A]">
+              <span>Extra fare for extended stoppage:</span>
               <span>₹{extraFare}</span>
             </div>
           )}
-          <p className="text-[11px] text-[#7E8794] pt-1">
-            Indian Railways permits passengers to alight at any intermediate scheduled stoppage before the destination station mentioned on the ticket.
+          <p className="text-[11px] text-[#7E8794] pt-1 leading-relaxed">
+            Indian Railways permits passengers to alight at any intermediate scheduled stoppage before the destination station printed on the ticket.
           </p>
         </div>
       )}

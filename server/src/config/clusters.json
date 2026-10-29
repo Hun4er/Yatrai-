@@ -220,5 +220,89 @@
         "lon": 84.999504
       }
     ]
+  },
+  "chennai": {
+    "name": "Chennai",
+    "primaryCode": "MAS",
+    "stations": [
+      {
+        "code": "MAS",
+        "name": "MGR CHENNAI CENTRAL",
+        "lat": 13.0827,
+        "lon": 80.2707
+      },
+      {
+        "code": "MS",
+        "name": "CHENNAI EGMORE",
+        "lat": 13.0782,
+        "lon": 80.2608
+      },
+      {
+        "code": "PER",
+        "name": "PERAMBUR",
+        "lat": 13.1077,
+        "lon": 80.2444
+      },
+      {
+        "code": "TBM",
+        "name": "TAMBARAM",
+        "lat": 12.9249,
+        "lon": 80.1165
+      }
+    ]
+  },
+  "bangalore": {
+    "name": "Bengaluru",
+    "primaryCode": "SBC",
+    "stations": [
+      {
+        "code": "SBC",
+        "name": "KSR BENGALURU CITY JN",
+        "lat": 12.9784,
+        "lon": 77.5694
+      },
+      {
+        "code": "YPR",
+        "name": "YESVANTPUR JN",
+        "lat": 13.0238,
+        "lon": 77.5503
+      },
+      {
+        "code": "SMVB",
+        "name": "SMVT BENGALURU",
+        "lat": 13.0068,
+        "lon": 77.6534
+      },
+      {
+        "code": "KJM",
+        "name": "KRISHNARAJAPURAM",
+        "lat": 12.9961,
+        "lon": 77.6781
+      }
+    ]
+  },
+  "hyderabad": {
+    "name": "Hyderabad",
+    "primaryCode": "SC",
+    "stations": [
+      {
+        "code": "SC",
+        "name": "SECUNDERABAD JN",
+        "lat": 17.4344,
+        "lon": 78.5015
+      },
+      {
+        "code": "HYB",
+        "name": "HYDERABAD DECCAN",
+        "lat": 17.3926,
+        "lon": 78.4697
+      },
+      {
+        "code": "KCG",
+        "name": "KACHEGUDA",
+        "lat": 17.3872,
+        "lon": 78.5029
+      }
+    ]
   }
 }

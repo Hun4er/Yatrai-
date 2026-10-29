@@ -185,7 +185,7 @@ export function P0DirectTrainCard({
             <div className="h-0.5 w-full bg-[#303640]" />
             <ArrowRight className="absolute right-0 h-3 w-3 text-[#E8B04A]" />
           </div>
-          <span className="text-[10px] text-emerald-400 font-medium">Direct Train</span>
+          <span className="text-[10px] text-[#4CC38A] font-medium">Direct Train</span>
         </div>
 
         {/* Arrival with optional day offset */}

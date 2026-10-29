@@ -196,7 +196,13 @@ export const authService = {
   async loginUser({ email, password }) {
     const normalizedEmail = (email || '').trim().toLowerCase();
 
-    const user = await User.findOne({ email: normalizedEmail }).select('+passwordHash');
+    let user = await User.findOne({ email: normalizedEmail }).select('+passwordHash');
+    if (!user) {
+      // Resilient fallback for legacy accounts with un-normalized email casing in DB
+      const escaped = normalizedEmail.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+      user = await User.findOne({ email: new RegExp(`^${escaped}$`, 'i') }).select('+passwordHash');
+    }
+
     if (!user || !user.passwordHash) {
       throw createAuthError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
     }
@@ -210,9 +216,44 @@ export const authService = {
       );
     }
 
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    // Password verification with backward-compatibility for bcrypt, sha256, and md5
+    let isMatch = false;
+    let needsHashUpgrade = false;
+
+    if (user.passwordHash.startsWith('$2')) {
+      isMatch = await bcrypt.compare(password, user.passwordHash);
+      // If legacy bcrypt with < 12 rounds, schedule upgrade
+      if (isMatch && (user.passwordHash.startsWith('$2a$10$') || user.passwordHash.startsWith('$2b$10$'))) {
+        needsHashUpgrade = true;
+      }
+    } else if (user.passwordHash.length === 64 && /^[0-9a-f]+$/i.test(user.passwordHash)) {
+      // Legacy SHA-256 hash compatibility
+      const candidateHash = crypto.createHash('sha256').update(password).digest('hex');
+      isMatch = candidateHash.toLowerCase() === user.passwordHash.toLowerCase();
+      if (isMatch) needsHashUpgrade = true;
+    } else if (user.passwordHash.length === 32 && /^[0-9a-f]+$/i.test(user.passwordHash)) {
+      // Legacy MD5 hash compatibility
+      const candidateHash = crypto.createHash('md5').update(password).digest('hex');
+      isMatch = candidateHash.toLowerCase() === user.passwordHash.toLowerCase();
+      if (isMatch) needsHashUpgrade = true;
+    }
+
     if (!isMatch) {
       throw createAuthError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
+    }
+
+    // Safe inline upgrade of legacy password hashes & non-normalized emails upon successful auth
+    let shouldSave = false;
+    if (needsHashUpgrade) {
+      user.passwordHash = await bcrypt.hash(password, 12);
+      shouldSave = true;
+    }
+    if (user.email !== normalizedEmail) {
+      user.email = normalizedEmail;
+      shouldSave = true;
+    }
+    if (shouldSave) {
+      await user.save().catch(() => {});
     }
 
     const { rawRefreshToken, expiresAt } = await createRefreshSession(user._id);

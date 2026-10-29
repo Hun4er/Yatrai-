@@ -40,6 +40,12 @@ const LocationSchema = new Schema(
       },
       index: true,
     },
+    stationCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      index: true,
+    },
     city: {
       type: String,
       trim: true,

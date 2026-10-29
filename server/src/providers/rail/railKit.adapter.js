@@ -36,8 +36,8 @@ const DEFAULT_MAX_CONCURRENT = 4;
 // Station code validation cache (24-h TTL)
 const STATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-// Station code format: 2-5 uppercase letters only
-const STATION_CODE_RE = /^[A-Z]{2,5}$/;
+// Station code format: 1-5 uppercase letters only (supports 1-letter codes like 'R' for Raipur Jn)
+const STATION_CODE_RE = /^[A-Z]{1,5}$/;
 
 export class RailKitAdapter {
   constructor(options = {}) {
@@ -383,7 +383,7 @@ export class RailKitAdapter {
   async validateStation(code) {
     const upper = this._normalizeCode(code);
     if (!this._isValidCodeFormat(upper)) {
-      return { valid: false, reason: `Invalid station code format: "${code}" (must be 2-5 uppercase letters)` };
+      return { valid: false, reason: `Invalid station code format: "${code}" (must be 1-5 uppercase letters)` };
     }
     const now = Date.now();
     const cached = this._stationCache.get(upper);

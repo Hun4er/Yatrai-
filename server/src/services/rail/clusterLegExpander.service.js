@@ -35,7 +35,7 @@ export function getLegStationCode(leg, role) {
       leg.metadata?.fromStationCode ||
       leg.metadata?.fromStation ||
       (typeof leg.origin === 'object' ? leg.origin?.stationCode || leg.origin?.code : null) ||
-      (typeof leg.origin === 'string' && /^[A-Z]{2,5}$/.test(leg.origin) ? leg.origin : '') ||
+      (typeof leg.origin === 'string' && /^[A-Z]{1,5}$/.test(leg.origin) ? leg.origin : '') ||
       ''
     ).toUpperCase().trim();
   }
@@ -45,7 +45,7 @@ export function getLegStationCode(leg, role) {
     leg.metadata?.toStationCode ||
     leg.metadata?.toStation ||
     (typeof leg.destination === 'object' ? leg.destination?.stationCode || leg.destination?.code : null) ||
-    (typeof leg.destination === 'string' && /^[A-Z]{2,5}$/.test(leg.destination) ? leg.destination : '') ||
+    (typeof leg.destination === 'string' && /^[A-Z]{1,5}$/.test(leg.destination) ? leg.destination : '') ||
     ''
   ).toUpperCase().trim();
 }

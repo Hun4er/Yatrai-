@@ -9,8 +9,9 @@ import {
 
 const router = Router();
 
-// POST /api/auth/register
+// POST /api/auth/register & /api/auth/signup
 router.post('/register', validateRegister, authController.register);
+router.post('/signup', validateRegister, authController.register);
 
 // POST /api/auth/login
 router.post('/login', validateLogin, authController.login);

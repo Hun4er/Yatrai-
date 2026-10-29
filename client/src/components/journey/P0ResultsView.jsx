@@ -65,6 +65,11 @@ export function P0ResultsView({
   onSelectDate,
   onBookJourney,
   onViewJourney,
+  originCode = '',
+  originName = '',
+  requestedOrigin = '',
+  requestedOriginName = '',
+  onModifySearch = null,
 }) {
   // Sticky class filter state
   const [selectedClassFilter, setSelectedClassFilter] = useState('ALL');
@@ -363,16 +368,16 @@ export function P0ResultsView({
             type="button"
             onClick={onSearchDeeper}
             disabled={isSearchingDeeper}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600/30 border border-purple-500/50 px-5 py-2.5 text-xs font-bold text-purple-200 hover:bg-purple-600/40 hover:border-purple-400 transition-all cursor-pointer shadow-md disabled:opacity-50"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-[#181C22] border border-[#E8B04A]/40 px-5 py-2.5 text-xs font-bold text-[#E8B04A] hover:bg-[#1E232B] hover:border-[#E8B04A] transition-all cursor-pointer shadow-md disabled:opacity-50"
           >
             {isSearchingDeeper ? (
               <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-purple-300" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-[#E8B04A]" />
                 <span>Searching deeper (cap 100)...</span>
               </>
             ) : (
               <>
-                <Sparkles className="h-3.5 w-3.5 text-purple-300" />
+                <Sparkles className="h-3.5 w-3.5 text-[#E8B04A]" />
                 <span>Search deeper</span>
               </>
             )}
@@ -382,58 +387,120 @@ export function P0ResultsView({
     </section>
   );
 
+  const [hasCompletedAltSearch, setHasCompletedAltSearch] = useState(false);
+  const wasLoadingAltRef = useRef(false);
+
+  useEffect(() => {
+    if (isLoadingAlternatives) {
+      wasLoadingAltRef.current = true;
+    } else if (wasLoadingAltRef.current) {
+      setHasCompletedAltSearch(true);
+    }
+  }, [isLoadingAlternatives]);
+
   const renderAlternativesSection = () => (
-    <section id="alternatives-section" className="space-y-4 pt-4 border-t border-[#242931]" aria-label="Alternative Journeys">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-1">
-        <div>
-          <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8B04A] flex items-center gap-2">
-            <span>
-              {hasConfirmedAlt
-                ? 'Alternative Journeys'
-                : (filteredAlternatives.length > 0 ? 'Best Chances' : 'Alternative Journeys')}
-            </span>
-            {filteredAlternatives.length > 0 && (
-              <span className="rounded-full bg-[#1F242C] border border-[#303640] px-2 py-0.5 text-[10px] text-[#A7AFBA]">
-                {filteredAlternatives.length} {hasConfirmedAlt ? 'verified' : 'risky'}
+    <section id="alternatives-section" className="space-y-4 pt-4 border-t border-[#232830]" aria-label="Alternative Journeys">
+      {/* 6.C / Header: When alternatives are present or direct seat exists */}
+      {(filteredAlternatives.length > 0 || hasConfirmedDirectSeat) && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-1">
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8B04A] flex items-center gap-2">
+              <span>
+                {filteredAlternatives.length > 0
+                  ? (hasConfirmedAlt ? 'Alternative Journeys Found' : 'Alternative Journeys Found (Risky)')
+                  : 'Alternative Journeys'}
               </span>
-            )}
-          </h2>
-          <p className="text-[11px] text-[#7E8794] mt-0.5">
-            {hasConfirmedAlt
-              ? 'Same-train split tickets & verified hub connections with guaranteed seats.'
-              : 'Alternative split-ticket and connection options — waitlisted — not guaranteed.'}
-          </p>
-        </div>
-
-        {/* "Alternative journeys" button when a direct seat exists */}
-        {hasConfirmedDirectSeat && alternatives.length === 0 && !isLoadingAlternatives && (
-          <button
-            type="button"
-            onClick={onExploreAlternatives}
-            disabled={isLoadingAlternatives}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-[#303640] bg-[#15191F] px-4 py-2 text-xs font-semibold text-[#E8B04A] hover:bg-[#1A1F26] hover:border-[#E8B04A] transition-all cursor-pointer disabled:opacity-50"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-[#E8B04A]" />
-            <span>Alternative journeys</span>
-          </button>
-        )}
-      </div>
-
-      {/* Alternatives Loading Skeleton State */}
-      {isLoadingAlternatives && (
-        <div className="rounded-2xl border border-[#303640] bg-[#12151A] p-5 space-y-3 animate-pulse">
-          <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin text-[#E8B04A]" />
-            <span className="text-xs font-semibold text-[#F0F1F3]">Finding guaranteed seat combinations...</span>
+              {filteredAlternatives.length > 0 && (
+                <span className="rounded-full bg-[#181C22] border border-[#232830] px-2 py-0.5 text-[10px] text-[#9AA3AF]">
+                  {filteredAlternatives.length} {hasConfirmedAlt ? 'verified' : 'available'}
+                </span>
+              )}
+            </h2>
+            <p className="text-[11px] text-[#9AA3AF] mt-0.5">
+              {filteredAlternatives.length > 0
+                ? 'Compare complete routes, journey time, transfers, and available fare information.'
+                : 'Explore alternative split tickets and hub connections across station clusters.'}
+            </p>
           </div>
-          <div className="h-4 bg-[#242931] rounded w-3/4" />
-          <div className="h-16 bg-[#1A1F26] rounded-xl" />
+
+          {/* "Find Alternative Journeys" header button when direct seat exists */}
+          {hasConfirmedDirectSeat && alternatives.length === 0 && !isLoadingAlternatives && (
+            <button
+              type="button"
+              onClick={onExploreAlternatives}
+              disabled={isLoadingAlternatives}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[#232830] bg-[#181C22] px-4 py-2 text-xs font-semibold text-[#E8B04A] hover:bg-[#1E232B] hover:border-[#E8B04A] transition-all cursor-pointer disabled:opacity-50"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-[#E8B04A]" />
+              <span>Find Alternative Journeys</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 6.B: Truthful In-Context Progress State during Alternative Discovery */}
+      {isLoadingAlternatives && (
+        <div className="rounded-2xl border border-[#232830] bg-[#12151A] p-5 sm:p-6 shadow-xl space-y-4">
+          <div className="flex items-center justify-between border-b border-[#232830] pb-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-[#E8B04A] animate-pulse" />
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8B04A]">
+                Finding an Alternative Route
+              </span>
+            </div>
+            <span className="text-[11px] text-[#9AA3AF] flex items-center gap-1.5">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-[#E8B04A]" />
+              <span>Searching network...</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div className="flex items-start gap-2.5 rounded-xl border border-[#232830] bg-[#181C22] p-3 text-xs">
+              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px]">
+                ✓
+              </div>
+              <div>
+                <div className="font-semibold text-[#EDEFF2]">1. Direct train options</div>
+                <div className="text-[11px] text-[#9AA3AF] mt-0.5">Checked {direct.length} direct services</div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5 rounded-xl border border-[#E8B04A]/30 bg-[#E8B04A]/5 p-3 text-xs">
+              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E8B04A]/20 text-[#E8B04A] font-bold text-[10px]">
+                <Loader2 className="h-3 w-3 animate-spin" />
+              </div>
+              <div>
+                <div className="font-semibold text-[#EDEFF2]">2. Expanding station options</div>
+                <div className="text-[11px] text-[#9AA3AF] mt-0.5">Exploring MMT station extensions & clusters</div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5 rounded-xl border border-[#232830] bg-[#181C22] p-3 text-xs opacity-75">
+              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#232830] text-[#9AA3AF] font-bold text-[10px]">
+                3
+              </div>
+              <div>
+                <div className="font-semibold text-[#9AA3AF]">3. Connecting trains</div>
+                <div className="text-[11px] text-[#6B7480] mt-0.5">Searching interchange hubs & split routes</div>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2.5 rounded-xl border border-[#232830] bg-[#181C22] p-3 text-xs opacity-75">
+              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#232830] text-[#9AA3AF] font-bold text-[10px]">
+                4
+              </div>
+              <div>
+                <div className="font-semibold text-[#9AA3AF]">4. Validating transfer times</div>
+                <div className="text-[11px] text-[#6B7480] mt-0.5">Enforcing minimum/maximum layover rules</div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Hidden by filters banner */}
       {hiddenAlternativesCount > 0 && (
-        <div className="flex items-center justify-between rounded-xl bg-[#161B22] border border-[#242931] px-3.5 py-2 text-xs text-[#A7AFBA]">
+        <div className="flex items-center justify-between rounded-xl bg-[#181C22] border border-[#232830] px-3.5 py-2 text-xs text-[#9AA3AF]">
           <span>
             {hiddenAlternativesCount} option{hiddenAlternativesCount > 1 ? 's' : ''} hidden by class filter ({selectedClassFilter})
           </span>
@@ -456,8 +523,8 @@ export function P0ResultsView({
 
       {/* Truthful Station Expansion Banner (Phase 3 item 5) */}
       {features?.extension === true && extension && extension.status !== 'skipped' && (
-        <div className="flex items-center gap-2.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3.5 py-2.5 text-xs text-emerald-300">
-          <Sparkles className="h-4 w-4 text-emerald-400 shrink-0" />
+        <div className="flex items-center gap-2.5 rounded-xl border border-[#E8B04A]/30 bg-[#E8B04A]/10 px-3.5 py-2.5 text-xs text-[#E8B04A]">
+          <Sparkles className="h-4 w-4 text-[#E8B04A] shrink-0" />
           <span>
             Route extension checked:{' '}
             {(extension.found ?? extension.count ?? 0) > 0
@@ -509,70 +576,180 @@ export function P0ResultsView({
         </div>
       )}
 
-      {/* Factual Empty State if no alternatives found yet and not loading and no confirmed direct seat */}
+      {/* 6.A / 6.D: Factual Empty State when no alternatives found and not loading */}
       {!isLoadingAlternatives && alternatives.length === 0 && !hasConfirmedDirectSeat && (
-        <div className="rounded-2xl border border-dashed border-[#303640] bg-[#12151A] p-6 text-center text-xs space-y-3">
-          {emptyFacts.allInError ? (
-            <>
-              <p className="text-rose-300 font-semibold">couldn't check seats right now</p>
-              <div>
+        hasCompletedAltSearch ? (
+          /* Part 6.D: Final No Verified Alternative Found State */
+          <div className="rounded-2xl border border-[#232830] bg-[#12151A] p-5 sm:p-7 text-center shadow-xl space-y-4">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#181C22] text-[#E8B04A] border border-[#232830]">
+              <AlertTriangle className="h-6 w-6 text-[#E8B04A]" />
+            </div>
+
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-[#EDEFF2]">
+                No verified alternative found for these criteria
+              </h3>
+              <p className="mt-1 text-xs text-[#9AA3AF] max-w-lg mx-auto">
+                Checked direct trains ({direct.length} checked), expanded station clusters, and interchange hubs along this corridor. No confirmed seats or validated connections met the transfer window requirements.
+              </p>
+            </div>
+
+            {/* Stage checklist */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-left max-w-lg mx-auto pt-1">
+              <div className="rounded-xl border border-[#232830] bg-[#181C22] p-2.5 text-[11px]">
+                <div className="text-[#6B7480] uppercase tracking-wider text-[9px] font-bold">Direct Trains</div>
+                <div className="text-[#EDEFF2] font-semibold mt-0.5">{direct.length} Checked</div>
+              </div>
+              <div className="rounded-xl border border-[#232830] bg-[#181C22] p-2.5 text-[11px]">
+                <div className="text-[#6B7480] uppercase tracking-wider text-[9px] font-bold">Station Extension</div>
+                <div className="text-[#EDEFF2] font-semibold mt-0.5">Completed</div>
+              </div>
+              <div className="rounded-xl border border-[#232830] bg-[#181C22] p-2.5 text-[11px]">
+                <div className="text-[#6B7480] uppercase tracking-wider text-[9px] font-bold">Connecting Hubs</div>
+                <div className="text-[#EDEFF2] font-semibold mt-0.5">Explored</div>
+              </div>
+              <div className="rounded-xl border border-[#232830] bg-[#181C22] p-2.5 text-[11px]">
+                <div className="text-[#6B7480] uppercase tracking-wider text-[9px] font-bold">Verified Routes</div>
+                <div className="text-[#E8B04A] font-semibold mt-0.5">0 Available</div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+              {dateStrip && dateStrip.length > 0 && (
                 <button
                   type="button"
-                  onClick={handleRetryAll}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/50 bg-rose-500/20 px-4 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/30 transition-all cursor-pointer"
+                  onClick={handleShowNearbyDates}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#232830] bg-[#181C22] px-3.5 py-2 text-xs font-semibold text-[#EDEFF2] hover:bg-[#1E232B] hover:border-[#E8B04A] transition-all cursor-pointer"
                 >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  <span>Tap to retry</span>
+                  <Calendar className="h-3.5 w-3.5 text-[#E8B04A]" />
+                  <span>Check another date</span>
                 </button>
+              )}
+              {emptyFacts.errorCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleRetryFailed}
+                  disabled={isRetryingFailed}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#232830] bg-[#181C22] px-3.5 py-2 text-xs font-semibold text-[#EDEFF2] hover:bg-[#1E232B] hover:border-[#E8B04A] transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <RotateCcw className="h-3.5 w-3.5 text-[#E8B04A]" />
+                  <span>Retry failed checks ({emptyFacts.errorCount})</span>
+                </button>
+              )}
+              {onModifySearch && (
+                <button
+                  type="button"
+                  onClick={onModifySearch}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#232830] bg-[#181C22] px-3.5 py-2 text-xs font-semibold text-[#9AA3AF] hover:text-[#EDEFF2] hover:bg-[#1E232B] transition-all cursor-pointer"
+                >
+                  <span>Modify search</span>
+                </button>
+              )}
+              {partial && (
+                <button
+                  type="button"
+                  onClick={onSearchDeeper}
+                  disabled={isSearchingDeeper}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#E8B04A]/40 bg-[#181C22] px-3.5 py-2 text-xs font-bold text-[#E8B04A] hover:bg-[#1E232B] hover:border-[#E8B04A] transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-[#E8B04A]" />
+                  <span>Search deeper</span>
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Part 6.A: Prominent No Suitable Direct Seats Found Banner & CTA */
+          <div className="rounded-2xl border border-[#232830] bg-[#12151A] p-5 sm:p-6 shadow-xl space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <h3 className="text-base sm:text-lg font-bold text-[#EDEFF2] flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-[#E07B39]" />
+                  <span>No suitable direct seats found</span>
+                </h3>
+                <p className="text-xs text-[#9AA3AF] leading-relaxed max-w-xl">
+                  Your selected trains may be unavailable or waitlisted for the requested criteria. Yatrai can look for alternative boarding stations and connecting journeys.
+                </p>
               </div>
-            </>
-          ) : (
-            <>
-              <p className="text-[#A7AFBA]">
-                {emptyFacts.summaryText
-                  ? emptyFacts.summaryText.replace(
-                      /\s*\d+\s+could not be checked\.?/i,
-                      emptyFacts.errorCount > 0 ? ' Some seat availability checks could not be completed.' : ''
-                    )
-                  : 'No confirmed direct seats found.'}
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                {emptyFacts.errorCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleRetryFailed}
-                    disabled={isRetryingFailed}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-[#4B5563] bg-[#1A1F26] px-4 py-2 text-xs font-semibold text-[#F0F1F3] hover:border-[#6B7280] transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5 text-[#E8B04A]" />
-                    <span>Retry failed checks ({emptyFacts.errorCount})</span>
-                  </button>
-                )}
-                {dateStrip && dateStrip.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleShowNearbyDates}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-[#303640] bg-[#15191F] px-4 py-2 text-xs font-semibold text-[#E8B04A] hover:bg-[#1A1F26] transition-all cursor-pointer"
-                  >
-                    <Calendar className="h-3.5 w-3.5 text-[#E8B04A]" />
-                    <span>Show nearby dates</span>
-                  </button>
-                )}
-                {partial && (
-                  <button
-                    type="button"
-                    onClick={onSearchDeeper}
-                    disabled={isSearchingDeeper}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-purple-600/30 border border-purple-500/50 px-4 py-2 text-xs font-bold text-purple-200 hover:bg-purple-600/40 transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    <Sparkles className="h-3.5 w-3.5 text-purple-300" />
-                    <span>Search deeper</span>
-                  </button>
-                )}
+
+              <span className="hidden sm:inline-flex rounded-full bg-[#E07B39]/15 border border-[#E07B39]/30 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#E07B39] shrink-0">
+                Seats Unavailable / WL
+              </span>
+            </div>
+
+            {/* Compact summary */}
+            <div className="rounded-xl border border-[#232830] bg-[#181C22] p-3 text-xs grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#6B7480]">Requested Route</div>
+                <div className="mt-0.5 font-bold text-[#EDEFF2] truncate">
+                  {requestedOrigin || originCode || 'Origin'} → {requestedDestination || destinationCode || 'Destination'}
+                </div>
               </div>
-            </>
-          )}
-        </div>
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#6B7480]">Travel Date</div>
+                <div className="mt-0.5 font-bold text-[#EDEFF2]">{date || 'Selected date'}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#6B7480]">Selected Class</div>
+                <div className="mt-0.5 font-bold text-[#EDEFF2]">{selectedClassFilter === 'ALL' ? 'Any Class' : selectedClassFilter}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#6B7480]">Direct Trains</div>
+                <div className="mt-0.5 font-bold text-[#EDEFF2]">
+                  {direct.length} checked {emptyFacts.waitlistedCount > 0 ? `(${emptyFacts.waitlistedCount} WL)` : ''}
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={onExploreAlternatives}
+                disabled={isLoadingAlternatives}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#E8B04A] px-5 py-2.5 text-xs font-bold text-[#0B0D10] hover:bg-[#F0C066] transition-all cursor-pointer shadow-md disabled:opacity-50"
+              >
+                <Sparkles className="h-4 w-4 text-[#0B0D10]" />
+                <span>Find Alternative Journeys</span>
+              </button>
+
+              {dateStrip && dateStrip.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleShowNearbyDates}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#232830] bg-[#181C22] px-3.5 py-2 text-xs font-semibold text-[#EDEFF2] hover:bg-[#1E232B] hover:border-[#E8B04A] transition-all cursor-pointer"
+                >
+                  <Calendar className="h-3.5 w-3.5 text-[#E8B04A]" />
+                  <span>Change travel date</span>
+                </button>
+              )}
+
+              {offeredClasses.length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextClass = offeredClasses.find((c) => c !== 'ALL' && c !== selectedClassFilter) || 'ALL';
+                    handleSelectClassFilter(nextClass);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#232830] bg-[#181C22] px-3.5 py-2 text-xs font-semibold text-[#EDEFF2] hover:bg-[#1E232B] hover:border-[#E8B04A] transition-all cursor-pointer"
+                >
+                  <span>Change class</span>
+                </button>
+              )}
+
+              {onModifySearch && (
+                <button
+                  type="button"
+                  onClick={onModifySearch}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-[#232830] bg-[#181C22] px-3.5 py-2 text-xs font-semibold text-[#9AA3AF] hover:text-[#EDEFF2] hover:bg-[#1E232B] transition-all cursor-pointer"
+                >
+                  <span>Modify search</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )
       )}
     </section>
   );

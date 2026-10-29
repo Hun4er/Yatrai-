@@ -39,16 +39,25 @@ export function AuthProvider({ children }) {
     setStatus('loading');
 
     try {
-      const refreshResult = await api.auth.refresh();
+      const refreshResult = await api.auth.refresh(true);
       if (refreshResult?.data?.accessToken) {
         setAccessToken(refreshResult.data.accessToken);
 
-        // Fetch current user details via protected /me endpoint to verify authorization
-        const meResult = await api.auth.me();
-        if (isMountedRef.current) {
-          setUser(meResult.data.user);
-          setStatus('authenticated');
-          setError(null);
+        // If refresh endpoint returns the user profile directly, use it
+        if (refreshResult.data.user) {
+          if (isMountedRef.current) {
+            setUser(refreshResult.data.user);
+            setStatus('authenticated');
+            setError(null);
+          }
+        } else {
+          // Fallback to protected /me endpoint to verify authorization
+          const meResult = await api.auth.me();
+          if (isMountedRef.current) {
+            setUser(meResult.data.user);
+            setStatus('authenticated');
+            setError(null);
+          }
         }
       } else {
         if (isMountedRef.current) {
@@ -135,6 +144,7 @@ export function AuthProvider({ children }) {
     isAuthenticated: status === 'authenticated',
     isLoading: status === 'loading',
     register,
+    signup: register,
     login,
     logout,
     clearError,

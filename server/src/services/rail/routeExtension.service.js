@@ -142,13 +142,21 @@ export class RouteExtensionService {
 
     let candidateTrains = referenceTrains || [];
     if (candidateTrains.length === 0 && typeof this.railKit?.searchTrainBetweenStations === 'function') {
-      try {
-        const searchRes = await this.railKit.searchTrainBetweenStations(A, B, { date: dateStr });
-        if (searchRes?.data && Array.isArray(searchRes.data)) {
-          candidateTrains = searchRes.data.slice(0, 3);
+      const clusterOrigins = typeof clusterService?.getClusterStationCodes === 'function' ? clusterService.getClusterStationCodes(A) : [A];
+      const clusterDestinations = typeof clusterService?.getClusterStationCodes === 'function' ? clusterService.getClusterStationCodes(B) : [B];
+      for (const stnFrom of clusterOrigins.slice(0, 2)) {
+        if (candidateTrains.length > 0) break;
+        for (const stnTo of clusterDestinations.slice(0, 2)) {
+          try {
+            const searchRes = await this.railKit.searchTrainBetweenStations(stnFrom, stnTo, { date: dateStr });
+            if (searchRes?.data && Array.isArray(searchRes.data) && searchRes.data.length > 0) {
+              candidateTrains = searchRes.data.slice(0, 3);
+              break;
+            }
+          } catch (err) {
+            logger.debug(`[RouteExtension] Fallback search error for ${stnFrom}->${stnTo}: ${err.message}`);
+          }
         }
-      } catch (err) {
-        logger.debug(`[RouteExtension] Fallback search error: ${err.message}`);
       }
     }
 
@@ -338,17 +346,27 @@ export class RouteExtensionService {
 
         if (!avail) continue;
 
-        // Check if confirmed
-        const normStatus = avail.normalizedStatus || avail.status;
+        // Check if genuinely confirmed
+        const normStatus = String(avail.normalizedStatus || avail.status || '').toUpperCase();
         const statusText = String(avail.statusText || avail.availabilityText || '').toUpperCase();
-        const isConfirmed =
-          normStatus === AVAILABILITY_STATUS.AVAILABLE ||
-          normStatus === 'AVAILABLE' ||
-          normStatus === 'CONFIRMED' ||
-          statusText.includes('AVAILABLE') ||
-          statusText.includes('CNF');
 
-        if (isConfirmed) {
+        // Defensive: "NOT AVAILABLE", "REGRET", "CANCEL" must NEVER match AVAILABLE
+        const isUnavailable =
+          normStatus === 'UNAVAILABLE' ||
+          normStatus === 'NOT_AVAILABLE' ||
+          statusText.includes('NOT AVAILABLE') ||
+          statusText.includes('REGRET') ||
+          statusText.includes('CANCEL');
+
+        const isAvailable =
+          !isUnavailable &&
+          (normStatus === AVAILABILITY_STATUS.AVAILABLE ||
+           normStatus === 'AVAILABLE' ||
+           normStatus === 'CONFIRMED' ||
+           statusText.includes('CNF') ||
+           /\bAVL\b|\bAVAILABLE\b/i.test(statusText));
+
+        if (isAvailable) {
           // Calculate fares
           const abClass = Array.isArray(train.classes)
             ? train.classes.find((c) => String(c.class).toUpperCase() === targetClass)
@@ -368,28 +386,60 @@ export class RouteExtensionService {
 
           logger.info(`[RouteExtension] extension_hit: train=${trainNo} A=${A} B=${B} Y=${Y} class=${targetClass} extraFare=${extraFare}`);
 
+          const actualBoarding = normalizeStationCode(rawRoute[idxA]) || A;
+          const actualDeboard = normalizeStationCode(rawRoute[idxB]) || B;
+          const actualBoardingName = rawRoute[idxA]?.stationName || rawRoute[idxA]?.stnName || actualBoarding;
+          const actualDeboardName = rawRoute[idxB]?.stationName || rawRoute[idxB]?.stnName || actualDeboard;
           const stationYName = stnY.stationName || stnY.stnName || stnY.station_name || Y;
-          const stationBName = rawRoute[idxB]?.stationName || rawRoute[idxB]?.stnName || B;
           const depTime = train.departureTime || rawRoute[idxA]?.departure || rawRoute[idxA]?.departure_time || '00:00';
           const arrTimeB = rawRoute[idxB]?.arrival || rawRoute[idxB]?.arrival_time || train.arrivalTime || '00:00';
           const arrTimeY = stnY.arrival || stnY.arrival_time || '00:00';
+
+          const tier = 'CONFIRMED';
+          const isBookable = true;
 
           const plan = {
             type: 'EXTENSION',
             trainNumber: trainNo,
             trainName: getTrainName(train),
-            from: A,
-            to: B,
+            from: actualBoarding,
+            to: actualDeboard,
+            requestedOrigin: A,
+            requestedDestination: B,
+            bookedFrom: actualBoarding,
             bookedTo: Y,
             extendedTo: Y,
             extendedStationName: stationYName,
-            destinationStationName: stationBName,
+            deboardStationCode: actualDeboard,
+            deboardStationName: actualDeboardName,
+            destinationStationName: actualDeboardName,
+            originStation: {
+              code: actualBoarding,
+              name: actualBoardingName,
+            },
+            destinationStation: {
+              code: actualDeboard,
+              name: actualDeboardName,
+            },
             laneClass: targetClass,
             travelClass: targetClass,
             class: targetClass,
-            tier: 'CONFIRMED',
-            weakestTier: 'CONFIRMED',
+            quota,
+            tier,
+            weakestTier: tier,
+            routeFound: true,
+            scheduleVerified: true,
+            stationExtensionVerified: true,
+            connectionValidated: true,
+            seatAvailabilityStatus: 'AVAILABLE',
+            isBookable,
+            bookingEligibility: {
+              eligible: isBookable,
+              reason: 'Confirmed quota found for extended route',
+            },
+            bookingConfirmationStatus: 'unconfirmed',
             status: avail.statusText || 'AVAILABLE',
+            availability: avail,
             fare: fareAY,
             totalFare: fareAY,
             originalFare: fareAB,
@@ -399,28 +449,42 @@ export class RouteExtensionService {
             destinationArrivalTime: arrTimeB,
             extendedArrivalTime: arrTimeY,
             duration: train.duration || null,
-            badge: `Book to ${Y} — deboard at ${B}`,
+            badge: `Book to ${Y} — deboard at ${actualDeboard}`,
             notice: extraFare !== null
-              ? `Book ticket to ${Y} and get down at ${B}. Extra fare: ₹${extraFare}.`
-              : `Book ticket to ${Y} and get down at ${B}.`,
+              ? `Book ticket to ${Y} and get down at ${actualDeboard}. Extra fare: ₹${extraFare}.`
+              : `Book ticket to ${Y} and get down at ${actualDeboard}.`,
             isExtension: true,
             legs: [
               {
+                sequence: 1,
                 trainNumber: trainNo,
                 trainNo,
                 trainName: getTrainName(train),
-                from: A,
+                from: actualBoarding,
                 to: Y,
+                origin: { code: actualBoarding, name: actualBoardingName },
+                destination: { code: Y, name: stationYName },
+                originStation: { code: actualBoarding, name: actualBoardingName },
+                destinationStation: { code: Y, name: stationYName },
+                bookedFrom: actualBoarding,
                 bookedTo: Y,
-                intendedTo: B,
+                alightAt: actualDeboard,
+                alightStationName: actualDeboardName,
+                intendedTo: actualDeboard,
                 class: targetClass,
+                travelClass: targetClass,
+                quota,
                 status: avail.statusText || 'AVAILABLE',
-                tier: 'CONFIRMED',
+                availability: avail,
+                tier,
+                bookingStatus: 'unconfirmed',
                 fare: fareAY,
+                price: fareAY,
                 totalFare: fareAY,
                 departureTime: depTime,
                 arrivalTime: arrTimeB,
                 extendedArrivalTime: arrTimeY,
+                mode: 'rail',
               },
             ],
           };

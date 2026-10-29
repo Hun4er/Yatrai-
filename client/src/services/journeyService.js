@@ -1,6 +1,7 @@
 import api from './api.js';
 import { generateActionId } from './p0SearchCache.js';
 import { normalizeDate } from '../utils/formatters.js';
+import { toJourneyViewModel } from '../utils/journeyViewModel.js';
 
 /**
  * Journey Search Service
@@ -78,35 +79,15 @@ export const journeyService = {
           ? response.journeys
           : [];
 
-      // If P0 v2 direct trains exist and journeys is empty, synthesize journey representations
-      if (journeys.length === 0 && Array.isArray(resultData.direct) && resultData.direct.length > 0) {
-        journeys = resultData.direct.map((t, idx) => ({
-          id: `p0_${t.trainNumber}_${idx}`,
-          trainNumber: t.trainNumber,
-          trainName: t.trainName,
-          isDirectTrain: true,
-          numberOfTransfers: 0,
-          transportModes: ['rail'],
-          departureTime: t.departureTime,
-          arrivalTime: t.arrivalTime,
-          duration: t.duration,
-          origin: { name: t.from, code: t.from },
-          destination: { name: t.to, code: t.to },
-          legs: [
-            {
-              mode: 'rail',
-              trainNumber: t.trainNumber,
-              trainName: t.trainName,
-              from: { name: t.from, code: t.from },
-              to: { name: t.to, code: t.to },
-              departureTime: t.departureTime,
-              arrivalTime: t.arrivalTime,
-              duration: t.duration,
-            },
-          ],
-          classes: t.classes || [],
-          p0Train: t,
-        }));
+      // If P0 v2 direct or alternative trains exist and journeys is empty, synthesize journey representations
+      if (
+        journeys.length === 0 &&
+        (Array.isArray(resultData.direct) || Array.isArray(resultData.alternatives))
+      ) {
+        journeys = toJourneyViewModel({
+          direct: resultData.direct || [],
+          alternatives: resultData.alternatives || [],
+        });
       }
 
       return {

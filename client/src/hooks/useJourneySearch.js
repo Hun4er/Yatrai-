@@ -39,7 +39,13 @@ export function useJourneySearch() {
         return;
       }
 
-      if (!data.journeys || data.journeys.length === 0) {
+      const hasAnyResults =
+        (Array.isArray(data.journeys) && data.journeys.length > 0) ||
+        (Array.isArray(data.direct) && data.direct.length > 0) ||
+        (Array.isArray(data.alternatives) && data.alternatives.length > 0) ||
+        (Array.isArray(data.waitingTrains) && data.waitingTrains.length > 0);
+
+      if (!hasAnyResults) {
         setState({
           status: 'empty',
           data,

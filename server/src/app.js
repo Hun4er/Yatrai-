@@ -23,7 +23,7 @@ export function createApp() {
         const cleanOrigin = origin.replace(/\/$/, '');
         if (
           allowedOrigins.includes(cleanOrigin) ||
-          (!config.isProduction && cleanOrigin.includes('localhost'))
+          (!config.isProduction && (cleanOrigin.includes('localhost') || cleanOrigin.includes('127.0.0.1')))
         ) {
           return callback(null, true);
         }
