@@ -17,82 +17,82 @@
   },
   "alternatives_confirmed": {
     "cold": {
-      "searchCalls": 25,
+      "searchCalls": 13,
       "cancelledCalls": 0,
-      "availCalls": 15,
+      "availCalls": 8,
       "scheduleCalls": 2,
-      "total": 42
+      "total": 23
     },
     "warm": {
-      "searchCalls": 25,
+      "searchCalls": 13,
       "cancelledCalls": 0,
-      "availCalls": 15,
+      "availCalls": 8,
       "scheduleCalls": 0,
-      "total": 40
+      "total": 21
     }
   },
   "deep_confirmed": {
     "cold": {
-      "searchCalls": 49,
+      "searchCalls": 15,
       "cancelledCalls": 0,
-      "availCalls": 26,
+      "availCalls": 9,
       "scheduleCalls": 2,
-      "total": 77
+      "total": 26
     },
     "warm": {
-      "searchCalls": 49,
+      "searchCalls": 15,
       "cancelledCalls": 0,
-      "availCalls": 26,
+      "availCalls": 9,
       "scheduleCalls": 0,
-      "total": 75
+      "total": 24
     }
   },
   "default_all_wl": {
     "cold": {
-      "searchCalls": 19,
+      "searchCalls": 13,
       "cancelledCalls": 1,
-      "availCalls": 30,
+      "availCalls": 23,
       "scheduleCalls": 2,
-      "total": 52
+      "total": 39
     },
     "warm": {
-      "searchCalls": 25,
+      "searchCalls": 13,
       "cancelledCalls": 1,
-      "availCalls": 30,
+      "availCalls": 23,
       "scheduleCalls": 0,
-      "total": 56
+      "total": 37
     }
   },
   "alternatives_all_wl": {
     "cold": {
-      "searchCalls": 25,
+      "searchCalls": 13,
       "cancelledCalls": 0,
-      "availCalls": 15,
+      "availCalls": 8,
       "scheduleCalls": 2,
-      "total": 42
+      "total": 23
     },
     "warm": {
-      "searchCalls": 25,
+      "searchCalls": 13,
       "cancelledCalls": 0,
-      "availCalls": 15,
+      "availCalls": 8,
       "scheduleCalls": 0,
-      "total": 40
+      "total": 21
     }
   },
   "deep_all_wl": {
     "cold": {
-      "searchCalls": 49,
+      "searchCalls": 15,
       "cancelledCalls": 0,
-      "availCalls": 26,
+      "availCalls": 9,
       "scheduleCalls": 2,
-      "total": 77
+      "total": 26
     },
     "warm": {
-      "searchCalls": 49,
+      "searchCalls": 15,
       "cancelledCalls": 0,
-      "availCalls": 26,
+      "availCalls": 9,
       "scheduleCalls": 0,
-      "total": 75
+      "total": 24
     }
   }
 }

@@ -347,6 +347,7 @@ export async function executeSearch({
 }
 
 async function run() {
+  process.env.EXTENSION_ENABLED = 'false';
   if (!fs.existsSync(GOLDEN_DIR)) {
     fs.mkdirSync(GOLDEN_DIR, { recursive: true });
   }

@@ -189,6 +189,7 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
           activeJourney.to ||
           destCode;
 
+        const legPricesSum = legs.reduce((sum, l) => sum + (Number(l.price || l.fare || l.totalFare) || 0), 0);
         const calculatedFare =
           Number(activeJourney.totalPrice) > 0
             ? Number(activeJourney.totalPrice)
@@ -196,6 +197,8 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
             ? Number(activeJourney.totalFare)
             : Number(activeJourney.fare) > 0
             ? Number(activeJourney.fare)
+            : legPricesSum > 0
+            ? legPricesSum
             : 380;
 
         const normalizedJourney = {
@@ -1099,7 +1102,7 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
             <div className="space-y-2 text-xs">
               {legs.length > 1 ? (
                 legs.map((leg, idx) => {
-                  const lFare = Number(leg.fare || leg.price || (basePricePerPerson / legs.length)) * passengers.length;
+                  const lFare = Number(leg.fare || leg.price || leg.totalFare || (basePricePerPerson / legs.length)) * passengers.length;
                   return (
                     <div key={idx} className="flex justify-between text-text-secondary">
                       <span>Leg {idx + 1} Fare ({leg.trainNo || leg.trainNumber || ''} · {leg.from || leg.fromCode} → {leg.to || leg.toCode}):</span>

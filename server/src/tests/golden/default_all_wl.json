@@ -40,23 +40,23 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-12",
+              "date": "2026-11-19",
               "status": "WL"
             },
             {
-              "date": "2026-11-09",
+              "date": "2026-11-16",
               "status": "WL"
             },
             {
-              "date": "2026-11-10",
+              "date": "2026-11-17",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-11",
+              "date": "2026-11-18",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T22:24:05.540Z",
+          "checkedAt": "2026-11-01T16:40:18.194Z",
           "reason": null
         },
         {
@@ -71,27 +71,27 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-12",
+              "date": "2026-11-19",
               "status": "WL"
             },
             {
-              "date": "2026-11-09",
+              "date": "2026-11-16",
               "status": "WL"
             },
             {
-              "date": "2026-11-10",
+              "date": "2026-11-17",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-11",
+              "date": "2026-11-18",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T22:24:05.538Z",
+          "checkedAt": "2026-11-01T16:40:18.192Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T22:24:05.540Z",
+      "checkedAt": "2026-11-01T16:40:18.194Z",
       "fare": 1450
     },
     {
@@ -134,23 +134,23 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-12",
+              "date": "2026-11-19",
               "status": "WL"
             },
             {
-              "date": "2026-11-09",
+              "date": "2026-11-16",
               "status": "WL"
             },
             {
-              "date": "2026-11-10",
+              "date": "2026-11-17",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-11",
+              "date": "2026-11-18",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T22:24:05.541Z",
+          "checkedAt": "2026-11-01T16:40:18.194Z",
           "reason": null
         },
         {
@@ -165,27 +165,27 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-12",
+              "date": "2026-11-19",
               "status": "WL"
             },
             {
-              "date": "2026-11-09",
+              "date": "2026-11-16",
               "status": "WL"
             },
             {
-              "date": "2026-11-10",
+              "date": "2026-11-17",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-11",
+              "date": "2026-11-18",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T22:24:05.538Z",
+          "checkedAt": "2026-11-01T16:40:18.192Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T22:24:05.541Z",
+      "checkedAt": "2026-11-01T16:40:18.194Z",
       "fare": 1450
     },
     {
@@ -228,58 +228,58 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-12",
+              "date": "2026-11-19",
               "status": "WL"
             },
             {
-              "date": "2026-11-09",
+              "date": "2026-11-16",
               "status": "WL"
             },
             {
-              "date": "2026-11-10",
+              "date": "2026-11-17",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-11",
+              "date": "2026-11-18",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T22:24:05.541Z",
+          "checkedAt": "2026-11-01T16:40:18.195Z",
           "reason": null
         },
         {
           "class": "3A",
           "state": "CHECKED",
           "tier": "WAITLIST",
-          "availabilityText": "Regret",
-          "fare": 2545,
+          "availabilityText": "GNWL 15",
+          "fare": 1450,
           "predictionPercentage": 45,
           "waitlistPosition": null,
           "racPosition": null,
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-12",
+              "date": "2026-11-19",
               "status": "WL"
             },
             {
-              "date": "2026-11-09",
+              "date": "2026-11-16",
               "status": "WL"
             },
             {
-              "date": "2026-11-10",
+              "date": "2026-11-17",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-11",
+              "date": "2026-11-18",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T22:24:05.539Z",
+          "checkedAt": "2026-11-01T16:40:18.193Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T22:24:05.541Z",
+      "checkedAt": "2026-11-01T16:40:18.195Z",
       "fare": 1450
     },
     {
@@ -330,31 +330,31 @@
           "class": "3A",
           "state": "CHECKED",
           "tier": "WAITLIST",
-          "availabilityText": "Regret",
-          "fare": 1390,
+          "availabilityText": "GNWL 15",
+          "fare": 1450,
           "predictionPercentage": 45,
           "waitlistPosition": null,
           "racPosition": null,
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-12",
+              "date": "2026-11-19",
               "status": "WL"
             },
             {
-              "date": "2026-11-09",
+              "date": "2026-11-16",
               "status": "WL"
             },
             {
-              "date": "2026-11-10",
+              "date": "2026-11-17",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-11",
+              "date": "2026-11-18",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T22:24:05.541Z",
+          "checkedAt": "2026-11-01T16:40:18.195Z",
           "reason": null
         },
         {
@@ -383,28 +383,28 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-12",
+              "date": "2026-11-19",
               "status": "WL"
             },
             {
-              "date": "2026-11-09",
+              "date": "2026-11-16",
               "status": "WL"
             },
             {
-              "date": "2026-11-10",
+              "date": "2026-11-17",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-11",
+              "date": "2026-11-18",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T22:24:05.539Z",
+          "checkedAt": "2026-11-01T16:40:18.193Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T22:24:05.541Z",
-      "fare": 1390
+      "checkedAt": "2026-11-01T16:40:18.195Z",
+      "fare": 1450
     },
     {
       "trainNumber": "12304",
@@ -453,31 +453,31 @@
           "class": "3A",
           "state": "CHECKED",
           "tier": "WAITLIST",
-          "availabilityText": "WL 140",
-          "fare": 1390,
+          "availabilityText": "GNWL 15",
+          "fare": 1450,
           "predictionPercentage": 45,
           "waitlistPosition": null,
           "racPosition": null,
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-12",
+              "date": "2026-11-19",
               "status": "WL"
             },
             {
-              "date": "2026-11-09",
+              "date": "2026-11-16",
               "status": "WL"
             },
             {
-              "date": "2026-11-10",
+              "date": "2026-11-17",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-11",
+              "date": "2026-11-18",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T22:24:05.542Z",
+          "checkedAt": "2026-11-01T16:40:18.195Z",
           "reason": null
         },
         {
@@ -492,28 +492,28 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-12",
+              "date": "2026-11-19",
               "status": "WL"
             },
             {
-              "date": "2026-11-09",
+              "date": "2026-11-16",
               "status": "WL"
             },
             {
-              "date": "2026-11-10",
+              "date": "2026-11-17",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-11",
+              "date": "2026-11-18",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T22:24:05.539Z",
+          "checkedAt": "2026-11-01T16:40:18.193Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T22:24:05.542Z",
-      "fare": 1390
+      "checkedAt": "2026-11-01T16:40:18.195Z",
+      "fare": 1450
     },
     {
       "trainNumber": "12506",
@@ -584,27 +584,27 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-12",
+              "date": "2026-11-19",
               "status": "WL"
             },
             {
-              "date": "2026-11-09",
+              "date": "2026-11-16",
               "status": "WL"
             },
             {
-              "date": "2026-11-10",
+              "date": "2026-11-17",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-11",
+              "date": "2026-11-18",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T22:24:05.539Z",
+          "checkedAt": "2026-11-01T16:40:18.193Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T22:24:05.539Z",
+      "checkedAt": "2026-11-01T16:40:18.193Z",
       "fare": 1450
     },
     {
@@ -661,27 +661,27 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-12",
+              "date": "2026-11-19",
               "status": "WL"
             },
             {
-              "date": "2026-11-09",
+              "date": "2026-11-16",
               "status": "WL"
             },
             {
-              "date": "2026-11-10",
+              "date": "2026-11-17",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-11",
+              "date": "2026-11-18",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T22:24:05.539Z",
+          "checkedAt": "2026-11-01T16:40:18.193Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T22:24:05.539Z",
+      "checkedAt": "2026-11-01T16:40:18.193Z",
       "fare": 1450
     },
     {
@@ -753,27 +753,27 @@
           "seatsAvailable": null,
           "dates": [
             {
-              "date": "2026-11-12",
+              "date": "2026-11-19",
               "status": "WL"
             },
             {
-              "date": "2026-11-09",
+              "date": "2026-11-16",
               "status": "WL"
             },
             {
-              "date": "2026-11-10",
+              "date": "2026-11-17",
               "status": "AVAILABLE"
             },
             {
-              "date": "2026-11-11",
+              "date": "2026-11-18",
               "status": "WL"
             }
           ],
-          "checkedAt": "2026-10-24T22:24:05.540Z",
+          "checkedAt": "2026-11-01T16:40:18.194Z",
           "reason": null
         }
       ],
-      "checkedAt": "2026-10-24T22:24:05.540Z",
+      "checkedAt": "2026-11-01T16:40:18.193Z",
       "fare": 1450
     }
   ],
@@ -980,26 +980,621 @@
       "class": "3A"
     }
   ],
-  "alternatives": [],
+  "alternatives": [
+    {
+      "type": "cross_train",
+      "sameTrain": false,
+      "isClusterTransfer": false,
+      "legs": [
+        {
+          "id": "12304-leg-1",
+          "sequence": 1,
+          "trainNo": "12304",
+          "trainNumber": "12304",
+          "trainName": "Poorva Express",
+          "mode": "rail",
+          "from": "NDLS",
+          "to": "CNB",
+          "origin": {
+            "code": "NDLS",
+            "name": "NDLS"
+          },
+          "destination": {
+            "code": "CNB",
+            "name": "CNB"
+          },
+          "originStation": {
+            "code": "NDLS",
+            "name": "NDLS"
+          },
+          "destinationStation": {
+            "code": "CNB",
+            "name": "CNB"
+          },
+          "service": {
+            "number": "12304",
+            "name": "Poorva Express",
+            "class": "SL",
+            "operator": "Indian Railways"
+          },
+          "class": "SL",
+          "travelClass": "SL",
+          "departureTime": "2026-11-19T17:40:00+05:30",
+          "arrivalTime": "2026-11-20T06:50:00+05:30",
+          "departureTimeFormatted": "17:40",
+          "arrivalTimeFormatted": "06:50",
+          "departureDate": "2026-11-19",
+          "arrivalDate": "2026-11-20",
+          "duration": 790,
+          "distance": 500,
+          "price": 1450,
+          "fare": 1450,
+          "availability": {
+            "normalizedStatus": "WAITLIST",
+            "statusText": "GNWL 15",
+            "predictionPercentage": 45,
+            "fare": 1450,
+            "totalFare": 1450,
+            "dates": [
+              {
+                "date": "2026-11-19",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-16",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-17",
+                "status": "AVAILABLE"
+              },
+              {
+                "date": "2026-11-18",
+                "status": "WL"
+              }
+            ]
+          },
+          "notice": null
+        },
+        {
+          "id": "12392-leg-2",
+          "sequence": 2,
+          "trainNo": "12392",
+          "trainNumber": "12392",
+          "trainName": "Shramjeevi Express",
+          "mode": "rail",
+          "from": "CNB",
+          "to": "PNBE",
+          "origin": {
+            "code": "CNB",
+            "name": "CNB"
+          },
+          "destination": {
+            "code": "PNBE",
+            "name": "PNBE"
+          },
+          "originStation": {
+            "code": "CNB",
+            "name": "CNB"
+          },
+          "destinationStation": {
+            "code": "PNBE",
+            "name": "PNBE"
+          },
+          "service": {
+            "number": "12392",
+            "name": "Shramjeevi Express",
+            "class": "SL",
+            "operator": "Indian Railways"
+          },
+          "class": "SL",
+          "travelClass": "SL",
+          "departureTime": "2026-11-20T13:10:00+05:30",
+          "arrivalTime": "2026-11-21T07:05:00+05:30",
+          "departureTimeFormatted": "13:10",
+          "arrivalTimeFormatted": "07:05",
+          "departureDate": "2026-11-20",
+          "arrivalDate": "2026-11-21",
+          "duration": 1075,
+          "distance": 500,
+          "price": 1450,
+          "fare": 1450,
+          "totalFare": 1450,
+          "availability": {
+            "normalizedStatus": "WAITLIST",
+            "statusText": "GNWL 15",
+            "predictionPercentage": 45,
+            "fare": 1450,
+            "totalFare": 1450,
+            "dates": [
+              {
+                "date": "2026-11-20",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-17",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-18",
+                "status": "AVAILABLE"
+              },
+              {
+                "date": "2026-11-19",
+                "status": "WL"
+              }
+            ]
+          },
+          "notice": null
+        }
+      ],
+      "hubCode": "CNB",
+      "laneClass": "SL",
+      "layoverMinutes": 380,
+      "isTight": false,
+      "tightLabel": null,
+      "tier": "WAITLIST",
+      "weakestTier": "WAITLIST",
+      "isRisky": true,
+      "badge": "Risky — waitlisted",
+      "notice": "Waitlisted — not guaranteed. Separate tickets. A missed connection is not protected.",
+      "predictionPercentage": 45,
+      "departureTime": "2026-11-19T17:40:00+05:30",
+      "arrivalTime": "2026-11-21T07:05:00+05:30",
+      "departureTimeFormatted": "17:40",
+      "arrivalTimeFormatted": "07:05",
+      "departureDate": "2026-11-19",
+      "arrivalDate": "2026-11-21",
+      "duration": 2245,
+      "totalDuration": 2245,
+      "totalWaitingMinutes": 380,
+      "totalFare": 2900,
+      "totalPrice": 2900,
+      "fare": 2900,
+      "requestedOrigin": "NDLS",
+      "requestedDestination": "PNBE",
+      "origin": {
+        "code": "NDLS",
+        "name": "NDLS"
+      },
+      "destination": {
+        "code": "PNBE",
+        "name": "PNBE"
+      },
+      "from": "NDLS",
+      "to": "PNBE",
+      "stationDifference": {
+        "hasDifference": false,
+        "originShift": {
+          "isShift": false,
+          "requestedCode": "NDLS",
+          "actualCode": "NDLS",
+          "distanceKm": 0
+        },
+        "destinationShift": {
+          "isShift": false,
+          "requestedCode": "PNBE",
+          "actualCode": "PNBE",
+          "distanceKm": 0
+        }
+      }
+    },
+    {
+      "type": "cross_train",
+      "sameTrain": false,
+      "isClusterTransfer": false,
+      "legs": [
+        {
+          "id": "12304-leg-1",
+          "sequence": 1,
+          "trainNo": "12304",
+          "trainNumber": "12304",
+          "trainName": "Poorva Express",
+          "mode": "rail",
+          "from": "NDLS",
+          "to": "PRYJ",
+          "origin": {
+            "code": "NDLS",
+            "name": "NDLS"
+          },
+          "destination": {
+            "code": "PRYJ",
+            "name": "PRYJ"
+          },
+          "originStation": {
+            "code": "NDLS",
+            "name": "NDLS"
+          },
+          "destinationStation": {
+            "code": "PRYJ",
+            "name": "PRYJ"
+          },
+          "service": {
+            "number": "12304",
+            "name": "Poorva Express",
+            "class": "SL",
+            "operator": "Indian Railways"
+          },
+          "class": "SL",
+          "travelClass": "SL",
+          "departureTime": "2026-11-19T17:40:00+05:30",
+          "arrivalTime": "2026-11-20T06:50:00+05:30",
+          "departureTimeFormatted": "17:40",
+          "arrivalTimeFormatted": "06:50",
+          "departureDate": "2026-11-19",
+          "arrivalDate": "2026-11-20",
+          "duration": 790,
+          "distance": 500,
+          "price": 1450,
+          "fare": 1450,
+          "availability": {
+            "normalizedStatus": "WAITLIST",
+            "statusText": "GNWL 15",
+            "predictionPercentage": 45,
+            "fare": 1450,
+            "totalFare": 1450,
+            "dates": [
+              {
+                "date": "2026-11-19",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-16",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-17",
+                "status": "AVAILABLE"
+              },
+              {
+                "date": "2026-11-18",
+                "status": "WL"
+              }
+            ]
+          },
+          "notice": null
+        },
+        {
+          "id": "12392-leg-2",
+          "sequence": 2,
+          "trainNo": "12392",
+          "trainNumber": "12392",
+          "trainName": "Shramjeevi Express",
+          "mode": "rail",
+          "from": "PRYJ",
+          "to": "PNBE",
+          "origin": {
+            "code": "PRYJ",
+            "name": "PRYJ"
+          },
+          "destination": {
+            "code": "PNBE",
+            "name": "PNBE"
+          },
+          "originStation": {
+            "code": "PRYJ",
+            "name": "PRYJ"
+          },
+          "destinationStation": {
+            "code": "PNBE",
+            "name": "PNBE"
+          },
+          "service": {
+            "number": "12392",
+            "name": "Shramjeevi Express",
+            "class": "SL",
+            "operator": "Indian Railways"
+          },
+          "class": "SL",
+          "travelClass": "SL",
+          "departureTime": "2026-11-20T13:10:00+05:30",
+          "arrivalTime": "2026-11-21T07:05:00+05:30",
+          "departureTimeFormatted": "13:10",
+          "arrivalTimeFormatted": "07:05",
+          "departureDate": "2026-11-20",
+          "arrivalDate": "2026-11-21",
+          "duration": 1075,
+          "distance": 500,
+          "price": 1450,
+          "fare": 1450,
+          "totalFare": 1450,
+          "availability": {
+            "normalizedStatus": "WAITLIST",
+            "statusText": "GNWL 15",
+            "predictionPercentage": 45,
+            "fare": 1450,
+            "totalFare": 1450,
+            "dates": [
+              {
+                "date": "2026-11-20",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-17",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-18",
+                "status": "AVAILABLE"
+              },
+              {
+                "date": "2026-11-19",
+                "status": "WL"
+              }
+            ]
+          },
+          "notice": null
+        }
+      ],
+      "hubCode": "PRYJ",
+      "laneClass": "SL",
+      "layoverMinutes": 380,
+      "isTight": false,
+      "tightLabel": null,
+      "tier": "WAITLIST",
+      "weakestTier": "WAITLIST",
+      "isRisky": true,
+      "badge": "Risky — waitlisted",
+      "notice": "Waitlisted — not guaranteed. Separate tickets. A missed connection is not protected.",
+      "predictionPercentage": 45,
+      "departureTime": "2026-11-19T17:40:00+05:30",
+      "arrivalTime": "2026-11-21T07:05:00+05:30",
+      "departureTimeFormatted": "17:40",
+      "arrivalTimeFormatted": "07:05",
+      "departureDate": "2026-11-19",
+      "arrivalDate": "2026-11-21",
+      "duration": 2245,
+      "totalDuration": 2245,
+      "totalWaitingMinutes": 380,
+      "totalFare": 2900,
+      "totalPrice": 2900,
+      "fare": 2900,
+      "requestedOrigin": "NDLS",
+      "requestedDestination": "PNBE",
+      "origin": {
+        "code": "NDLS",
+        "name": "NDLS"
+      },
+      "destination": {
+        "code": "PNBE",
+        "name": "PNBE"
+      },
+      "from": "NDLS",
+      "to": "PNBE",
+      "stationDifference": {
+        "hasDifference": false,
+        "originShift": {
+          "isShift": false,
+          "requestedCode": "NDLS",
+          "actualCode": "NDLS",
+          "distanceKm": 0
+        },
+        "destinationShift": {
+          "isShift": false,
+          "requestedCode": "PNBE",
+          "actualCode": "PNBE",
+          "distanceKm": 0
+        }
+      }
+    },
+    {
+      "type": "cross_train",
+      "sameTrain": false,
+      "isClusterTransfer": false,
+      "legs": [
+        {
+          "id": "12304-leg-1",
+          "sequence": 1,
+          "trainNo": "12304",
+          "trainNumber": "12304",
+          "trainName": "Poorva Express",
+          "mode": "rail",
+          "from": "NDLS",
+          "to": "DDU",
+          "origin": {
+            "code": "NDLS",
+            "name": "NDLS"
+          },
+          "destination": {
+            "code": "DDU",
+            "name": "DDU"
+          },
+          "originStation": {
+            "code": "NDLS",
+            "name": "NDLS"
+          },
+          "destinationStation": {
+            "code": "DDU",
+            "name": "DDU"
+          },
+          "service": {
+            "number": "12304",
+            "name": "Poorva Express",
+            "class": "SL",
+            "operator": "Indian Railways"
+          },
+          "class": "SL",
+          "travelClass": "SL",
+          "departureTime": "2026-11-19T17:40:00+05:30",
+          "arrivalTime": "2026-11-20T06:50:00+05:30",
+          "departureTimeFormatted": "17:40",
+          "arrivalTimeFormatted": "06:50",
+          "departureDate": "2026-11-19",
+          "arrivalDate": "2026-11-20",
+          "duration": 790,
+          "distance": 500,
+          "price": 1450,
+          "fare": 1450,
+          "availability": {
+            "normalizedStatus": "WAITLIST",
+            "statusText": "GNWL 15",
+            "predictionPercentage": 45,
+            "fare": 1450,
+            "totalFare": 1450,
+            "dates": [
+              {
+                "date": "2026-11-19",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-16",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-17",
+                "status": "AVAILABLE"
+              },
+              {
+                "date": "2026-11-18",
+                "status": "WL"
+              }
+            ]
+          },
+          "notice": null
+        },
+        {
+          "id": "12392-leg-2",
+          "sequence": 2,
+          "trainNo": "12392",
+          "trainNumber": "12392",
+          "trainName": "Shramjeevi Express",
+          "mode": "rail",
+          "from": "DDU",
+          "to": "PNBE",
+          "origin": {
+            "code": "DDU",
+            "name": "DDU"
+          },
+          "destination": {
+            "code": "PNBE",
+            "name": "PNBE"
+          },
+          "originStation": {
+            "code": "DDU",
+            "name": "DDU"
+          },
+          "destinationStation": {
+            "code": "PNBE",
+            "name": "PNBE"
+          },
+          "service": {
+            "number": "12392",
+            "name": "Shramjeevi Express",
+            "class": "SL",
+            "operator": "Indian Railways"
+          },
+          "class": "SL",
+          "travelClass": "SL",
+          "departureTime": "2026-11-20T13:10:00+05:30",
+          "arrivalTime": "2026-11-21T07:05:00+05:30",
+          "departureTimeFormatted": "13:10",
+          "arrivalTimeFormatted": "07:05",
+          "departureDate": "2026-11-20",
+          "arrivalDate": "2026-11-21",
+          "duration": 1075,
+          "distance": 500,
+          "price": 1450,
+          "fare": 1450,
+          "totalFare": 1450,
+          "availability": {
+            "normalizedStatus": "WAITLIST",
+            "statusText": "GNWL 15",
+            "predictionPercentage": 45,
+            "fare": 1450,
+            "totalFare": 1450,
+            "dates": [
+              {
+                "date": "2026-11-20",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-17",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-18",
+                "status": "AVAILABLE"
+              },
+              {
+                "date": "2026-11-19",
+                "status": "WL"
+              }
+            ]
+          },
+          "notice": null
+        }
+      ],
+      "hubCode": "DDU",
+      "laneClass": "SL",
+      "layoverMinutes": 380,
+      "isTight": false,
+      "tightLabel": null,
+      "tier": "WAITLIST",
+      "weakestTier": "WAITLIST",
+      "isRisky": true,
+      "badge": "Risky — waitlisted",
+      "notice": "Waitlisted — not guaranteed. Separate tickets. A missed connection is not protected.",
+      "predictionPercentage": 45,
+      "departureTime": "2026-11-19T17:40:00+05:30",
+      "arrivalTime": "2026-11-21T07:05:00+05:30",
+      "departureTimeFormatted": "17:40",
+      "arrivalTimeFormatted": "07:05",
+      "departureDate": "2026-11-19",
+      "arrivalDate": "2026-11-21",
+      "duration": 2245,
+      "totalDuration": 2245,
+      "totalWaitingMinutes": 380,
+      "totalFare": 2900,
+      "totalPrice": 2900,
+      "fare": 2900,
+      "requestedOrigin": "NDLS",
+      "requestedDestination": "PNBE",
+      "origin": {
+        "code": "NDLS",
+        "name": "NDLS"
+      },
+      "destination": {
+        "code": "PNBE",
+        "name": "PNBE"
+      },
+      "from": "NDLS",
+      "to": "PNBE",
+      "stationDifference": {
+        "hasDifference": false,
+        "originShift": {
+          "isShift": false,
+          "requestedCode": "NDLS",
+          "actualCode": "NDLS",
+          "distanceKm": 0
+        },
+        "destinationShift": {
+          "isShift": false,
+          "requestedCode": "PNBE",
+          "actualCode": "PNBE",
+          "distanceKm": 0
+        }
+      }
+    }
+  ],
   "dateStrip": [
     {
-      "date": "2026-11-12",
+      "date": "2026-11-19",
       "status": "WL"
     },
     {
-      "date": "2026-11-09",
+      "date": "2026-11-16",
       "status": "WL"
     },
     {
-      "date": "2026-11-10",
+      "date": "2026-11-17",
       "status": "AVAILABLE"
     },
     {
-      "date": "2026-11-11",
+      "date": "2026-11-18",
       "status": "WL"
     }
   ],
-  "partial": true,
+  "partial": false,
   "degraded": false,
   "providerNotice": null,
   "allCancelled": false,
@@ -1009,14 +1604,14 @@
     "count": 1
   },
   "budget": {
-    "used": 40,
+    "used": 33,
     "cap": 40,
     "partial": false,
-    "cacheHits": 18,
-    "cacheMisses": 40
+    "cacheHits": 9,
+    "cacheMisses": 33
   },
   "cache": {
-    "hits": 18,
-    "misses": 40
+    "hits": 9,
+    "misses": 33
   }
 }

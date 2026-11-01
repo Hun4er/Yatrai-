@@ -82,6 +82,7 @@ export function ResultsPage({
     const destCode = journey.destination?.code || journey.toCode || journey.to || legs[legs.length - 1]?.destination?.code || legs[legs.length - 1]?.toCode || legs[legs.length - 1]?.to || 'DEST';
     const destName = journey.destination?.name || journey.destinationStation?.name || journey.to || destCode;
 
+    const legPricesSum = legs.reduce((sum, l) => sum + (Number(l.price || l.fare || l.totalFare) || 0), 0);
     const totalPrice =
       Number(journey.totalPrice) > 0
         ? Number(journey.totalPrice)
@@ -89,6 +90,8 @@ export function ResultsPage({
         ? Number(journey.totalFare)
         : Number(journey.fare) > 0
         ? Number(journey.fare)
+        : legPricesSum > 0
+        ? legPricesSum
         : 0;
 
     const bookingSnapshot = {

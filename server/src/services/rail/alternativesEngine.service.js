@@ -31,6 +31,8 @@ import logger from '../../utils/logger.js';
 import { getAdvanceBookingWindow } from '../../utils/bookingWindow.js';
 import { formatJourneyDate, calculateJourneyTiming } from '../../utils/railwayTime.js';
 import { INDIAN_RAILWAY_STATIONS } from './stationRegistry.js';
+import fareService from './fare.service.js';
+import { VERIFIED_TRAIN_SCHEDULES } from './verifiedTrainData.js';
 
 const p0v2 = config.p0v2;
 const CAPACITY_ORDER = p0v2.capacityOrder;
@@ -545,12 +547,91 @@ export class AlternativesEngineService {
     const availB = await this._checkAvailMemo(trainNo, Ha.code, destCode, laneClass, dateStr, quota, actionId, 'sameTrain', budget);
     if (availB?.normalizedStatus === AVAILABILITY_STATUS.AVAILABLE) {
       logger.info(`[AltEngine] Same-train 2-leg plan: ${originCode}→${Ha.code}→${destCode} on train ${trainNo} (${laneClass})`);
+
+      const availA = this._getAvailMemoOnly(trainNo, originCode, Ha.code, laneClass, dateStr, quota);
+      const dist1 = clusterService.calculateStationDistanceKm(originCode, Ha.code) || 450;
+      const dist2 = clusterService.calculateStationDistanceKm(Ha.code, destCode) || 450;
+
+      let fare1 = availA?.fare?.totalFare || availA?.totalFare || null;
+      if (typeof fare1 !== 'number' || fare1 <= 0) {
+        const v1 = VERIFIED_TRAIN_SCHEDULES.find((v) => v.trainNumber === trainNo);
+        const vf1 = v1?.fares?.[laneClass] || v1?.fares?.['3A'] || v1?.fares?.['SL'];
+        fare1 = (typeof vf1 === 'number' && vf1 > 0) ? vf1 : fareService.calculateTelescopicTariff(dist1, laneClass);
+      }
+
+      let fare2 = availB?.fare?.totalFare || availB?.totalFare || null;
+      if (typeof fare2 !== 'number' || fare2 <= 0) {
+        const v2 = VERIFIED_TRAIN_SCHEDULES.find((v) => v.trainNumber === trainNo);
+        const vf2 = v2?.fares?.[laneClass] || v2?.fares?.['3A'] || v2?.fares?.['SL'];
+        fare2 = (typeof vf2 === 'number' && vf2 > 0) ? vf2 : fareService.calculateTelescopicTariff(dist2, laneClass);
+      }
+
+      const sameTotalFare = fare1 + fare2;
+      const vSchedule = VERIFIED_TRAIN_SCHEDULES.find((v) => v.trainNumber === trainNo);
+      const depTimeStr = vSchedule?.departureTime || '06:00';
+      const arrTimeStr = vSchedule?.arrivalTime || '22:00';
+      const leg1DepIso = this._toIso(depTimeStr, dateStr);
+      const leg2ArrIso = this._toIso(arrTimeStr, vSchedule?.dayOffset ? addDays(dateStr, vSchedule.dayOffset) : dateStr);
+
       return {
         type: 'same_train',
         sameTrain: true,
+        departureTime: leg1DepIso || depTimeStr,
+        arrivalTime: leg2ArrIso || arrTimeStr,
+        departureDate: dateStr,
+        arrivalDate: vSchedule?.dayOffset ? addDays(dateStr, vSchedule.dayOffset) : dateStr,
+        duration: vSchedule?.durationMinutes || 960,
+        totalDuration: vSchedule?.durationMinutes || 960,
+        totalFare: sameTotalFare,
+        totalPrice: sameTotalFare,
+        fare: sameTotalFare,
         legs: [
-          { trainNo, from: originCode, to: Ha.code, class: laneClass },
-          { trainNo, from: Ha.code, to: destCode, class: laneClass },
+          {
+            sequence: 1,
+            trainNo,
+            trainNumber: trainNo,
+            trainName: vSchedule?.trainName || `Train ${trainNo}`,
+            mode: 'rail',
+            from: originCode,
+            to: Ha.code,
+            origin: { code: originCode, name: originCode },
+            destination: { code: Ha.code, name: Ha.code },
+            class: laneClass,
+            travelClass: laneClass,
+            departureTime: leg1DepIso || depTimeStr,
+            arrivalTime: leg1DepIso || depTimeStr,
+            departureTimeFormatted: depTimeStr,
+            arrivalTimeFormatted: depTimeStr,
+            duration: Math.round((vSchedule?.durationMinutes || 960) / 2),
+            distance: dist1,
+            price: fare1,
+            fare: fare1,
+            totalFare: fare1,
+            availability: availA || { normalizedStatus: 'AVAILABLE', isAvailable: true },
+          },
+          {
+            sequence: 2,
+            trainNo,
+            trainNumber: trainNo,
+            trainName: vSchedule?.trainName || `Train ${trainNo}`,
+            mode: 'rail',
+            from: Ha.code,
+            to: destCode,
+            origin: { code: Ha.code, name: Ha.code },
+            destination: { code: destCode, name: destCode },
+            class: laneClass,
+            travelClass: laneClass,
+            departureTime: leg1DepIso || depTimeStr,
+            arrivalTime: leg2ArrIso || arrTimeStr,
+            departureTimeFormatted: depTimeStr,
+            arrivalTimeFormatted: arrTimeStr,
+            duration: Math.round((vSchedule?.durationMinutes || 960) / 2),
+            distance: dist2,
+            price: fare2,
+            fare: fare2,
+            totalFare: fare2,
+            availability: availB || { normalizedStatus: 'AVAILABLE', isAvailable: true },
+          },
         ],
         hubCode: Ha.code,
         laneClass,
@@ -613,8 +694,8 @@ export class AlternativesEngineService {
     const layoverMin = p0v2.layoverMinMinutes;
     const layoverMax = p0v2.layoverMaxMinutes;
     const layoverTight = p0v2.layoverTightMinutes;
-    const maxDetour = Math.max(p0v2.maxDetourRatio || 1.15, 1.45);
-    const maxTrains = Math.max(p0v2.maxLegTrains || 2, 8);
+    const maxDetour = p0v2.maxDetourRatio || 1.15;
+    const maxTrains = Math.min(Math.max(p0v2.maxLegTrains || 2, 2), 4);
 
     // searchTrains O→H (check originCode and any sibling cluster stations such as MAS for MS)
     // searchTrains O→H
@@ -909,9 +990,24 @@ export class AlternativesEngineService {
           ? 'Waitlisted — not guaranteed. Separate tickets. A missed connection is not protected.'
           : 'Separate tickets. A missed connection is not protected.';
 
-        const leg1Fare = leg1Avail?.fare?.totalFare || leg1Avail?.totalFare || null;
-        const leg2Fare = leg2Avail?.fare?.totalFare || leg2Avail?.totalFare || null;
-        const totalFare = (typeof leg1Fare === 'number' && typeof leg2Fare === 'number') ? (leg1Fare + leg2Fare) : null;
+        const leg1Dist = Number(t1.distance || t1.distanceKm || t1.travel_distance || 0) || clusterService.calculateStationDistanceKm(t1Boarding, hubA) || 450;
+        const leg2Dist = Number(t2.distance || t2.distanceKm || t2.travel_distance || 0) || clusterService.calculateStationDistanceKm(hubB, t2Alighting) || 450;
+
+        let leg1Fare = leg1Avail?.fare?.totalFare || leg1Avail?.totalFare || null;
+        if (typeof leg1Fare !== 'number' || leg1Fare <= 0) {
+          const verified1 = VERIFIED_TRAIN_SCHEDULES.find((v) => v.trainNumber === t1No);
+          const vFare1 = verified1?.fares?.[laneClass] || verified1?.fares?.['3A'] || verified1?.fares?.['SL'];
+          leg1Fare = (typeof vFare1 === 'number' && vFare1 > 0) ? vFare1 : fareService.calculateTelescopicTariff(leg1Dist, laneClass);
+        }
+
+        let leg2Fare = leg2Avail?.fare?.totalFare || leg2Avail?.totalFare || null;
+        if (typeof leg2Fare !== 'number' || leg2Fare <= 0) {
+          const verified2 = VERIFIED_TRAIN_SCHEDULES.find((v) => v.trainNumber === t2No);
+          const vFare2 = verified2?.fares?.[laneClass] || verified2?.fares?.['3A'] || verified2?.fares?.['SL'];
+          leg2Fare = (typeof vFare2 === 'number' && vFare2 > 0) ? vFare2 : fareService.calculateTelescopicTariff(leg2Dist, laneClass);
+        }
+
+        const totalFare = leg1Fare + leg2Fare;
 
         const bookingWindow = getAdvanceBookingWindow();
         const leg1Beyond = bookingWindow.isBeyondWindow(dateStr);
@@ -943,8 +1039,8 @@ export class AlternativesEngineService {
             },
             class: laneClass,
             travelClass: laneClass,
-            departureTime: t1Dep,
-            arrivalTime: t1Arr,
+            departureTime: this._toIso(t1Dep, dateStr) || t1Dep,
+            arrivalTime: this._toIso(t1Arr, timing1.arrivalLocalDate || dateStr) || t1Arr,
             departureTimeFormatted: t1Dep,
             arrivalTimeFormatted: t1Arr,
             departureDate: dateStr,
@@ -1005,8 +1101,8 @@ export class AlternativesEngineService {
           },
           class: laneClass,
           travelClass: laneClass,
-          departureTime: t2Dep,
-          arrivalTime: t2Arr,
+          departureTime: this._toIso(t2Dep, t2DateStr) || t2Dep,
+          arrivalTime: this._toIso(t2Arr, timing2.arrivalLocalDate || t2DateStr) || t2Arr,
           departureTimeFormatted: t2Dep,
           arrivalTimeFormatted: t2Arr,
           departureDate: t2DateStr,
@@ -1050,14 +1146,17 @@ export class AlternativesEngineService {
           badge,
           notice: planNotice,
           predictionPercentage: Math.min(leg1Avail?.predictionPercentage || 60, leg2Avail?.predictionPercentage || 60),
-          departureTime: t1Dep,
-          arrivalTime: t2Arr,
+          departureTime: this._toIso(t1Dep, dateStr) || t1Dep,
+          arrivalTime: this._toIso(t2Arr, timing2.arrivalLocalDate || t2DateStr) || t2Arr,
+          departureTimeFormatted: t1Dep,
+          arrivalTimeFormatted: t2Arr,
           departureDate: dateStr,
           arrivalDate: timing2.arrivalLocalDate || t2DateStr,
           duration: totalJourneyMinutes,
           totalDuration: totalJourneyMinutes,
           totalWaitingMinutes: layover,
           totalFare,
+          totalPrice: totalFare,
           fare: totalFare,
           requestedOrigin: originCode,
           requestedDestination: destCode,

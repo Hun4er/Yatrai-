@@ -8,6 +8,76 @@ import aopayAdapter from '../providers/rail/aopay.adapter.js';
 import pdfService from './pdfService.js';
 import logger from '../utils/logger.js';
 import { findStationByCode } from './rail/stationRegistry.js';
+import { fareService } from './rail/fare.service.js';
+import clusterService from './rail/cluster.service.js';
+
+/**
+ * Safely parses any date/time representation into a valid JavaScript Date object.
+ * Guaranteed never to return an Invalid Date.
+ *
+ * Handles:
+ * - Date objects (validates getTime() isn't NaN)
+ * - Numeric timestamps (ms or seconds)
+ * - ISO strings ("2026-11-30T17:10:00+05:30")
+ * - Time-only strings ("17:10" or "04:40") combined with dateVal or fallback
+ * - Date-only strings ("2026-11-30")
+ * - Fallback to valid fallbackDate or new Date()
+ */
+export function parseSafeDate(timeVal, dateVal, fallbackDate = new Date()) {
+  const fallback = (fallbackDate instanceof Date && !isNaN(fallbackDate.getTime()))
+    ? fallbackDate
+    : new Date();
+
+  if (!timeVal && !dateVal) return fallback;
+
+  if (timeVal instanceof Date && !isNaN(timeVal.getTime())) {
+    return timeVal;
+  }
+
+  if (typeof timeVal === 'number' && !isNaN(timeVal) && timeVal > 0) {
+    const d = new Date(timeVal < 1e11 ? timeVal * 1000 : timeVal);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  const strTime = typeof timeVal === 'string' ? timeVal.trim() : '';
+  const strDate = typeof dateVal === 'string'
+    ? dateVal.trim()
+    : (dateVal instanceof Date && !isNaN(dateVal.getTime()) ? dateVal.toISOString().slice(0, 10) : '');
+
+  // 1. Time string is full ISO format YYYY-MM-DD...
+  if (strTime && /^\d{4}-\d{2}-\d{2}/.test(strTime)) {
+    const d = new Date(strTime);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // 2. Time string is HH:mm or HH:mm:ss -> combine with strDate or fallback date
+  if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(strTime)) {
+    let baseDate = '2026-11-30';
+    if (strDate && /^\d{4}-\d{2}-\d{2}/.test(strDate)) {
+      baseDate = strDate.slice(0, 10);
+    } else if (fallback) {
+      baseDate = fallback.toISOString().slice(0, 10);
+    }
+    const [hh, mm, ss] = strTime.split(':');
+    const isoStr = `${baseDate}T${hh.padStart(2, '0')}:${mm.padStart(2, '0')}:${(ss || '00').padStart(2, '0')}+05:30`;
+    const d = new Date(isoStr);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // 3. Date string is valid YYYY-MM-DD
+  if (strDate && /^\d{4}-\d{2}-\d{2}/.test(strDate)) {
+    const d = new Date(strDate.includes('T') ? strDate : `${strDate.slice(0, 10)}T00:00:00+05:30`);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // 4. Try parsing strTime directly
+  if (strTime) {
+    const d = new Date(strTime);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  return fallback;
+}
 
 /**
  * Generate unique Yatrai booking reference
@@ -203,9 +273,14 @@ export async function resolveOrCreateAuthoritativeJourney(journeyId, clientSnaps
   const originLocId = await resolveStationLocationId(originCode);
   const destLocId = await resolveStationLocationId(destCode);
 
-  const depTime = new Date(clientSnapshot.departureTime || legs[0].departureTime || Date.now());
-  let arrTime = new Date(clientSnapshot.arrivalTime || legs[legs.length - 1].arrivalTime || depTime);
-  if (arrTime < depTime) {
+  const depDateVal = clientSnapshot.departureDate || (legs[0] && legs[0].departureDate);
+  const depTimeVal = clientSnapshot.departureTime || (legs[0] && legs[0].departureTime);
+  const depTime = parseSafeDate(depTimeVal, depDateVal, new Date());
+
+  const arrDateVal = clientSnapshot.arrivalDate || (legs[legs.length - 1] && legs[legs.length - 1].arrivalDate) || depDateVal;
+  const arrTimeVal = clientSnapshot.arrivalTime || (legs[legs.length - 1] && legs[legs.length - 1].arrivalTime);
+  let arrTime = parseSafeDate(arrTimeVal, arrDateVal, new Date(depTime.getTime() + (Number(clientSnapshot.duration) || 60) * 60000));
+  if (arrTime <= depTime) {
     arrTime = new Date(depTime.getTime() + (Number(clientSnapshot.duration) || 60) * 60000);
   }
 
@@ -217,7 +292,7 @@ export async function resolveOrCreateAuthoritativeJourney(journeyId, clientSnaps
   // Compute canonical total price
   let totalPrice = Number(clientSnapshot.totalPrice || clientSnapshot.totalFare || clientSnapshot.fare || 0);
   if (totalPrice <= 0) {
-    const legPricesSum = legs.reduce((sum, l) => sum + (Number(l.price || l.fare) || 0), 0);
+    const legPricesSum = legs.reduce((sum, l) => sum + (Number(l.price || l.fare || l.totalFare) || 0), 0);
     totalPrice = legPricesSum > 0 ? legPricesSum : 380;
   }
 
@@ -253,16 +328,31 @@ export async function resolveOrCreateAuthoritativeJourney(journeyId, clientSnaps
     const legToCode = (l.destination?.code || l.toCode || l.to || l.destinationStation?.code || (i === legs.length - 1 ? destCode : '')).trim().toUpperCase();
     const legClass = String(l.service?.class || l.class || l.travelClass || clientSnapshot.laneClass || 'SL').trim().toUpperCase();
 
-    const legDepTime = new Date(l.departureTime || depTime);
-    let legArrTime = new Date(l.arrivalTime || arrTime);
-    if (legArrTime < legDepTime) {
+    const legDepDate = l.departureDate || depDateVal;
+    const legDepTimeVal = l.departureTime || depTimeVal;
+    const legDepTime = parseSafeDate(legDepTimeVal, legDepDate, depTime);
+
+    const legArrDate = l.arrivalDate || arrDateVal || legDepDate;
+    const legArrTimeVal = l.arrivalTime || arrTimeVal;
+    let legArrTime = parseSafeDate(legArrTimeVal, legArrDate, new Date(legDepTime.getTime() + (Number(l.duration) || 60) * 60000));
+    if (legArrTime <= legDepTime) {
       legArrTime = new Date(legDepTime.getTime() + (Number(l.duration) || 60) * 60000);
     }
 
     const legOriginLocId = await resolveStationLocationId(legFromCode);
     const legDestLocId = await resolveStationLocationId(legToCode);
 
-    const legPrice = Number(l.price || l.fare || (legs.length === 1 ? totalPrice : Math.round(totalPrice / legs.length)));
+    let legPrice = Number(l.price || l.fare || l.totalFare || 0);
+    if (legPrice <= 0) {
+      if (legs.length === 1 && totalPrice > 0) {
+        legPrice = totalPrice;
+      } else if (totalPrice > 0) {
+        legPrice = Math.round(totalPrice / legs.length);
+      } else {
+        const legDist = Number(l.distance) || clusterService.calculateStationDistanceKm(legFromCode, legToCode) || 450;
+        legPrice = fareService.calculateTelescopicTariff(legDist, legClass);
+      }
+    }
 
     const createdLeg = await JourneyLeg.create({
       journey: createdJourney._id,
@@ -512,41 +602,45 @@ export const bookingService = {
     const yatraiPnr = isConfirmed ? generatePnrNumber() : null;
 
     // 7. Multi-leg independent segment tracking
-    const legBookings = snapshotLegs.map((l, lIdx) => ({
-      sequence: l.sequence || lIdx + 1,
-      trainNumber: l.trainNumber || l.service?.number || '',
-      trainName: l.trainName || l.service?.name || 'Express Train',
-      origin: {
-        code: l.origin?.code || l.fromCode || l.from || '',
-        name: l.origin?.name || l.fromName || '',
-      },
-      destination: {
-        code: l.destination?.code || l.toCode || l.to || '',
-        name: l.destination?.name || l.toName || '',
-      },
-      departureTime: l.departureTime,
-      arrivalTime: l.arrivalTime,
-      duration: l.duration,
-      distance: l.distance || 0,
-      travelClass: l.class || l.service?.class || 'SL',
-      quota: l.quota || 'GN',
-      fare: Number(l.price || l.fare || 0) * passengerCount,
-      availabilityStatus: l.availability || 'VERIFIED',
-      bookingStatus: isConfirmed ? 'confirmed' : 'unconfirmed',
-      pnr: isConfirmed ? generatePnrNumber() : null,
-      providerBookingReference: providerBookingRef,
-      seat: null,
-      coach: null,
-      ticketDocumentReference: null,
-    }));
+    const legBookings = snapshotLegs.map((l, lIdx) => {
+      const legDep = parseSafeDate(l.departureTime, l.departureDate || snapshot.departureDate, snapshot.departureTime || new Date());
+      const legArr = parseSafeDate(l.arrivalTime, l.arrivalDate || snapshot.arrivalDate, new Date(legDep.getTime() + (Number(l.duration) || 60) * 60000));
+      return {
+        sequence: l.sequence || lIdx + 1,
+        trainNumber: l.trainNumber || l.service?.number || '',
+        trainName: l.trainName || l.service?.name || 'Express Train',
+        origin: {
+          code: l.origin?.code || l.fromCode || l.from || '',
+          name: l.origin?.name || l.fromName || '',
+        },
+        destination: {
+          code: l.destination?.code || l.toCode || l.to || '',
+          name: l.destination?.name || l.toName || '',
+        },
+        departureTime: legDep,
+        arrivalTime: legArr,
+        duration: l.duration,
+        distance: l.distance || 0,
+        travelClass: l.class || l.service?.class || 'SL',
+        quota: l.quota || 'GN',
+        fare: Number(l.price || l.fare || l.totalFare || (snapshot.totalPrice ? Math.round(snapshot.totalPrice / snapshotLegs.length) : 190)) * passengerCount,
+        availabilityStatus: l.availability || 'VERIFIED',
+        bookingStatus: isConfirmed ? 'confirmed' : 'unconfirmed',
+        pnr: isConfirmed ? generatePnrNumber() : null,
+        providerBookingReference: providerBookingRef,
+        seat: null,
+        coach: null,
+        ticketDocumentReference: null,
+      };
+    });
 
     // Transfers calculation between sequential legs
     const transfers = [];
     for (let i = 0; i < legBookings.length - 1; i++) {
       const l1 = legBookings[i];
       const l2 = legBookings[i + 1];
-      const l1Arr = new Date(l1.arrivalTime).getTime();
-      const l2Dep = new Date(l2.departureTime).getTime();
+      const l1Arr = l1.arrivalTime instanceof Date ? l1.arrivalTime.getTime() : new Date(l1.arrivalTime).getTime();
+      const l2Dep = l2.departureTime instanceof Date ? l2.departureTime.getTime() : new Date(l2.departureTime).getTime();
       const waitMins = (!isNaN(l1Arr) && !isNaN(l2Dep) && l2Dep >= l1Arr)
         ? Math.round((l2Dep - l1Arr) / 60000)
         : 0;

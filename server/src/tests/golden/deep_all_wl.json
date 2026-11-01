@@ -2,7 +2,602 @@
   "direct": [],
   "waitingTrains": [],
   "uncheckedClasses": [],
-  "alternatives": [],
+  "alternatives": [
+    {
+      "type": "cross_train",
+      "sameTrain": false,
+      "isClusterTransfer": false,
+      "legs": [
+        {
+          "id": "12304-leg-1",
+          "sequence": 1,
+          "trainNo": "12304",
+          "trainNumber": "12304",
+          "trainName": "Poorva Express",
+          "mode": "rail",
+          "from": "NDLS",
+          "to": "CNB",
+          "origin": {
+            "code": "NDLS",
+            "name": "NDLS"
+          },
+          "destination": {
+            "code": "CNB",
+            "name": "CNB"
+          },
+          "originStation": {
+            "code": "NDLS",
+            "name": "NDLS"
+          },
+          "destinationStation": {
+            "code": "CNB",
+            "name": "CNB"
+          },
+          "service": {
+            "number": "12304",
+            "name": "Poorva Express",
+            "class": "SL",
+            "operator": "Indian Railways"
+          },
+          "class": "SL",
+          "travelClass": "SL",
+          "departureTime": "2026-11-19T17:40:00+05:30",
+          "arrivalTime": "2026-11-20T06:50:00+05:30",
+          "departureTimeFormatted": "17:40",
+          "arrivalTimeFormatted": "06:50",
+          "departureDate": "2026-11-19",
+          "arrivalDate": "2026-11-20",
+          "duration": 790,
+          "distance": 500,
+          "price": 1450,
+          "fare": 1450,
+          "availability": {
+            "normalizedStatus": "WAITLIST",
+            "statusText": "GNWL 15",
+            "predictionPercentage": 45,
+            "fare": 1450,
+            "totalFare": 1450,
+            "dates": [
+              {
+                "date": "2026-11-19",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-16",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-17",
+                "status": "AVAILABLE"
+              },
+              {
+                "date": "2026-11-18",
+                "status": "WL"
+              }
+            ]
+          },
+          "notice": null
+        },
+        {
+          "id": "12392-leg-2",
+          "sequence": 2,
+          "trainNo": "12392",
+          "trainNumber": "12392",
+          "trainName": "Shramjeevi Express",
+          "mode": "rail",
+          "from": "CNB",
+          "to": "PNBE",
+          "origin": {
+            "code": "CNB",
+            "name": "CNB"
+          },
+          "destination": {
+            "code": "PNBE",
+            "name": "PNBE"
+          },
+          "originStation": {
+            "code": "CNB",
+            "name": "CNB"
+          },
+          "destinationStation": {
+            "code": "PNBE",
+            "name": "PNBE"
+          },
+          "service": {
+            "number": "12392",
+            "name": "Shramjeevi Express",
+            "class": "SL",
+            "operator": "Indian Railways"
+          },
+          "class": "SL",
+          "travelClass": "SL",
+          "departureTime": "2026-11-20T13:10:00+05:30",
+          "arrivalTime": "2026-11-21T07:05:00+05:30",
+          "departureTimeFormatted": "13:10",
+          "arrivalTimeFormatted": "07:05",
+          "departureDate": "2026-11-20",
+          "arrivalDate": "2026-11-21",
+          "duration": 1075,
+          "distance": 500,
+          "price": 1450,
+          "fare": 1450,
+          "totalFare": 1450,
+          "availability": {
+            "normalizedStatus": "WAITLIST",
+            "statusText": "GNWL 15",
+            "predictionPercentage": 45,
+            "fare": 1450,
+            "totalFare": 1450,
+            "dates": [
+              {
+                "date": "2026-11-20",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-17",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-18",
+                "status": "AVAILABLE"
+              },
+              {
+                "date": "2026-11-19",
+                "status": "WL"
+              }
+            ]
+          },
+          "notice": null
+        }
+      ],
+      "hubCode": "CNB",
+      "laneClass": "SL",
+      "layoverMinutes": 380,
+      "isTight": false,
+      "tightLabel": null,
+      "tier": "WAITLIST",
+      "weakestTier": "WAITLIST",
+      "isRisky": true,
+      "badge": "Risky — waitlisted",
+      "notice": "Waitlisted — not guaranteed. Separate tickets. A missed connection is not protected.",
+      "predictionPercentage": 45,
+      "departureTime": "2026-11-19T17:40:00+05:30",
+      "arrivalTime": "2026-11-21T07:05:00+05:30",
+      "departureTimeFormatted": "17:40",
+      "arrivalTimeFormatted": "07:05",
+      "departureDate": "2026-11-19",
+      "arrivalDate": "2026-11-21",
+      "duration": 2245,
+      "totalDuration": 2245,
+      "totalWaitingMinutes": 380,
+      "totalFare": 2900,
+      "totalPrice": 2900,
+      "fare": 2900,
+      "requestedOrigin": "NDLS",
+      "requestedDestination": "PNBE",
+      "origin": {
+        "code": "NDLS",
+        "name": "NDLS"
+      },
+      "destination": {
+        "code": "PNBE",
+        "name": "PNBE"
+      },
+      "from": "NDLS",
+      "to": "PNBE",
+      "stationDifference": {
+        "hasDifference": false,
+        "originShift": {
+          "isShift": false,
+          "requestedCode": "NDLS",
+          "actualCode": "NDLS",
+          "distanceKm": 0
+        },
+        "destinationShift": {
+          "isShift": false,
+          "requestedCode": "PNBE",
+          "actualCode": "PNBE",
+          "distanceKm": 0
+        }
+      }
+    },
+    {
+      "type": "cross_train",
+      "sameTrain": false,
+      "isClusterTransfer": false,
+      "legs": [
+        {
+          "id": "12304-leg-1",
+          "sequence": 1,
+          "trainNo": "12304",
+          "trainNumber": "12304",
+          "trainName": "Poorva Express",
+          "mode": "rail",
+          "from": "NDLS",
+          "to": "PRYJ",
+          "origin": {
+            "code": "NDLS",
+            "name": "NDLS"
+          },
+          "destination": {
+            "code": "PRYJ",
+            "name": "PRYJ"
+          },
+          "originStation": {
+            "code": "NDLS",
+            "name": "NDLS"
+          },
+          "destinationStation": {
+            "code": "PRYJ",
+            "name": "PRYJ"
+          },
+          "service": {
+            "number": "12304",
+            "name": "Poorva Express",
+            "class": "SL",
+            "operator": "Indian Railways"
+          },
+          "class": "SL",
+          "travelClass": "SL",
+          "departureTime": "2026-11-19T17:40:00+05:30",
+          "arrivalTime": "2026-11-20T06:50:00+05:30",
+          "departureTimeFormatted": "17:40",
+          "arrivalTimeFormatted": "06:50",
+          "departureDate": "2026-11-19",
+          "arrivalDate": "2026-11-20",
+          "duration": 790,
+          "distance": 500,
+          "price": 1450,
+          "fare": 1450,
+          "availability": {
+            "normalizedStatus": "WAITLIST",
+            "statusText": "GNWL 15",
+            "predictionPercentage": 45,
+            "fare": 1450,
+            "totalFare": 1450,
+            "dates": [
+              {
+                "date": "2026-11-19",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-16",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-17",
+                "status": "AVAILABLE"
+              },
+              {
+                "date": "2026-11-18",
+                "status": "WL"
+              }
+            ]
+          },
+          "notice": null
+        },
+        {
+          "id": "12392-leg-2",
+          "sequence": 2,
+          "trainNo": "12392",
+          "trainNumber": "12392",
+          "trainName": "Shramjeevi Express",
+          "mode": "rail",
+          "from": "PRYJ",
+          "to": "PNBE",
+          "origin": {
+            "code": "PRYJ",
+            "name": "PRYJ"
+          },
+          "destination": {
+            "code": "PNBE",
+            "name": "PNBE"
+          },
+          "originStation": {
+            "code": "PRYJ",
+            "name": "PRYJ"
+          },
+          "destinationStation": {
+            "code": "PNBE",
+            "name": "PNBE"
+          },
+          "service": {
+            "number": "12392",
+            "name": "Shramjeevi Express",
+            "class": "SL",
+            "operator": "Indian Railways"
+          },
+          "class": "SL",
+          "travelClass": "SL",
+          "departureTime": "2026-11-20T13:10:00+05:30",
+          "arrivalTime": "2026-11-21T07:05:00+05:30",
+          "departureTimeFormatted": "13:10",
+          "arrivalTimeFormatted": "07:05",
+          "departureDate": "2026-11-20",
+          "arrivalDate": "2026-11-21",
+          "duration": 1075,
+          "distance": 500,
+          "price": 1450,
+          "fare": 1450,
+          "totalFare": 1450,
+          "availability": {
+            "normalizedStatus": "WAITLIST",
+            "statusText": "GNWL 15",
+            "predictionPercentage": 45,
+            "fare": 1450,
+            "totalFare": 1450,
+            "dates": [
+              {
+                "date": "2026-11-20",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-17",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-18",
+                "status": "AVAILABLE"
+              },
+              {
+                "date": "2026-11-19",
+                "status": "WL"
+              }
+            ]
+          },
+          "notice": null
+        }
+      ],
+      "hubCode": "PRYJ",
+      "laneClass": "SL",
+      "layoverMinutes": 380,
+      "isTight": false,
+      "tightLabel": null,
+      "tier": "WAITLIST",
+      "weakestTier": "WAITLIST",
+      "isRisky": true,
+      "badge": "Risky — waitlisted",
+      "notice": "Waitlisted — not guaranteed. Separate tickets. A missed connection is not protected.",
+      "predictionPercentage": 45,
+      "departureTime": "2026-11-19T17:40:00+05:30",
+      "arrivalTime": "2026-11-21T07:05:00+05:30",
+      "departureTimeFormatted": "17:40",
+      "arrivalTimeFormatted": "07:05",
+      "departureDate": "2026-11-19",
+      "arrivalDate": "2026-11-21",
+      "duration": 2245,
+      "totalDuration": 2245,
+      "totalWaitingMinutes": 380,
+      "totalFare": 2900,
+      "totalPrice": 2900,
+      "fare": 2900,
+      "requestedOrigin": "NDLS",
+      "requestedDestination": "PNBE",
+      "origin": {
+        "code": "NDLS",
+        "name": "NDLS"
+      },
+      "destination": {
+        "code": "PNBE",
+        "name": "PNBE"
+      },
+      "from": "NDLS",
+      "to": "PNBE",
+      "stationDifference": {
+        "hasDifference": false,
+        "originShift": {
+          "isShift": false,
+          "requestedCode": "NDLS",
+          "actualCode": "NDLS",
+          "distanceKm": 0
+        },
+        "destinationShift": {
+          "isShift": false,
+          "requestedCode": "PNBE",
+          "actualCode": "PNBE",
+          "distanceKm": 0
+        }
+      }
+    },
+    {
+      "type": "cross_train",
+      "sameTrain": false,
+      "isClusterTransfer": false,
+      "legs": [
+        {
+          "id": "12304-leg-1",
+          "sequence": 1,
+          "trainNo": "12304",
+          "trainNumber": "12304",
+          "trainName": "Poorva Express",
+          "mode": "rail",
+          "from": "NDLS",
+          "to": "DDU",
+          "origin": {
+            "code": "NDLS",
+            "name": "NDLS"
+          },
+          "destination": {
+            "code": "DDU",
+            "name": "DDU"
+          },
+          "originStation": {
+            "code": "NDLS",
+            "name": "NDLS"
+          },
+          "destinationStation": {
+            "code": "DDU",
+            "name": "DDU"
+          },
+          "service": {
+            "number": "12304",
+            "name": "Poorva Express",
+            "class": "SL",
+            "operator": "Indian Railways"
+          },
+          "class": "SL",
+          "travelClass": "SL",
+          "departureTime": "2026-11-19T17:40:00+05:30",
+          "arrivalTime": "2026-11-20T06:50:00+05:30",
+          "departureTimeFormatted": "17:40",
+          "arrivalTimeFormatted": "06:50",
+          "departureDate": "2026-11-19",
+          "arrivalDate": "2026-11-20",
+          "duration": 790,
+          "distance": 500,
+          "price": 1450,
+          "fare": 1450,
+          "availability": {
+            "normalizedStatus": "WAITLIST",
+            "statusText": "GNWL 15",
+            "predictionPercentage": 45,
+            "fare": 1450,
+            "totalFare": 1450,
+            "dates": [
+              {
+                "date": "2026-11-19",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-16",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-17",
+                "status": "AVAILABLE"
+              },
+              {
+                "date": "2026-11-18",
+                "status": "WL"
+              }
+            ]
+          },
+          "notice": null
+        },
+        {
+          "id": "12392-leg-2",
+          "sequence": 2,
+          "trainNo": "12392",
+          "trainNumber": "12392",
+          "trainName": "Shramjeevi Express",
+          "mode": "rail",
+          "from": "DDU",
+          "to": "PNBE",
+          "origin": {
+            "code": "DDU",
+            "name": "DDU"
+          },
+          "destination": {
+            "code": "PNBE",
+            "name": "PNBE"
+          },
+          "originStation": {
+            "code": "DDU",
+            "name": "DDU"
+          },
+          "destinationStation": {
+            "code": "PNBE",
+            "name": "PNBE"
+          },
+          "service": {
+            "number": "12392",
+            "name": "Shramjeevi Express",
+            "class": "SL",
+            "operator": "Indian Railways"
+          },
+          "class": "SL",
+          "travelClass": "SL",
+          "departureTime": "2026-11-20T13:10:00+05:30",
+          "arrivalTime": "2026-11-21T07:05:00+05:30",
+          "departureTimeFormatted": "13:10",
+          "arrivalTimeFormatted": "07:05",
+          "departureDate": "2026-11-20",
+          "arrivalDate": "2026-11-21",
+          "duration": 1075,
+          "distance": 500,
+          "price": 1450,
+          "fare": 1450,
+          "totalFare": 1450,
+          "availability": {
+            "normalizedStatus": "WAITLIST",
+            "statusText": "GNWL 15",
+            "predictionPercentage": 45,
+            "fare": 1450,
+            "totalFare": 1450,
+            "dates": [
+              {
+                "date": "2026-11-20",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-17",
+                "status": "WL"
+              },
+              {
+                "date": "2026-11-18",
+                "status": "AVAILABLE"
+              },
+              {
+                "date": "2026-11-19",
+                "status": "WL"
+              }
+            ]
+          },
+          "notice": null
+        }
+      ],
+      "hubCode": "DDU",
+      "laneClass": "SL",
+      "layoverMinutes": 380,
+      "isTight": false,
+      "tightLabel": null,
+      "tier": "WAITLIST",
+      "weakestTier": "WAITLIST",
+      "isRisky": true,
+      "badge": "Risky — waitlisted",
+      "notice": "Waitlisted — not guaranteed. Separate tickets. A missed connection is not protected.",
+      "predictionPercentage": 45,
+      "departureTime": "2026-11-19T17:40:00+05:30",
+      "arrivalTime": "2026-11-21T07:05:00+05:30",
+      "departureTimeFormatted": "17:40",
+      "arrivalTimeFormatted": "07:05",
+      "departureDate": "2026-11-19",
+      "arrivalDate": "2026-11-21",
+      "duration": 2245,
+      "totalDuration": 2245,
+      "totalWaitingMinutes": 380,
+      "totalFare": 2900,
+      "totalPrice": 2900,
+      "fare": 2900,
+      "requestedOrigin": "NDLS",
+      "requestedDestination": "PNBE",
+      "origin": {
+        "code": "NDLS",
+        "name": "NDLS"
+      },
+      "destination": {
+        "code": "PNBE",
+        "name": "PNBE"
+      },
+      "from": "NDLS",
+      "to": "PNBE",
+      "stationDifference": {
+        "hasDifference": false,
+        "originShift": {
+          "isShift": false,
+          "requestedCode": "NDLS",
+          "actualCode": "NDLS",
+          "distanceKm": 0
+        },
+        "destinationShift": {
+          "isShift": false,
+          "requestedCode": "PNBE",
+          "actualCode": "PNBE",
+          "distanceKm": 0
+        }
+      }
+    }
+  ],
   "dateStrip": [],
   "partial": false,
   "degraded": false,
@@ -12,14 +607,14 @@
   "message": null,
   "cancelledFilter": null,
   "budget": {
-    "used": 36,
+    "used": 19,
     "cap": 100,
     "partial": false,
-    "cacheHits": 58,
-    "cacheMisses": 36
+    "cacheHits": 11,
+    "cacheMisses": 19
   },
   "cache": {
-    "hits": 58,
-    "misses": 36
+    "hits": 11,
+    "misses": 19
   }
 }
