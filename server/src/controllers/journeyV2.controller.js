@@ -23,6 +23,7 @@ import config from '../config/index.js';
 import persistentCacheService from '../services/rail/persistentCache.service.js';
 import { formatJourneyDate, formatInIST } from '../utils/railwayTime.js';
 import { getAdvanceBookingWindow } from '../utils/bookingWindow.js';
+import recentSearchService from '../services/recentSearchService.js';
 
 // In-process rate limiter for refresh-card: "trainNo:from:to:class:date" -> lastRefreshAt
 const _refreshRateLimit = new Map();
@@ -357,6 +358,17 @@ export const journeyV2Controller = {
           destinationCluster: expandedDestinations,
         };
       });
+
+      // Auto-record search for authenticated users
+      if (req.user?.id && origins?.[0] && destinations?.[0]) {
+        recentSearchService.recordSearch({
+          userId: req.user.id,
+          origin: origins[0],
+          destination: destinations[0],
+          departureDate: formattedDate,
+          ranking: req.body?.ranking || 'overall',
+        }).catch(() => {});
+      }
 
       return res.status(200).json(successResponse('Journey search completed', searchResultData));
     } catch (err) {

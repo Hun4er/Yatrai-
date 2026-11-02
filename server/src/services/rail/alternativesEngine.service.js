@@ -752,7 +752,9 @@ export class AlternativesEngineService {
               leg1Trains.push(...candidates);
               if (leg1Trains.length > 0) break;
             }
-          } catch {}
+          } catch (_err) {
+            // ignore cluster fallback error
+          }
         }
       }
 
@@ -809,7 +811,7 @@ export class AlternativesEngineService {
       if (st === AVAILABILITY_STATUS.AVAILABLE || st === 'AVAILABLE' || st === 'CONFIRMED') return true;
       if (st === AVAILABILITY_STATUS.RAC || st === 'RAC') return true;
       if (st === AVAILABILITY_STATUS.WAITLIST || st === 'WAITLIST' || st === 'WL') return true;
-      if (st === 'SCHEDULE_FOUND' || st === 'UNKNOWN') return true;
+      if (st === 'SCHEDULE_FOUND' || st === 'UNKNOWN' || st === 'UNVERIFIED' || st === AVAILABILITY_STATUS.UNVERIFIED) return true;
       return false;
     };
 

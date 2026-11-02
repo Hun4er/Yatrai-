@@ -23,6 +23,7 @@ import { isValidCalendarDate, isPastDate } from '../middleware/validate.middlewa
 import { findStationByCode } from '../services/rail/stationRegistry.js';
 import { STATION_CODE_MAP } from '../providers/transport/rail/rail.provider.js';
 import clusterService from '../services/rail/cluster.service.js';
+import { matchesTimeWindow } from '../services/naturalLanguage/timeWindowResolver.js';
 
 async function ensureMongoLocation(loc) {
   if (!loc) return null;

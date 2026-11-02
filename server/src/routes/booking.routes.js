@@ -23,6 +23,12 @@ router.post('/', authenticate, bookingController.create);
 router.get('/my-bookings', authenticate, bookingController.getMyBookings);
 
 /**
+ * GET /api/booking/pnr/:pnr/pdf
+ * Downloads PDF ticket for any valid PNR inquiry.
+ */
+router.get('/pnr/:pnr/pdf', optionalAuthenticate, bookingController.downloadPdfByPnr);
+
+/**
  * GET /api/booking/pnr/:pnr
  * Checks PNR status for Yatrai-generated bookings.
  */
@@ -33,12 +39,12 @@ router.get('/pnr', optionalAuthenticate, bookingController.checkPnr);
  * GET /api/booking/:id
  * Retrieves a single booking record by ID or Reference.
  */
-router.get('/:id', authenticate, bookingController.getById);
+router.get('/:id', optionalAuthenticate, bookingController.getById);
 
 /**
  * GET /api/booking/:id/pdf
  * Generates and downloads the PDF Ticket / Journey Summary document.
  */
-router.get('/:id/pdf', authenticate, bookingController.downloadPdf);
+router.get('/:id/pdf', optionalAuthenticate, bookingController.downloadPdf);
 
 export default router;

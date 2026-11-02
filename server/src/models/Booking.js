@@ -94,6 +94,10 @@ const PassengerSchema = new Schema(
       default: 'general',
       enum: ['general', 'senior_citizen', 'child', 'divyang'],
     },
+    coach: { type: String, trim: true, default: null },
+    berth: { type: String, trim: true, default: null },
+    seat: { type: String, trim: true, default: null },
+    berthType: { type: String, trim: true, default: null },
   },
   { _id: false }
 );

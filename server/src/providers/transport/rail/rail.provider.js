@@ -5,6 +5,7 @@ import { ProviderError } from '../errors.js';
 import { calculateJourneyTiming } from '../../../utils/railwayTime.js';
 import railKitAdapter, { normalizeRailKitTrain } from '../../rail/railKit.adapter.js';
 import { findStationByCode, findStationByName, searchRailwayStations } from '../../../services/rail/stationRegistry.js';
+import { findVerifiedDirectTrains } from '../../../services/rail/verifiedTrainData.js';
 
 /**
  * Built-in Station Code Mapping for major Indian cities and railway hubs.
@@ -381,7 +382,7 @@ export function resolveStationCode(location) {
       }
     }
     for (const [key, code] of Object.entries(STATION_CODE_MAP)) {
-      if (lower.includes(key)) {
+      if (key.length >= 3 && new RegExp('\\b' + key + '\\b', 'i').test(lower)) {
         return code;
       }
     }
@@ -457,7 +458,7 @@ export function resolveStationCode(location) {
   }
 
   for (const [key, code] of Object.entries(STATION_CODE_MAP)) {
-    if (nameClean.includes(key) || cityClean.includes(key)) {
+    if (key.length >= 3 && (new RegExp('\\b' + key + '\\b', 'i').test(nameClean) || new RegExp('\\b' + key + '\\b', 'i').test(cityClean))) {
       return code;
     }
   }

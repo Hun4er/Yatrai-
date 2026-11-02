@@ -105,8 +105,8 @@ export const bookingController = {
     try {
       const booking = await bookingService.getBookingById(
         req.params.id,
-        req.user.id,
-        req.user.role
+        req.user?.id,
+        req.user?.role
       );
 
       return res.status(200).json(
@@ -122,27 +122,51 @@ export const bookingController = {
   /**
    * GET /api/booking/:id/pdf
    * Generates and downloads the PDF Ticket / Journey Summary document.
+   * Allows downloading by MongoDB ID, 10-digit PNR, or Booking Reference.
    */
   async downloadPdf(req, res, next) {
     try {
+      const identifier = req.params.id;
+      const userId = req.user?.id || null;
+      const userRole = req.user?.role || 'guest';
+
       const pdfBuffer = await bookingService.getBookingPdf(
-        req.params.id,
-        req.user.id,
-        req.user.role
+        identifier,
+        userId,
+        userRole
       );
 
       const booking = await bookingService.getBookingById(
-        req.params.id,
-        req.user.id,
-        req.user.role
-      );
+        identifier,
+        userId,
+        userRole,
+        { allowPublic: true }
+      ).catch(() => null);
 
-      const docName = booking.isConfirmed
-        ? `Yatrai_Ticket_${booking.bookingReference}.pdf`
-        : `Yatrai_Journey_Summary_${booking.bookingReference}.pdf`;
+      const ref = booking?.bookingReference || booking?.pnr || identifier;
+      const docName = `Yatrai_Ticket_${ref}.pdf`;
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${docName}"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+
+      return res.send(pdfBuffer);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * GET /api/booking/pnr/:pnr/pdf or /api/pnr/:pnr/pdf
+   * Generates and downloads the authentic IRCTC Electronic Reservation Slip PDF for any PNR.
+   */
+  async downloadPdfByPnr(req, res, next) {
+    try {
+      const pnrQuery = req.params.pnr || req.query.pnr;
+      const pdfBuffer = await bookingService.getPdfByPnr(pnrQuery);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Yatrai_Ticket_${pnrQuery}.pdf"`);
       res.setHeader('Content-Length', pdfBuffer.length);
 
       return res.send(pdfBuffer);

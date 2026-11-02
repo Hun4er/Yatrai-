@@ -9,6 +9,7 @@ import { getAdvanceBookingWindow } from '../utils/bookingWindow.js';
 import { AVAILABILITY_STATUS } from '../services/rail/availabilityNorm.js';
 
 describe('Journey Alternate Search & Phase 6 Regression Suite', () => {
+  const futureDate = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
 
   // 1. Direct train being returned successfully
   it('1. Returns direct trains when a direct train runs on the route', async () => {
@@ -148,17 +149,17 @@ describe('Journey Alternate Search & Phase 6 Regression Suite', () => {
       },
     });
 
-    const hubs = await altEngine._discoverHubs('MS', 'R', '2026-10-28', [], 4);
+    const hubs = await altEngine._discoverHubs('MS', 'R', futureDate, [], 4);
     assert.ok(hubs.some((h) => h.code === 'VSKP' || h.code === 'NGP' || h.code === 'BZA'), 'Should discover natural geographic hubs');
 
     const result = await altEngine.run({
       originCode: 'MS',
       destCode: 'R',
-      date: '2026-10-28',
+      date: futureDate,
       travelClass: '3A',
       quota: 'GN',
       actionId: 'test_ms_to_r',
-      directDistanceKm: 920,
+      directDistanceKm: 1200,
     });
 
     assert.ok(result.alternatives.length > 0, 'Should find connecting alternative itineraries');
@@ -244,7 +245,7 @@ describe('Journey Alternate Search & Phase 6 Regression Suite', () => {
         actionId: 'test_bad_station',
         origins: ['UNKNOWN_FAKE_XYZ'],
         destinations: ['R'],
-        date: '2026-10-28',
+        date: futureDate,
       },
     };
     let responseStatus = null;
@@ -429,7 +430,7 @@ describe('Journey Alternate Search & Phase 6 Regression Suite', () => {
         actionId: 'e2e_ms_to_r_test',
         origins: ['MS'],
         destinations: ['R'],
-        date: '2026-10-28',
+        date: futureDate,
         class: 'ANY',
         quota: 'GN',
         mode: 'default',

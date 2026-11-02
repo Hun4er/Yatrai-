@@ -65,6 +65,10 @@ apiRouter.get('/', (req, res) => {
         getById: '/api/booking/:id',
         pdf: '/api/booking/:id/pdf',
       },
+      pnr: {
+        check: '/api/pnr/:pnr',
+        pdf: '/api/pnr/:pnr/pdf',
+      },
       admin: {
         overview: '/api/admin/overview',
         users: '/api/admin/users',
@@ -122,8 +126,8 @@ apiRouter.use('/booking', bookingRoutes);
 apiRouter.use('/v2/journeys', journeyV2Routes);
 
 // Mount convenient direct /api/pnr
+apiRouter.get('/pnr/:pnr/pdf', optionalAuthenticate, bookingController.downloadPdfByPnr);
 apiRouter.get('/pnr/:pnr', optionalAuthenticate, bookingController.checkPnr);
 apiRouter.get('/pnr', optionalAuthenticate, bookingController.checkPnr);
 
 export default apiRouter;
-
