@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../services/api.js';
+import {
+  getLocalNotifications,
+  markLocalNotificationRead,
+  markAllLocalNotificationsRead,
+  deleteLocalNotification,
+} from '../utils/browserCache.js';
 import JourneyDetailModal from '../components/journey/JourneyDetailModal.jsx';
 import {
   Bell,
@@ -15,78 +21,106 @@ import {
   ExternalLink,
   RefreshCw,
   Calendar,
+  Smartphone,
+  ShieldAlert,
 } from 'lucide-react';
 
 /**
- * NotificationsPage Component (Phase 14)
- * In-app notification center for trip reminders, price drops, schedule shifts, and saved updates.
+ * NotificationsPage Component
+ * In-app operational alert center for railway schedule alerts, ARP booking windows,
+ * Tatkal opening timings, and saved journey updates.
  */
 export function NotificationsPage({ onNavigateHome }) {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [notifications, setNotifications] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [inspectingJourney, setInspectingJourney] = useState(null);
   const [journeyUnavailableNotice, setJourneyUnavailableNotice] = useState(null);
-  const [sweeping, setSweeping] = useState(false);
 
-  const fetchNotifications = useCallback(() => {
-    if (!isAuthenticated) return;
+  const fetchNotifications = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    api.notifications
-      .list({ page, limit: 15, unreadOnly })
-      .then((res) => {
-        setNotifications(res?.data?.notifications || []);
-        setTotal(res?.data?.total || 0);
-        setTotalPages(res?.data?.totalPages || 1);
+    const localList = getLocalNotifications();
+
+    if (isAuthenticated) {
+      try {
+        const res = await api.notifications.list({ page: 1, limit: 30, unreadOnly: false });
+        const remoteList = res?.data?.notifications || [];
+
+        // If remote has items, merge with local operational notices
+        const seen = new Set();
+        const merged = [];
+
+        for (const item of remoteList) {
+          if (!seen.has(item.id)) {
+            seen.add(item.id);
+            merged.push(item);
+          }
+        }
+
+        for (const item of localList) {
+          if (!seen.has(item.id)) {
+            seen.add(item.id);
+            merged.push(item);
+          }
+        }
+
+        setNotifications(merged);
+      } catch {
+        setNotifications(localList);
+      } finally {
         setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message || 'Unable to load notifications.');
-        setLoading(false);
-      });
-  }, [isAuthenticated, page, unreadOnly]);
+      }
+    } else {
+      setNotifications(localList);
+      setLoading(false);
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
 
+  // Sync listener
+  useEffect(() => {
+    const handleSync = (e) => {
+      if (!e.detail?.type || e.detail.type === 'notifications') {
+        fetchNotifications();
+      }
+    };
+    window.addEventListener('yatrai:sync-state', handleSync);
+    return () => window.removeEventListener('yatrai:sync-state', handleSync);
+  }, [fetchNotifications]);
+
   const handleMarkRead = async (id) => {
-    try {
-      await api.notifications.markRead(id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true, readAt: new Date().toISOString() } : n))
-      );
-    } catch {
-      // keep current state
+    markLocalNotificationRead(id);
+    if (isAuthenticated && typeof id === 'string' && !id.startsWith('notif_')) {
+      await api.notifications.markRead(id).catch(() => {});
     }
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true, readAt: new Date().toISOString() } : n))
+    );
   };
 
   const handleMarkAllRead = async () => {
-    try {
-      await api.notifications.markAllRead();
-      setNotifications((prev) =>
-        prev.map((n) => ({ ...n, read: true, readAt: new Date().toISOString() }))
-      );
-    } catch (err) {
-      setError(err.message || 'Failed to mark notifications as read.');
+    markAllLocalNotificationsRead();
+    if (isAuthenticated) {
+      await api.notifications.markAllRead().catch(() => {});
     }
+    setNotifications((prev) =>
+      prev.map((n) => ({ ...n, read: true, readAt: new Date().toISOString() }))
+    );
   };
 
   const handleDelete = async (id) => {
-    try {
-      await api.notifications.delete(id);
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-      setTotal((prev) => Math.max(0, prev - 1));
-    } catch (err) {
-      setError(err.message || 'Failed to delete notification.');
+    deleteLocalNotification(id);
+    if (isAuthenticated && typeof id === 'string' && !id.startsWith('notif_')) {
+      await api.notifications.delete(id).catch(() => {});
     }
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
   const handleOpenJourney = (notif) => {
@@ -99,20 +133,8 @@ export function NotificationsPage({ onNavigateHome }) {
       setJourneyUnavailableNotice(null);
     } else {
       setJourneyUnavailableNotice(
-        'This specific journey route is no longer available or has been updated by the provider.'
+        'This specific itinerary schedule has been verified. Perform a fresh search to view live seat availability.'
       );
-    }
-  };
-
-  const handleTriggerSweep = async () => {
-    setSweeping(true);
-    try {
-      await api.notifications.sweep();
-      fetchNotifications();
-    } catch {
-      // keep existing
-    } finally {
-      setSweeping(false);
     }
   };
 
@@ -137,30 +159,36 @@ export function NotificationsPage({ onNavigateHome }) {
       case 'departure_reminder':
         return (
           <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 uppercase tracking-wider">
-            Trip Reminder
+            PRS Window
           </span>
         );
       case 'price_change':
         return (
           <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">
-            Price Change
+            Fare Update
           </span>
         );
       case 'schedule_change':
         return (
           <span className="rounded-full bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold text-purple-400 uppercase tracking-wider">
-            Schedule Shift
+            Timetable Sync
           </span>
         );
       case 'saved_journey_update':
       default:
         return (
           <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-400 uppercase tracking-wider">
-            Saved Update
+            System Notice
           </span>
         );
     }
   };
+
+  const displayedNotifications = unreadOnly
+    ? notifications.filter((n) => !n.read)
+    : notifications;
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   if (authLoading || (loading && notifications.length === 0)) {
     return (
@@ -170,108 +198,62 @@ export function NotificationsPage({ onNavigateHome }) {
     );
   }
 
-  if (!isAuthenticated) {
-    return (
-      <div className="mx-auto max-w-md space-y-6 py-12 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-soft border border-brand-primary/20 text-brand-primary">
-          <Bell className="h-7 w-7" aria-hidden="true" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-xl font-bold text-text-primary">Sign In to View Notifications</h2>
-          <p className="text-xs text-text-secondary leading-relaxed">
-            Stay informed on journey departure reminders, ticket price drops, and transit schedule changes.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onNavigateHome}
-          className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-brand-hover cursor-pointer"
-        >
-          <span>Find Routes</span>
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </button>
-      </div>
-    );
-  }
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
   return (
-    <div className="mx-auto max-w-4xl space-y-6 py-4 sm:py-8">
-      {/* Page Header */}
+    <div className="mx-auto max-w-4xl space-y-6 py-4 sm:py-8 px-4 sm:px-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-brand-primary">
             <Bell className="h-4 w-4" aria-hidden="true" />
-            <span>Travel Alerts</span>
+            <span>Travel Alerts & Operational Notices</span>
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-text-primary mt-1">
-            Notifications
+            Alerts & Updates
           </h1>
           <p className="text-xs text-text-secondary mt-0.5">
-            Real-time reminders, price movements, and schedule alterations for your saved trips.
+            Real-time PRS booking windows, Tatkal opening reminders, and railway timetable updates.
           </p>
         </div>
 
-        {/* Header Action CTAs */}
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleTriggerSweep}
-            disabled={sweeping}
-            title="Scan saved journeys for departure reminders"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary hover:bg-white/10 cursor-pointer disabled:opacity-50 transition-colors"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${sweeping ? 'animate-spin' : ''}`} aria-hidden="true" />
-            <span>Check Reminders</span>
-          </button>
-
+        {/* Action Controls */}
+        <div className="flex items-center gap-2">
           {unreadCount > 0 && (
             <button
               type="button"
               onClick={handleMarkAllRead}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-primary/10 border border-brand-primary/20 px-3 py-1.5 text-xs font-semibold text-brand-primary hover:bg-brand-primary hover:text-white transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-white/10 hover:text-text-primary transition-colors cursor-pointer"
             >
-              <CheckCheck className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Mark All Read</span>
+              <CheckCheck className="h-3.5 w-3.5" />
+              <span>Mark all as read</span>
             </button>
           )}
-        </div>
-      </div>
 
-      {/* Filter Tabs & Count Banner */}
-      <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-3">
-        <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={() => setUnreadOnly(false)}
-            className={`px-3 py-1 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
-              !unreadOnly
-                ? 'bg-white/10 text-text-primary font-semibold'
-                : 'text-text-muted hover:text-text-primary'
-            }`}
-          >
-            All ({total})
-          </button>
-          <button
-            type="button"
-            onClick={() => setUnreadOnly(true)}
-            className={`px-3 py-1 rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+            onClick={() => setUnreadOnly(!unreadOnly)}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
               unreadOnly
-                ? 'bg-white/10 text-text-primary font-semibold'
-                : 'text-text-muted hover:text-text-primary'
+                ? 'border-brand-primary/40 bg-brand-primary/10 text-brand-primary'
+                : 'border-white/10 bg-white/5 text-text-secondary hover:bg-white/10'
             }`}
           >
-            Unread Only
+            <span>Unread only ({unreadCount})</span>
           </button>
         </div>
-
-        {unreadCount > 0 && (
-          <span className="text-[11px] font-medium text-brand-primary">
-            {unreadCount} unread on this page
-          </span>
-        )}
       </div>
+
+      {/* Guest Mode Banner */}
+      {!isAuthenticated && (
+        <div className="flex items-center justify-between rounded-xl border border-brand-primary/20 bg-[#161B22] p-3 text-xs text-text-secondary">
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-4 w-4 text-brand-primary shrink-0" />
+            <span>Operational travel alerts are active. Sign in to subscribe to personalized SMS/Email trip reminders.</span>
+          </div>
+          <span className="shrink-0 rounded bg-brand-primary/10 px-2 py-0.5 text-[10px] font-semibold text-brand-primary font-mono">
+            LIVE ALERTS
+          </span>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-xs text-red-400">
@@ -280,169 +262,128 @@ export function NotificationsPage({ onNavigateHome }) {
       )}
 
       {journeyUnavailableNotice && (
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs text-amber-400 flex items-center justify-between">
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-300 flex items-center justify-between">
           <span>{journeyUnavailableNotice}</span>
           <button
             type="button"
             onClick={() => setJourneyUnavailableNotice(null)}
-            className="text-amber-400 hover:text-white font-bold ml-2 cursor-pointer"
+            className="text-xs font-bold text-amber-200 underline ml-2 cursor-pointer"
           >
-            ✕
+            Dismiss
           </button>
         </div>
       )}
 
       {/* Empty State */}
-      {notifications.length === 0 && !loading && (
+      {displayedNotifications.length === 0 && !loading && (
         <div className="rounded-2xl border border-white/5 bg-surface-card p-12 text-center space-y-4">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/5 text-text-muted">
             <Bell className="h-6 w-6" aria-hidden="true" />
           </div>
           <div className="space-y-1">
             <h3 className="text-base font-semibold text-text-primary">
-              {unreadOnly ? 'No unread notifications' : 'No notifications yet'}
+              {unreadOnly ? 'No unread alerts' : 'No notifications'}
             </h3>
             <p className="text-xs text-text-secondary max-w-sm mx-auto">
-              Save journeys to receive automated departure reminders, fare reduction alerts, and schedule changes.
+              You are all caught up! New PRS quota openings and schedule shifts will appear here.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onNavigateHome}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2 text-xs font-semibold text-white shadow-md hover:bg-brand-hover cursor-pointer"
-          >
-            <span>Explore Routes</span>
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </button>
+          {unreadOnly && (
+            <button
+              type="button"
+              onClick={() => setUnreadOnly(false)}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2 text-xs font-semibold text-white shadow-md hover:bg-brand-hover cursor-pointer"
+            >
+              <span>View All Alerts</span>
+            </button>
+          )}
         </div>
       )}
 
       {/* Notifications List */}
-      <div className="space-y-2.5">
-        {notifications.map((notif) => {
-          const isUnread = !notif.read;
-          const formattedDate = notif.createdAt
-            ? new Date(notif.createdAt).toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })
-            : '';
+      <div className="space-y-3">
+        {displayedNotifications.map((notif) => {
+          const isRead = Boolean(notif.read);
 
           return (
-            <article
+            <div
               key={notif.id}
-              className={`group flex items-start justify-between gap-4 rounded-xl border p-4 transition-all ${
-                isUnread
-                  ? 'border-brand-primary/30 bg-surface-elevated shadow-sm'
-                  : 'border-white/5 bg-surface-card hover:border-white/10'
+              className={`group flex items-start justify-between rounded-xl border p-4 transition-all ${
+                isRead
+                  ? 'border-white/5 bg-[#12151A] opacity-80 hover:opacity-100 hover:border-white/10'
+                  : 'border-brand-primary/30 bg-[#161B22] shadow-sm'
               }`}
             >
-              <div className="flex items-start gap-3 min-w-0">
-                {/* Category Icon */}
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/5 border border-white/5">
+              <div className="flex items-start gap-3 flex-1 min-w-0 pr-4">
+                <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl bg-[#1A1F26] border border-[#303640] shrink-0">
                   {getTypeIcon(notif.type)}
                 </div>
 
-                {/* Content */}
-                <div className="space-y-1 min-w-0">
+                <div className="space-y-1 min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     {getTypeBadge(notif.type)}
-                    {isUnread && (
-                      <span className="flex h-2 w-2 rounded-full bg-brand-primary" aria-label="Unread notification" />
+                    <h3 className={`text-sm font-semibold truncate ${isRead ? 'text-text-primary' : 'text-[#F0F1F3] font-bold'}`}>
+                      {notif.title}
+                    </h3>
+                    {!isRead && (
+                      <span className="h-2 w-2 rounded-full bg-brand-primary animate-pulse" />
                     )}
-                    <span className="text-[11px] text-text-muted">{formattedDate}</span>
                   </div>
-
-                  <h3 className={`text-sm font-semibold tracking-tight ${isUnread ? 'text-text-primary' : 'text-text-secondary'}`}>
-                    {notif.title}
-                  </h3>
 
                   <p className="text-xs text-text-secondary leading-relaxed">
                     {notif.message}
                   </p>
 
-                  {/* Metadata Corridor Tag */}
-                  {notif.metadata?.origin && notif.metadata?.destination && (
-                    <div className="pt-1 flex items-center gap-1.5 text-[11px] font-medium text-brand-primary/80">
-                      <span>{notif.metadata.origin}</span>
-                      <span className="text-text-muted">→</span>
-                      <span>{notif.metadata.destination}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-3 pt-1 text-[11px] text-text-muted">
+                    <span>
+                      {notif.createdAt ? new Date(notif.createdAt).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }) : 'Recent'}
+                    </span>
+
+                    {notif.actionLabel && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenJourney(notif)}
+                        className="font-medium text-brand-primary hover:underline cursor-pointer"
+                      >
+                        {notif.actionLabel} →
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-center">
-                {notif.journey && (
-                  <button
-                    type="button"
-                    onClick={() => handleOpenJourney(notif)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-brand-primary/20 bg-brand-primary/10 px-2.5 py-1 text-xs font-semibold text-brand-primary hover:bg-brand-primary hover:text-white transition-all cursor-pointer"
-                    aria-label={`View journey for ${notif.title}`}
-                  >
-                    <span>View</span>
-                    <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                  </button>
-                )}
-
-                {isUnread && (
+              {/* Action buttons on right */}
+              <div className="flex items-center gap-1 shrink-0">
+                {!isRead && (
                   <button
                     type="button"
                     onClick={() => handleMarkRead(notif.id)}
                     title="Mark as read"
-                    className="rounded-lg p-1.5 text-text-muted hover:text-text-primary hover:bg-white/5 cursor-pointer transition-colors"
-                    aria-label="Mark as read"
+                    className="p-1.5 rounded-lg text-text-muted hover:text-emerald-400 hover:bg-white/5 transition-colors cursor-pointer"
                   >
-                    <Check className="h-4 w-4" aria-hidden="true" />
+                    <Check className="h-4 w-4" />
                   </button>
                 )}
-
                 <button
                   type="button"
                   onClick={() => handleDelete(notif.id)}
-                  title="Delete notification"
-                  className="rounded-lg p-1.5 text-text-muted hover:text-red-400 hover:bg-white/5 cursor-pointer transition-colors"
-                  aria-label="Delete notification"
+                  title="Delete alert"
+                  className="p-1.5 rounded-lg text-text-muted hover:text-red-400 hover:bg-white/5 transition-colors cursor-pointer"
                 >
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  <Trash2 className="h-4 w-4" />
                 </button>
               </div>
-            </article>
+            </div>
           );
         })}
       </div>
 
-      {/* Pagination Controls */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-white/5 pt-4 text-xs text-text-secondary">
-          <span>
-            Page {page} of {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="rounded-lg border border-white/10 px-3 py-1 text-xs hover:bg-white/5 disabled:opacity-40 cursor-pointer"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="rounded-lg border border-white/10 px-3 py-1 text-xs hover:bg-white/5 disabled:opacity-40 cursor-pointer"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Journey Detail Modal with Phase 12 Mapbox Visualization */}
+      {/* Inspect Journey Modal if applicable */}
       {inspectingJourney && (
         <JourneyDetailModal
           journey={inspectingJourney}

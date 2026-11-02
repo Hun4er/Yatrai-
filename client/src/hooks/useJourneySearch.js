@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import journeyService from '../services/journeyService.js';
+import api from '../services/api.js';
+import { saveLocalRecentSearch } from '../utils/browserCache.js';
 
 /**
  * useJourneySearch Hook
@@ -23,6 +25,12 @@ export function useJourneySearch() {
   const search = useCallback(async (params) => {
     const requestId = ++activeRequestIdRef.current;
     lastParamsRef.current = params;
+
+    // Automatically record recent search locally and sync with account
+    if (params?.origin && params?.destination) {
+      saveLocalRecentSearch(params);
+      api.recentSearches.record(params).catch(() => {});
+    }
 
     setState((prev) => ({
       ...prev,
@@ -113,6 +121,8 @@ export function useJourneySearch() {
 
       // Successful search execution: cache parsed parameters for ranking/retry
       if (result.parsedRequest) {
+        saveLocalRecentSearch(result.parsedRequest);
+        api.recentSearches.record(result.parsedRequest).catch(() => {});
         lastParamsRef.current = {
           origin: result.parsedRequest.origin,
           destination: result.parsedRequest.destination,

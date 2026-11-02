@@ -343,7 +343,6 @@ export function useP0JourneySearch() {
    */
   const checkClass = useCallback(async ({ trainNo, from, to, class: cls, date, quota }) => {
     const singleActionId = generateActionId();
-    try {
       const res = await api.journeysV2.checkClass({
         actionId: singleActionId,
         trainNo,
@@ -381,9 +380,6 @@ export function useP0JourneySearch() {
       });
 
       return data;
-    } catch (err) {
-      throw err;
-    }
   }, []);
 
   /**
@@ -391,7 +387,6 @@ export function useP0JourneySearch() {
    * Bypasses cache, rate-limited 1 per min per card.
    */
   const refreshCard = useCallback(async ({ trainNo, from, to, class: cls, date, quota }) => {
-    try {
       const res = await api.journeysV2.refreshCard({
         trainNo,
         from,
@@ -428,9 +423,6 @@ export function useP0JourneySearch() {
       });
 
       return data;
-    } catch (err) {
-      throw err;
-    }
   }, []);
 
   return {

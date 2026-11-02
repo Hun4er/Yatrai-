@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../services/api.js';
-import { Heart, Loader2, ArrowRight, Trash2, MapPin, Search, Plus } from 'lucide-react';
+import {
+  getLocalFavoriteRoutes,
+  saveLocalFavoriteRoute,
+  removeLocalFavoriteRoute,
+} from '../utils/browserCache.js';
+import { Heart, Loader2, ArrowRight, Trash2, MapPin, Search, Plus, Sparkles, Smartphone } from 'lucide-react';
 
 /**
- * FavoriteRoutesPage Component (Phase 13)
+ * FavoriteRoutesPage Component
  * Displays user's saved Origin -> Destination corridors with 1-click execution.
+ * Works seamlessly in both Visitor (Local) and Authenticated (Synced) modes.
  */
 export function FavoriteRoutesPage({ onNavigateHome, onSearchRoute }) {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -15,33 +21,74 @@ export function FavoriteRoutesPage({ onNavigateHome, onSearchRoute }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [originInput, setOriginInput] = useState('');
   const [destinationInput, setDestinationInput] = useState('');
+  const [labelInput, setLabelInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchFavoriteRoutes = useCallback(() => {
-    if (!isAuthenticated) return;
+  const fetchFavoriteRoutes = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    api.favoriteRoutes
-      .list()
-      .then((res) => {
-        setRoutes(res?.data?.routes || []);
+    const localList = getLocalFavoriteRoutes();
+
+    if (isAuthenticated) {
+      try {
+        const res = await api.favoriteRoutes.list();
+        const remoteList = res?.data?.routes || [];
+
+        // Merge remote and local without duplicate (origin + dest)
+        const seen = new Set();
+        const merged = [];
+
+        for (const item of remoteList) {
+          const key = `${String(item.origin).toUpperCase()}_${String(item.destination).toUpperCase()}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            merged.push(item);
+          }
+        }
+
+        for (const item of localList) {
+          const key = `${String(item.origin).toUpperCase()}_${String(item.destination).toUpperCase()}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            merged.push(item);
+          }
+        }
+
+        setRoutes(merged);
+      } catch {
+        setRoutes(localList);
+      } finally {
         setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message || 'Unable to load favorite routes.');
-        setLoading(false);
-      });
+      }
+    } else {
+      setRoutes(localList);
+      setLoading(false);
+    }
   }, [isAuthenticated]);
 
   useEffect(() => {
     fetchFavoriteRoutes();
   }, [fetchFavoriteRoutes]);
 
+  // Sync event listener
+  useEffect(() => {
+    const handleSync = (e) => {
+      if (e.detail?.type === 'favorite-routes') {
+        fetchFavoriteRoutes();
+      }
+    };
+    window.addEventListener('yatrai:sync-state', handleSync);
+    return () => window.removeEventListener('yatrai:sync-state', handleSync);
+  }, [fetchFavoriteRoutes]);
+
   const handleRemove = async (routeId) => {
     try {
-      await api.favoriteRoutes.remove(routeId);
-      setRoutes((prev) => prev.filter((r) => r.id !== routeId));
+      removeLocalFavoriteRoute(routeId);
+      if (isAuthenticated && typeof routeId === 'string' && !routeId.startsWith('local_') && !routeId.startsWith('fav_default_')) {
+        await api.favoriteRoutes.remove(routeId).catch(() => {});
+      }
+      setRoutes((prev) => prev.filter((r) => r.id !== routeId && r._id !== routeId));
     } catch (err) {
       setError(err.message || 'Failed to remove favorite route.');
     }
@@ -54,15 +101,30 @@ export function FavoriteRoutesPage({ onNavigateHome, onSearchRoute }) {
     setIsSubmitting(true);
     setError(null);
     try {
-      const res = await api.favoriteRoutes.add({
-        origin: originInput.trim(),
-        destination: destinationInput.trim(),
+      const cleanOrigin = originInput.trim().toUpperCase();
+      const cleanDest = destinationInput.trim().toUpperCase();
+
+      const localAdded = saveLocalFavoriteRoute({
+        origin: cleanOrigin,
+        destination: cleanDest,
+        label: labelInput.trim() || `${cleanOrigin} → ${cleanDest}`,
       });
-      if (res?.data?.route) {
-        setRoutes((prev) => [res.data.route, ...prev]);
+
+      if (isAuthenticated) {
+        await api.favoriteRoutes.add({
+          origin: cleanOrigin,
+          destination: cleanDest,
+          label: labelInput.trim() || `${cleanOrigin} → ${cleanDest}`,
+        }).catch(() => {});
       }
+
+      if (localAdded) {
+        setRoutes((prev) => [localAdded, ...prev.filter((r) => r.origin !== cleanOrigin || r.destination !== cleanDest)]);
+      }
+
       setOriginInput('');
       setDestinationInput('');
+      setLabelInput('');
       setShowAddForm(false);
     } catch (err) {
       setError(err.message || 'Failed to add favorite route.');
@@ -71,14 +133,28 @@ export function FavoriteRoutesPage({ onNavigateHome, onSearchRoute }) {
     }
   };
 
+  const handleQuickAdd = (origin, destination, label) => {
+    const saved = saveLocalFavoriteRoute({ origin, destination, label });
+    if (isAuthenticated) {
+      api.favoriteRoutes.add({ origin, destination, label }).catch(() => {});
+    }
+    if (saved) {
+      setRoutes((prev) => [saved, ...prev.filter((r) => r.origin !== origin || r.destination !== destination)]);
+    }
+  };
+
   const handleSearchCorridor = (route) => {
     if (onSearchRoute) {
-      const today = new Date().toISOString().split('T')[0];
+      // Travel date: tomorrow or today
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      const tomorrow = d.toISOString().split('T')[0];
+
       onSearchRoute({
         origin: route.origin,
         destination: route.destination,
-        departureDate: today,
-        ranking: 'balanced',
+        departureDate: tomorrow,
+        ranking: 'overall',
       });
     }
   };
@@ -91,44 +167,27 @@ export function FavoriteRoutesPage({ onNavigateHome, onSearchRoute }) {
     );
   }
 
-  if (!isAuthenticated) {
-    return (
-      <div className="mx-auto max-w-md space-y-6 py-12 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-soft border border-brand-primary/20 text-brand-primary">
-          <Heart className="h-7 w-7" aria-hidden="true" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-xl font-bold text-text-primary">Sign In to View Favorite Routes</h2>
-          <p className="text-xs text-text-secondary leading-relaxed">
-            Bookmark travel corridors you use frequently between cities and stations.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onNavigateHome}
-          className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-5 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-brand-hover cursor-pointer"
-        >
-          <span>Find Routes</span>
-          <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </button>
-      </div>
-    );
-  }
+  const SUGGESTED_CORRIDORS = [
+    { origin: 'NDLS', destination: 'PNBE', label: 'Delhi ↔ Patna Trunk Line' },
+    { origin: 'NDLS', destination: 'MMCT', label: 'Delhi ↔ Mumbai Tejas Corridor' },
+    { origin: 'HWH', destination: 'NDLS', label: 'Kolkata ↔ Delhi Rajdhani Route' },
+    { origin: 'SBC', destination: 'MAS', label: 'Bengaluru ↔ Chennai Shatabdi' },
+  ];
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 py-4 sm:py-8">
+    <div className="mx-auto max-w-4xl space-y-6 py-4 sm:py-8 px-4 sm:px-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-rose-400">
             <Heart className="h-4 w-4 fill-rose-400" aria-hidden="true" />
-            <span>Favorite Corridors</span>
+            <span>Frequent Corridors</span>
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-text-primary mt-1">
             Favorite Routes
           </h1>
           <p className="text-xs text-text-secondary mt-0.5">
-            Quickly search your most frequent origin-destination routes across India.
+            Quickly search your most frequent origin-destination routes across India with 1 click.
           </p>
         </div>
 
@@ -138,9 +197,22 @@ export function FavoriteRoutesPage({ onNavigateHome, onSearchRoute }) {
           className="self-start sm:self-auto inline-flex items-center gap-1.5 rounded-lg bg-white/5 border border-white/10 px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-white/10 cursor-pointer transition-colors"
         >
           <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>{showAddForm ? 'Cancel' : 'Add Route'}</span>
+          <span>{showAddForm ? 'Cancel' : 'Add Corridor'}</span>
         </button>
       </div>
+
+      {/* Guest Mode Indicator */}
+      {!isAuthenticated && (
+        <div className="flex items-center justify-between rounded-xl border border-brand-primary/20 bg-[#161B22] p-3 text-xs text-text-secondary">
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-4 w-4 text-brand-primary shrink-0" />
+            <span>Favorite routes are preserved locally. Sign in to sync across your devices.</span>
+          </div>
+          <span className="shrink-0 rounded bg-brand-primary/10 px-2 py-0.5 text-[10px] font-semibold text-brand-primary font-mono">
+            GUEST MODE
+          </span>
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-xs text-red-400">
@@ -152,30 +224,40 @@ export function FavoriteRoutesPage({ onNavigateHome, onSearchRoute }) {
       {showAddForm && (
         <form
           onSubmit={handleAddRoute}
-          className="rounded-2xl border border-brand-primary/20 bg-surface-card p-4 sm:p-6 space-y-4"
+          className="rounded-2xl border border-brand-primary/20 bg-[#15191F] p-4 sm:p-6 space-y-4 shadow-xl"
         >
           <h3 className="text-sm font-bold text-text-primary">Add New Favorite Corridor</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">Origin City / Station</label>
+              <label className="block text-xs font-medium text-text-secondary mb-1">Origin (Station / City)</label>
               <input
                 type="text"
                 value={originInput}
                 onChange={(e) => setOriginInput(e.target.value)}
-                placeholder="e.g. Sonipat"
+                placeholder="e.g. NDLS or New Delhi"
                 required
-                className="w-full rounded-xl border border-white/10 bg-surface-elevated px-3 py-2 text-xs text-text-primary focus:border-brand-primary focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-[#12151A] px-3 py-2 text-xs text-text-primary focus:border-brand-primary focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">Destination City / Station</label>
+              <label className="block text-xs font-medium text-text-secondary mb-1">Destination (Station / City)</label>
               <input
                 type="text"
                 value={destinationInput}
                 onChange={(e) => setDestinationInput(e.target.value)}
-                placeholder="e.g. Patna"
+                placeholder="e.g. PNBE or Patna"
                 required
-                className="w-full rounded-xl border border-white/10 bg-surface-elevated px-3 py-2 text-xs text-text-primary focus:border-brand-primary focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-[#12151A] px-3 py-2 text-xs text-text-primary focus:border-brand-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-1">Custom Label (Optional)</label>
+              <input
+                type="text"
+                value={labelInput}
+                onChange={(e) => setLabelInput(e.target.value)}
+                placeholder="e.g. Family Visits"
+                className="w-full rounded-xl border border-white/10 bg-[#12151A] px-3 py-2 text-xs text-text-primary focus:border-brand-primary focus:outline-none"
               />
             </div>
           </div>
@@ -199,43 +281,57 @@ export function FavoriteRoutesPage({ onNavigateHome, onSearchRoute }) {
         </form>
       )}
 
-      {/* Empty State */}
-      {routes.length === 0 && !loading && (
-        <div className="rounded-2xl border border-white/5 bg-surface-card p-12 text-center space-y-4">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white/5 text-text-muted">
-            <Heart className="h-6 w-6" aria-hidden="true" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-base font-semibold text-text-primary">No favorite routes yet</h3>
-            <p className="text-xs text-text-secondary max-w-sm mx-auto">
-              Save your frequent routes like home-to-work or family travel corridors for quick 1-click searches.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowAddForm(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2 text-xs font-semibold text-white shadow-md hover:bg-brand-hover cursor-pointer"
-          >
-            <span>Add First Route</span>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-          </button>
+      {/* Suggested Corridors Quick-Add Strip */}
+      <div className="space-y-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-[#7E8794] flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-[#E8B04A]" />
+          Popular IRCTC Trunk Corridors (Tap to Add)
+        </span>
+        <div className="flex flex-wrap gap-2">
+          {SUGGESTED_CORRIDORS.map((sc) => {
+            const alreadyAdded = routes.some(
+              (r) =>
+                String(r.origin).toUpperCase() === sc.origin &&
+                String(r.destination).toUpperCase() === sc.destination
+            );
+            return (
+              <button
+                key={`${sc.origin}-${sc.destination}`}
+                type="button"
+                onClick={() => !alreadyAdded && handleQuickAdd(sc.origin, sc.destination, sc.label)}
+                disabled={alreadyAdded}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium transition-all cursor-pointer ${
+                  alreadyAdded
+                    ? 'border-white/5 bg-white/5 text-[#7E8794] cursor-default'
+                    : 'border-[#303640] bg-[#161B22] text-[#F0F1F3] hover:border-[#E8B04A] hover:bg-[#1E232B]'
+                }`}
+              >
+                <span>{sc.origin} → {sc.destination}</span>
+                {alreadyAdded ? (
+                  <span className="text-[10px] text-emerald-400">✓ Added</span>
+                ) : (
+                  <Plus className="h-3 w-3 text-[#E8B04A]" />
+                )}
+              </button>
+            );
+          })}
         </div>
-      )}
+      </div>
 
       {/* Routes Grid */}
       <div className="grid gap-3 sm:grid-cols-2">
         {routes.map((r) => (
           <div
-            key={r.id}
+            key={r.id || r._id || `${r.origin}-${r.destination}`}
             className="group flex flex-col justify-between rounded-xl border border-white/5 bg-surface-card p-4 hover:border-rose-400/30 hover:bg-surface-elevated transition-all"
           >
             <div className="flex items-start justify-between">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-sm font-bold text-text-primary">
                   <MapPin className="h-4 w-4 text-rose-400" aria-hidden="true" />
-                  <span>{r.origin}</span>
+                  <span>{r.originName || r.origin}</span>
                   <span className="text-text-muted">→</span>
-                  <span>{r.destination}</span>
+                  <span>{r.destinationName || r.destination}</span>
                 </div>
                 {r.label && (
                   <p className="text-[11px] text-text-muted">{r.label}</p>
@@ -243,7 +339,7 @@ export function FavoriteRoutesPage({ onNavigateHome, onSearchRoute }) {
               </div>
               <button
                 type="button"
-                onClick={() => handleRemove(r.id)}
+                onClick={() => handleRemove(r.id || r._id)}
                 title="Remove favorite route"
                 className="rounded-lg p-1 text-text-muted hover:text-red-400 hover:bg-white/5 transition-colors cursor-pointer"
               >
@@ -252,8 +348,8 @@ export function FavoriteRoutesPage({ onNavigateHome, onSearchRoute }) {
             </div>
 
             <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
-              <span className="text-[10px] text-text-muted">
-                Saved {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : ''}
+              <span className="text-[10px] text-text-muted font-mono">
+                {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : 'Favorite'}
               </span>
               <button
                 type="button"
@@ -261,7 +357,7 @@ export function FavoriteRoutesPage({ onNavigateHome, onSearchRoute }) {
                 className="inline-flex items-center gap-1.5 rounded-lg bg-brand-primary/10 border border-brand-primary/20 px-3 py-1.5 text-xs font-semibold text-brand-primary hover:bg-brand-primary hover:text-white transition-all cursor-pointer"
               >
                 <Search className="h-3 w-3" aria-hidden="true" />
-                <span>Search Route</span>
+                <span>Search Corridor</span>
               </button>
             </div>
           </div>

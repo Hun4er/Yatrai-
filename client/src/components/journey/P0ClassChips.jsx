@@ -102,7 +102,9 @@ export function P0ClassChips({
           if (!isNaN(d.getTime())) {
             timeStr = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
           }
-        } catch {}
+        } catch (_e) {
+          // ignore date parse failure
+        }
       }
       return (
         <span className="flex items-center gap-1 text-[#C5A880]">

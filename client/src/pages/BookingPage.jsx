@@ -943,7 +943,9 @@ export function BookingPage({ onNavigate, onNavigateHome }) {
                       if (t2 > t1) {
                         layoverText = formatDuration(Math.round((t2 - t1) / 60000));
                       }
-                    } catch {}
+                    } catch (_e) {
+                      // ignore date parse failure
+                    }
                   }
                   if (!layoverText && leg.layoverMinutes) {
                     layoverText = formatDuration(leg.layoverMinutes);

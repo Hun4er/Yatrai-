@@ -27,8 +27,6 @@ export default function TicketModal({ booking, onClose, onDownload, isDownloadin
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [activeTab, setActiveTab] = useState('page1'); // 'page1' | 'page2' | 'both'
 
-  if (!booking) return null;
-
   // ─── Data Extraction & Normalization ─────────────────────────────────────
   const snap = booking.journeySnapshot || {};
   const bookingLegs = Array.isArray(booking.legs) && booking.legs.length > 0
@@ -163,6 +161,7 @@ export default function TicketModal({ booking, onClose, onDownload, isDownloadin
 
   // Generate QR Code data URL
   useEffect(() => {
+    if (!booking) return;
     const payload = `PNR:${pnr}|REF:${bookingRef}|TRAIN:${primaryTrainNo}|FROM:${originCode}|TO:${destCode}|DATE:${startDateStr}|PAX:${passengers.length}|TXN:${txnId}`;
     QRCode.toDataURL(payload, { width: 160, margin: 1, color: { dark: '#000000', light: '#ffffff' } })
       .then((url) => setQrDataUrl(url))
@@ -170,6 +169,8 @@ export default function TicketModal({ booking, onClose, onDownload, isDownloadin
   }, [pnr, bookingRef, primaryTrainNo, originCode, destCode, startDateStr, passengers.length, txnId]);
 
   const handlePrint = () => window.print();
+
+  if (!booking) return null;
 
   return (
     <div

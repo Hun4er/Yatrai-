@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Clock, RotateCcw, ArrowRight, Train, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Clock, RotateCcw, ArrowRight, Train, CheckCircle2, AlertCircle, Loader2, Bookmark } from 'lucide-react';
+import { saveLocalSavedJourney, removeLocalSavedJourney, isLocalSavedJourney } from '../../utils/browserCache.js';
 import P0ClassChips from './P0ClassChips.jsx';
 import { formatDuration, getDayOffset, formatDayOffsetBadge } from '../../utils/formatters.js';
 
@@ -61,6 +62,33 @@ export function P0DirectTrainCard({
   onSelectClassFilter,
 }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSaved, setIsSaved] = useState(() => isLocalSavedJourney(train?.trainNumber || train?.id));
+
+  const handleToggleSave = () => {
+    const journeyId = train?.trainNumber || train?.id;
+    if (isSaved) {
+      removeLocalSavedJourney(journeyId);
+      setIsSaved(false);
+      setRefreshMessage('Removed from Saved');
+      setTimeout(() => setRefreshMessage(null), 2500);
+    } else {
+      saveLocalSavedJourney({
+        ...train,
+        id: String(journeyId),
+        title: `${train.trainNumber} ${train.trainName || ''}`,
+        origin: { code: train.from, name: train.fromName || train.from },
+        destination: { code: train.to, name: train.toName || train.to },
+        departureTime: train.departureTime,
+        arrivalTime: train.arrivalTime,
+        duration: train.duration || train.durationMinutes,
+        totalPrice: train.fare || train.totalPrice || null,
+        isDirectTrain: true,
+      });
+      setIsSaved(true);
+      setRefreshMessage('Saved to Journeys');
+      setTimeout(() => setRefreshMessage(null), 2500);
+    }
+  };
   const [refreshMessage, setRefreshMessage] = useState(null);
 
   const trainNo = train.trainNumber;
@@ -166,6 +194,17 @@ export function P0DirectTrainCard({
             aria-label={`Refresh availability for train ${trainNo}`}
           >
             <RotateCcw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-[#E8B04A]' : ''}`} />
+          </button>
+          <button
+            type="button"
+            onClick={handleToggleSave}
+            className={`inline-flex items-center justify-center rounded-lg p-1 transition-colors cursor-pointer ${
+              isSaved ? 'text-[#E8B04A] bg-[#E8B04A]/10' : 'text-[#A7AFBA] hover:text-[#E8B04A] hover:bg-[#1A1F26]'
+            }`}
+            title={isSaved ? 'Saved to Journeys' : 'Save to Saved Journeys'}
+            aria-label="Save journey"
+          >
+            <Bookmark className={`h-3.5 w-3.5 ${isSaved ? 'fill-[#E8B04A]' : ''}`} />
           </button>
         </div>
       </div>

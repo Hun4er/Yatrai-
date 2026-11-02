@@ -2,8 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import api from '../services/api.js';
+import { getUnreadAlertsCount } from '../utils/browserCache.js';
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from '../constants/index.js';
 import { PnrStatusModal } from '../components/pnr/PnrStatusModal.jsx';
+import HelpGuidanceModal from '../components/common/HelpGuidanceModal.jsx';
 import {
   Moon,
   Sun,
@@ -29,20 +31,40 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [pnrModalOpen, setPnrModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
+  const [helpModalTab, setHelpModalTab] = useState('faq');
   const [unreadCount, setUnreadCount] = useState(0);
 
+  const openHelpModal = (tab = 'faq') => {
+    setHelpModalTab(tab);
+    setHelpModalOpen(true);
+  };
+
   const fetchUnreadCount = useCallback(() => {
+    const localUnread = getUnreadAlertsCount();
     if (!isAuthenticated) {
-      setUnreadCount(0);
+      setUnreadCount(localUnread);
       return;
     }
     api.notifications
       .unreadCount()
       .then((res) => {
-        setUnreadCount(res?.data?.count || 0);
+        const count = res?.data?.count;
+        setUnreadCount(typeof count === 'number' ? count : localUnread);
       })
-      .catch(() => { });
+      .catch(() => {
+        setUnreadCount(localUnread);
+      });
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    const handleSync = (e) => {
+      if (!e.detail?.type || e.detail.type === 'notifications') {
+        fetchUnreadCount();
+      }
+    };
+    window.addEventListener('yatrai:sync-state', handleSync);
+    return () => window.removeEventListener('yatrai:sync-state', handleSync);
+  }, [fetchUnreadCount]);
 
   useEffect(() => {
     fetchUnreadCount();
@@ -402,8 +424,15 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
                 <li>
                   <button
                     type="button"
-                    onClick={() => handleNav('/')}
-                    className="hover:text-[#F0F1F3] transition-colors cursor-pointer"
+                    onClick={() => {
+                      handleNav('/');
+                      window.dispatchEvent(new CustomEvent('yatrai:set-search-mode', { detail: { mode: 'structured' } }));
+                      setTimeout(() => {
+                        const el = document.getElementById('search-form-panel');
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }, 100);
+                    }}
+                    className="hover:text-[#E8B04A] transition-colors cursor-pointer text-left"
                   >
                     Station Search
                   </button>
@@ -411,8 +440,15 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
                 <li>
                   <button
                     type="button"
-                    onClick={() => handleNav('/')}
-                    className="hover:text-[#F0F1F3] transition-colors cursor-pointer"
+                    onClick={() => {
+                      handleNav('/');
+                      window.dispatchEvent(new CustomEvent('yatrai:set-search-mode', { detail: { mode: 'natural' } }));
+                      setTimeout(() => {
+                        const el = document.getElementById('search-form-panel');
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }, 100);
+                    }}
+                    className="hover:text-[#E8B04A] transition-colors cursor-pointer text-left"
                   >
                     Natural Language Discovery
                   </button>
@@ -511,7 +547,7 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
               </ul>
             </div>
 
-            {/* Column 4: Help & Standards */}
+            {/* Column 4: Help & Guidelines */}
             <div className="space-y-3">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-[#F0F1F3]">
                 Help & Guidelines
@@ -520,17 +556,17 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
                 <li>
                   <button
                     type="button"
-                    onClick={() => setHelpModalOpen(true)}
-                    className="hover:text-[#F0F1F3] transition-colors cursor-pointer"
+                    onClick={() => openHelpModal('faq')}
+                    className="hover:text-[#E8B04A] transition-colors cursor-pointer text-left"
                   >
-                    Help & FAQs
+                    Help &amp; FAQs
                   </button>
                 </li>
                 <li>
                   <button
                     type="button"
-                    onClick={() => setHelpModalOpen(true)}
-                    className="hover:text-[#F0F1F3] transition-colors cursor-pointer"
+                    onClick={() => openHelpModal('guidelines')}
+                    className="hover:text-[#E8B04A] transition-colors cursor-pointer text-left"
                   >
                     Booking Guidelines
                   </button>
@@ -538,8 +574,8 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
                 <li>
                   <button
                     type="button"
-                    onClick={() => setHelpModalOpen(true)}
-                    className="hover:text-[#F0F1F3] transition-colors cursor-pointer"
+                    onClick={() => openHelpModal('stations')}
+                    className="hover:text-[#E8B04A] transition-colors cursor-pointer text-left"
                   >
                     Canonical Station Codes
                   </button>
@@ -548,9 +584,9 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
                   <button
                     type="button"
                     onClick={() => handleNav('/profile')}
-                    className="hover:text-[#F0F1F3] transition-colors cursor-pointer"
+                    className="hover:text-[#F0F1F3] transition-colors cursor-pointer text-left"
                   >
-                    Account & Preferences
+                    Account &amp; Preferences
                   </button>
                 </li>
               </ul>
@@ -567,9 +603,21 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
             </div>
 
             <div className="flex items-center gap-4 text-[11px] font-mono text-[#A7AFBA] shrink-0">
-              <span className="hover:text-[#F0F1F3] transition-colors">Privacy</span>
+              <button
+                type="button"
+                onClick={() => openHelpModal('privacy')}
+                className="hover:text-[#E8B04A] transition-colors cursor-pointer"
+              >
+                Privacy
+              </button>
               <span>·</span>
-              <span className="hover:text-[#F0F1F3] transition-colors">Terms</span>
+              <button
+                type="button"
+                onClick={() => openHelpModal('terms')}
+                className="hover:text-[#E8B04A] transition-colors cursor-pointer"
+              >
+                Terms
+              </button>
               <span>·</span>
               <span className="text-[#E8B04A]">Graphite & Amber</span>
             </div>
@@ -584,67 +632,20 @@ export function MainLayout({ children, currentPath = '/', onNavigate, onNavigate
         onNavigate={handleNav}
       />
 
-      {/* ===================== HELP & GUIDE MODAL ===================== */}
-      {helpModalOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in"
-        >
-          <div className="w-full max-w-lg rounded-2xl border border-[#303640] bg-[#181C22] p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-[#F0F1F3] flex items-center gap-2">
-                <HelpCircle className="h-4 w-4 text-[#E8B04A]" />
-                <span>Yatrai Help & Information</span>
-              </h2>
-              <button
-                type="button"
-                onClick={() => setHelpModalOpen(false)}
-                className="text-[#7E8794] hover:text-[#F0F1F3] p-1 rounded-lg"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3.5 text-xs text-[#A7AFBA] leading-relaxed">
-              <div className="p-3 rounded-xl border border-[#303640] bg-[#15191F]">
-                <div className="font-semibold text-[#F0F1F3] mb-1">
-                  1. How does Train Discovery work?
-                </div>
-                <div>
-                  Yatrai searches direct and intelligent connecting railway routes across all Indian Railways zones, evaluating schedule times, layover durations, and class availability.
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl border border-[#303640] bg-[#15191F]">
-                <div className="font-semibold text-[#F0F1F3] mb-1">
-                  2. Natural Language vs. Station Search
-                </div>
-                <div>
-                  Use Station Search to query canonical IRCTC stations directly (e.g., NDLS, MMCT), or switch to Natural Language to describe trips conversationally (e.g., &ldquo;Sonepat to Patna next Monday&rdquo;).
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl border border-[#303640] bg-[#15191F]">
-                <div className="font-semibold text-[#F0F1F3] mb-1">
-                  3. Booking & Official Reservation
-                </div>
-                <div>
-                  Yatrai discovers optimal routes and generates confirmed itinerary summaries. Final reservation and ticket issuance occur via authorized railway reservation channels.
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setHelpModalOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-[#15191F] border border-[#303640] text-xs font-semibold text-[#E8B04A] hover:bg-[#303640]/40 transition-colors cursor-pointer"
-            >
-              Got it
-            </button>
-          </div>
-        </div>
-      )}
+      {/* ===================== KNOWLEDGE & GUIDELINES MODAL ===================== */}
+      <HelpGuidanceModal
+        isOpen={helpModalOpen}
+        onClose={() => setHelpModalOpen(false)}
+        initialTab={helpModalTab}
+        onSelectStation={(code, displayName, field) => {
+          handleNav('/');
+          window.dispatchEvent(
+            new CustomEvent('yatrai:fill-station', {
+              detail: { code, displayName, field },
+            })
+          );
+        }}
+      />
     </div>
   );
 }

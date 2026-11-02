@@ -388,10 +388,16 @@ export const api = {
       return request(`/booking/my-bookings${q}`);
     },
     getById: (id) => request(`/booking/${id}`),
-    checkPnr: (pnrNumber) => request(`/booking/pnr/${encodeURIComponent(pnrNumber)}`),
+    checkPnr: (pnrNumber) => request(`/pnr/${encodeURIComponent(pnrNumber)}`),
     downloadPdf: async (id, bookingReference) => {
       const token = getAccessToken();
-      const response = await fetch(`${API_BASE_URL}/booking/${id}/pdf`, {
+      const cleanId = String(id || '').trim();
+      const is10DigitPnr = /^\d{10}$/.test(cleanId);
+      const endpoint = is10DigitPnr
+        ? `${API_BASE_URL}/pnr/${encodeURIComponent(cleanId)}/pdf`
+        : `${API_BASE_URL}/booking/${encodeURIComponent(cleanId)}/pdf`;
+
+      const response = await fetch(endpoint, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: 'include',
       });
@@ -400,6 +406,7 @@ export const api = {
         try {
           const errData = await response.json();
           if (errData?.error?.message) errMsg = errData.error.message;
+          else if (errData?.message) errMsg = errData.message;
         } catch {
           // ignore
         }
@@ -410,7 +417,39 @@ export const api = {
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = downloadUrl;
-      a.download = `Yatrai_${bookingReference || id}.pdf`;
+      a.download = `Yatrai_${bookingReference || cleanId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        window.URL.revokeObjectURL(downloadUrl);
+        a.remove();
+      }, 100);
+      return true;
+    },
+    downloadPdfByPnr: async (pnr) => {
+      const token = getAccessToken();
+      const cleanPnr = String(pnr || '').trim();
+      const response = await fetch(`${API_BASE_URL}/pnr/${encodeURIComponent(cleanPnr)}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        let errMsg = `Failed to generate PDF (${response.status})`;
+        try {
+          const errData = await response.json();
+          if (errData?.error?.message) errMsg = errData.error.message;
+          else if (errData?.message) errMsg = errData.message;
+        } catch (_e) {
+          // ignore json parse failure
+        }
+        throw new Error(errMsg);
+      }
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = downloadUrl;
+      a.download = `Yatrai_Ticket_${cleanPnr}.pdf`;
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {

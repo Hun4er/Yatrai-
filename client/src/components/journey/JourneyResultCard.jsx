@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../services/api.js';
+import { saveLocalSavedJourney, removeLocalSavedJourney, isLocalSavedJourney } from '../../utils/browserCache.js';
 import {
   formatDuration,
   formatPrice,
@@ -108,7 +109,11 @@ export function JourneyResultCard({
       setSaved(initialSaved);
       return;
     }
-    if (isAuthenticated && journey?.id) {
+    const journeyId = journey?.id || journey?._id;
+    if (journeyId && isLocalSavedJourney(journeyId)) {
+      setSaved(true);
+    }
+    if (isAuthenticated && journeyId) {
       api.savedJourneys
         .check(journey.id)
         .then((res) => {
@@ -122,17 +127,23 @@ export function JourneyResultCard({
 
   const handleToggleSave = async (e) => {
     e.stopPropagation();
-    if (!isAuthenticated) return;
+    const journeyId = journey?.id || journey?._id;
     if (!journey?.id || saving) return;
 
     setSaving(true);
     try {
       if (saved) {
-        await api.savedJourneys.remove(journey.id);
+        removeLocalSavedJourney(journeyId);
+        if (isAuthenticated) {
+          await api.savedJourneys.remove(journeyId).catch(() => {});
+        }
         setSaved(false);
         if (onRemoveSaved) onRemoveSaved(journey.id);
       } else {
-        await api.savedJourneys.save(journey.id);
+        saveLocalSavedJourney(journey);
+        if (isAuthenticated) {
+          await api.savedJourneys.save({ journeyId, name: journey.title || '' }).catch(() => {});
+        }
         setSaved(true);
       }
     } catch {

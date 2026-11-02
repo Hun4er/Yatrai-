@@ -239,7 +239,9 @@ export function P0ResultsView({
       for (const item of visibleFailed.slice(0, 40)) {
         try {
           await onCheckClass({ ...item, actionId: retryActionId });
-        } catch {}
+        } catch (_err) {
+          // ignore retry failure
+        }
       }
     }, 20000);
 

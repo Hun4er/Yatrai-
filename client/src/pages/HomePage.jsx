@@ -56,6 +56,46 @@ export function HomePage({
     if (initialDate) setDepartureDate(initialDate);
   }, [initialOrigin, initialDestination, initialDate]);
 
+  // Listen for global footer interactions: mode switching & canonical station filling
+  useEffect(() => {
+    const handleSetMode = (e) => {
+      const mode = e.detail?.mode;
+      if (mode === 'natural') {
+        setActiveTab('natural');
+      } else if (mode === 'structured') {
+        setActiveTab('structured');
+      }
+      setTimeout(() => {
+        if (searchContainerRef.current) {
+          searchContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
+    };
+
+    const handleFillStation = (e) => {
+      const { code, displayName, field } = e.detail || {};
+      const val = displayName || code;
+      if (field === 'origin') {
+        setOrigin(val);
+      } else if (field === 'destination') {
+        setDestination(val);
+      }
+      setActiveTab('structured');
+      setTimeout(() => {
+        if (searchContainerRef.current) {
+          searchContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 50);
+    };
+
+    window.addEventListener('yatrai:set-search-mode', handleSetMode);
+    window.addEventListener('yatrai:fill-station', handleFillStation);
+    return () => {
+      window.removeEventListener('yatrai:set-search-mode', handleSetMode);
+      window.removeEventListener('yatrai:fill-station', handleFillStation);
+    };
+  }, []);
+
   /**
    * Populate search form from any discovery card and scroll up to the search panel smoothly.
    */
@@ -152,6 +192,7 @@ export function HomePage({
           {/* Mode Switcher (Station Search vs Natural Language) */}
           <div
             ref={searchContainerRef}
+            id="search-form-panel"
             className="flex flex-wrap items-center justify-between gap-2 mb-2.5 sm:mb-3 px-1"
           >
             <div className="inline-flex items-center rounded-lg bg-[#181C22]/90 p-0.5 border border-[#232830] backdrop-blur-sm shadow-inner">

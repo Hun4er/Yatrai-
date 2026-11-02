@@ -13,6 +13,7 @@ import {
   GitCompare,
   Network,
   Loader2,
+  Heart,
 } from 'lucide-react';
 import RankingSelector from '../components/journey/RankingSelector.jsx';
 import JourneyResultCard from '../components/journey/JourneyResultCard.jsx';
@@ -32,6 +33,7 @@ import {
 import { formatDateDisplay, normalizeDate } from '../utils/formatters.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../services/api.js';
+import { saveLocalJourneyHistory, saveLocalFavoriteRoute, isLocalFavoriteRoute } from '../utils/browserCache.js';
 import P0ResultsView from '../components/journey/P0ResultsView.jsx';
 import { generateActionId } from '../services/p0SearchCache.js';
 import { toJourneyViewModel, rankJourneys, hasConfirmedDirect } from '../utils/journeyViewModel.js';
@@ -177,6 +179,9 @@ export function ResultsPage({
 
   const handleViewJourney = (journey) => {
     setSelectedJourney(journey);
+    if (journey) {
+      saveLocalJourneyHistory(journey);
+    }
     if (isAuthenticated && journey?.id) {
       api.journeyHistory.record(journey.id).catch(() => {});
     }
@@ -223,6 +228,12 @@ export function ResultsPage({
       setP0Budget(data.budget || { used: 0, cap: 40 });
       setP0Partial(Boolean(data.partial));
       setP0Degraded(Boolean(data.degraded));
+
+      // Auto-record top itinerary to travel history
+      const topItem = data.direct?.[0] || data.alternatives?.[0];
+      if (topItem) {
+        saveLocalJourneyHistory(topItem);
+      }
 
       // Check if any train has a confirmed seat
       const hasConfirmed = hasConfirmedDirect(data.direct || []);
@@ -388,6 +399,33 @@ export function ResultsPage({
   // Section 5: Distinguish intended locations vs exact POIs/stations
   const userOrigin = searchParams?.origin || searchParams?.from || data?.origin?.city || 'Origin';
   const userDest = searchParams?.destination || searchParams?.to || data?.destination?.city || 'Destination';
+
+  const [isFavoritedRoute, setIsFavoritedRoute] = useState(() => isLocalFavoriteRoute(userOrigin, userDest));
+
+  useEffect(() => {
+    setIsFavoritedRoute(isLocalFavoriteRoute(userOrigin, userDest));
+  }, [userOrigin, userDest]);
+
+  const handleToggleFavoriteRoute = () => {
+    if (!userOrigin || !userDest) return;
+    if (isFavoritedRoute) {
+      setIsFavoritedRoute(false);
+    } else {
+      saveLocalFavoriteRoute({
+        origin: userOrigin,
+        destination: userDest,
+        label: `${userOrigin} → ${userDest} Corridor`,
+      });
+      if (isAuthenticated) {
+        api.favoriteRoutes.add({
+          origin: userOrigin,
+          destination: userDest,
+          label: `${userOrigin} → ${userDest} Corridor`,
+        }).catch(() => {});
+      }
+      setIsFavoritedRoute(true);
+    }
+  };
 
   const exactOriginName = data?.origin?.name || userOrigin;
   const exactDestName = data?.destination?.name || userDest;
@@ -597,11 +635,26 @@ export function ResultsPage({
             </button>
 
             {/* Route Title: Intended Locations */}
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F0F1F3] flex flex-wrap items-center gap-2.5">
-              <span className="capitalize">{userOrigin}</span>
-              <span className="text-[#E8B04A]">→</span>
-              <span className="capitalize">{userDest}</span>
-            </h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#F0F1F3] flex flex-wrap items-center gap-2.5">
+                <span className="capitalize">{userOrigin}</span>
+                <span className="text-[#E8B04A]">→</span>
+                <span className="capitalize">{userDest}</span>
+              </h1>
+              <button
+                type="button"
+                onClick={handleToggleFavoriteRoute}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1 text-xs font-semibold transition-all cursor-pointer ${
+                  isFavoritedRoute
+                    ? 'border-rose-500/40 bg-rose-500/15 text-rose-400'
+                    : 'border-[#303640] bg-[#161B22] text-[#A7AFBA] hover:text-rose-400 hover:border-rose-500/30'
+                }`}
+                title={isFavoritedRoute ? 'Favorited Corridor' : 'Save to Favorite Routes'}
+              >
+                <Heart className={`h-3.5 w-3.5 ${isFavoritedRoute ? 'fill-rose-400 text-rose-400' : ''}`} />
+                <span>{isFavoritedRoute ? 'Favorited' : 'Favorite Route'}</span>
+              </button>
+            </div>
 
             {/* Secondary: Exact Station/Airport/POI if resolved */}
             {showRoutingPoiSecondary && (

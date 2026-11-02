@@ -9,7 +9,9 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
+  Bookmark,
 } from 'lucide-react';
+import { saveLocalSavedJourney, removeLocalSavedJourney, isLocalSavedJourney } from '../../utils/browserCache.js';
 import { formatDuration } from '../../utils/formatters.js';
 
 /**
@@ -71,6 +73,34 @@ export function P0AlternativeCardInner({
   onRetryLeg,
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const altId = String(alternative?.id || alternative?.planId || `alt_${alternative?.hubCode || 'hub'}_${alternative?.legs?.[0]?.trainNo || '0'}`);
+  const [isSaved, setIsSaved] = useState(() => isLocalSavedJourney(altId));
+
+  const handleToggleSave = (e) => {
+    e.stopPropagation();
+    if (isSaved) {
+      removeLocalSavedJourney(altId);
+      setIsSaved(false);
+    } else {
+      const firstLeg = (alternative.legs || [])[0];
+      const lastLeg = (alternative.legs || [])[(alternative.legs || []).length - 1];
+      saveLocalSavedJourney({
+        ...alternative,
+        id: altId,
+        title: alternative.sameTrain || alternative.type === 'same_train'
+          ? `Same Train Split via ${alternative.hubCode || 'Hub'}`
+          : `Connecting Route via ${alternative.hubCode || 'Hub'}`,
+        origin: { code: firstLeg?.from || firstLeg?.fromCode || 'ORIG', name: alternative.requestedOrigin || firstLeg?.from || 'Origin' },
+        destination: { code: lastLeg?.to || lastLeg?.toCode || 'DEST', name: alternative.requestedDestination || lastLeg?.to || 'Dest' },
+        departureTime: firstLeg?.departureTime || firstLeg?.departure || '06:00',
+        arrivalTime: lastLeg?.arrivalTime || lastLeg?.arrival || '18:00',
+        duration: alternative.duration || alternative.totalDurationMinutes || 720,
+        totalPrice: typeof alternative.totalFare === 'number' ? alternative.totalFare : alternative.fare,
+        isAlternative: true,
+      });
+      setIsSaved(true);
+    }
+  };
 
   if (!alternative || typeof alternative !== 'object') {
     throw new Error('Invalid alternative plan payload');
