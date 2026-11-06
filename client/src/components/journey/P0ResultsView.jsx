@@ -75,6 +75,30 @@ export function P0ResultsView({
   const [selectedClassFilter, setSelectedClassFilter] = useState('ALL');
   const [showAllDirectTrains, setShowAllDirectTrains] = useState(false);
 
+  // Filter out direct trains without seats or complete schedule details
+  const isValidTrain = (t) => {
+    if (!t) return false;
+    const hasSeats = Array.isArray(t.classes) && t.classes.length > 0;
+    const hasDep = Boolean(t.departureTime && t.departureTime !== '--:--');
+    const hasArr = Boolean(t.arrivalTime && t.arrivalTime !== '--:--');
+    const hasRoute = Boolean((t.trainNumber || t.id) && t.from && t.to);
+    return hasSeats && hasDep && hasArr && hasRoute;
+  };
+
+  const validDirect = useMemo(() => {
+    return (direct || []).filter(isValidTrain);
+  }, [direct]);
+
+  // Filter out alternatives without complete leg details
+  const validAlternatives = useMemo(() => {
+    return (alternatives || []).filter((alt) => {
+      if (!alt) return false;
+      const legs = Array.isArray(alt.legs) ? alt.legs : [];
+      if (legs.length === 0) return false;
+      return legs.every((l) => (l.trainNo || l.trainNumber || l.isTransfer) && l.from && l.to);
+    });
+  }, [alternatives]);
+
   // Check if ?debug=1 is in URL
   const isDebugMode = useMemo(() => {
     if (typeof window === 'undefined') return false;
@@ -85,7 +109,7 @@ export function P0ResultsView({
   const offeredClasses = useMemo(() => {
     const RESERVABLE_CLASSES = ['1A', '2A', '3A', '3E', 'SL', 'CC', 'EC', '2S'];
     const set = new Set();
-    direct.forEach((t) => {
+    validDirect.forEach((t) => {
       (t.classes || []).forEach((c) => {
         const cls = String(c.class || '').toUpperCase();
         if (RESERVABLE_CLASSES.includes(cls)) set.add(cls);
@@ -97,13 +121,13 @@ export function P0ResultsView({
     });
     const sorted = RESERVABLE_CLASSES.filter((c) => set.has(c));
     return ['ALL', ...sorted];
-  }, [direct]);
+  }, [validDirect]);
 
   // Selecting a class filters trains by that class and checks visible trains in budgeted order
   const handleSelectClassFilter = (cls) => {
     setSelectedClassFilter(cls);
     if (cls && cls !== 'ALL' && onCheckClass) {
-      const visibleTrains = direct.filter((t) =>
+      const visibleTrains = validDirect.filter((t) =>
         (t.classes || []).some((c) => c.class === cls) || (t.offeredClasses || []).includes(cls)
       ).slice(0, 3);
 
@@ -125,27 +149,27 @@ export function P0ResultsView({
 
   // Filter direct trains by class if selected
   const filteredDirect = useMemo(() => {
-    if (selectedClassFilter === 'ALL') return direct;
-    return direct.filter((t) =>
+    if (selectedClassFilter === 'ALL') return validDirect;
+    return validDirect.filter((t) =>
       (t.classes || []).some((c) => c.class === selectedClassFilter) ||
       (t.offeredClasses || []).includes(selectedClassFilter)
     );
-  }, [direct, selectedClassFilter]);
+  }, [validDirect, selectedClassFilter]);
 
   // Filter alternatives by class if selected, keeping unknown/null values
   const filteredAlternatives = useMemo(() => {
-    if (selectedClassFilter === 'ALL') return alternatives;
-    return alternatives.filter((alt) => {
+    if (selectedClassFilter === 'ALL') return validAlternatives;
+    return validAlternatives.filter((alt) => {
       if (!alt.laneClass && (!alt.legs || alt.legs.length === 0)) return true;
       if (alt.laneClass === selectedClassFilter) return true;
       return (alt.legs || []).some((l) => l.class === selectedClassFilter || !l.class);
     });
-  }, [alternatives, selectedClassFilter]);
+  }, [validAlternatives, selectedClassFilter]);
 
   const hiddenAlternativesCount = alternatives.length - filteredAlternatives.length;
 
-  const totalTrainsCount = direct.length + waitingTrains.length;
-  const checkedTrainsCount = direct.length;
+  const totalTrainsCount = validDirect.length + waitingTrains.length;
+  const checkedTrainsCount = validDirect.length;
 
   // Determine if alternatives have any confirmed plans or only risky plans
   const hasConfirmedAlt = useMemo(() => {
@@ -156,8 +180,8 @@ export function P0ResultsView({
 
   // Factual empty state calculation
   const emptyFacts = useMemo(() => {
-    return computeEmptyStateFacts({ direct });
-  }, [direct]);
+    return computeEmptyStateFacts({ direct: validDirect });
+  }, [validDirect]);
 
   // When direct has no confirmed seat, show only first 3 trains unless toggled
   const visibleDirectTrains = useMemo(() => {
@@ -169,7 +193,7 @@ export function P0ResultsView({
   const { failedChecksList, isSlowSeatData } = useMemo(() => {
     const failed = [];
     let totalCheckedOrFailed = 0;
-    (direct || []).forEach((train) => {
+    (validDirect || []).forEach((train) => {
       (train.classes || []).forEach((c) => {
         if (c.state === 'CHECKED' || c.tier === 'ERROR' || c.tier === 'UNKNOWN' || c.state === 'STALE') {
           totalCheckedOrFailed++;
@@ -189,7 +213,7 @@ export function P0ResultsView({
     });
     const isSlow = totalCheckedOrFailed > 0 && failed.length >= Math.ceil(totalCheckedOrFailed / 2);
     return { failedChecksList: failed, isSlowSeatData: isSlow };
-  }, [direct, date, quota]);
+  }, [validDirect, date, quota]);
 
   const [isRetryingFailed, setIsRetryingFailed] = useState(false);
   const hasAutoRetriedRef = useRef(false);
@@ -256,8 +280,8 @@ export function P0ResultsView({
   };
 
   const handleRetryAll = () => {
-    if (onRefreshCard && direct.length > 0) {
-      onRefreshCard(direct[0].trainNumber || direct[0].train_number);
+    if (onRefreshCard && validDirect.length > 0) {
+      onRefreshCard(validDirect[0].trainNumber || validDirect[0].train_number);
     }
   };
 

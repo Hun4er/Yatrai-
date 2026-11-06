@@ -206,7 +206,16 @@ export function ResultsPage({
     }
   }, [data?.ranking?.strategy, searchParams?.ranking]);
 
-  // ── P0 v2 Search Engine State & Handlers ─────────────────────────────────────
+  const isValidDirectTrain = (t) => {
+  if (!t) return false;
+  const hasSeats = Array.isArray(t.classes) && t.classes.length > 0;
+  const hasDep = Boolean(t.departureTime && t.departureTime !== '--:--');
+  const hasArr = Boolean(t.arrivalTime && t.arrivalTime !== '--:--');
+  const hasRoute = Boolean((t.trainNumber || t.id) && t.from && t.to);
+  return hasSeats && hasDep && hasArr && hasRoute;
+};
+
+// ── P0 v2 Search Engine State & Handlers ─────────────────────────────────────
   const isP0V2 = Boolean(data?.direct && Array.isArray(data.direct));
   const [p0Direct, setP0Direct] = useState([]);
   const [p0Waiting, setP0Waiting] = useState([]);
@@ -221,7 +230,7 @@ export function ResultsPage({
 
   useEffect(() => {
     if (data?.direct || data?.alternatives) {
-      setP0Direct(data.direct || []);
+      setP0Direct((data.direct || []).filter(isValidDirectTrain));
       setP0Waiting(data.waitingTrains || []);
       setP0Alternatives(data.alternatives || []);
       setP0DateStrip(data.dateStrip || []);
@@ -339,7 +348,7 @@ export function ResultsPage({
         quota: searchParams?.quota || 'GN',
       });
       const d = res?.data || res || {};
-      if (d.checkedTrains) setP0Direct((prev) => [...prev, ...d.checkedTrains]);
+      if (d.checkedTrains) setP0Direct((prev) => [...prev, ...d.checkedTrains.filter(isValidDirectTrain)]);
       if (d.remainingWaiting) setP0Waiting(d.remainingWaiting);
       if (d.budget) setP0Budget(d.budget);
       if (d.partial) setP0Partial(true);
@@ -442,7 +451,7 @@ export function ResultsPage({
   // Canonical backend journeys (including any recovered alternatives)
   const backendJourneys = useMemo(() => {
     if (isP0V2) {
-      return toJourneyViewModel({ direct: p0Direct, alternatives: p0Alternatives });
+      return toJourneyViewModel({ direct: p0Direct.filter(isValidDirectTrain), alternatives: p0Alternatives });
     }
     const primary = Array.isArray(data?.journeys) ? data.journeys : [];
     if (!optionalAlternatives || optionalAlternatives.length === 0) return primary;
@@ -453,13 +462,13 @@ export function ResultsPage({
 
   // Direct and Alternatives counts computed from real data
   const confirmedDirectCount = useMemo(() => {
-    return p0Direct.filter((t) =>
+    return p0Direct.filter(isValidDirectTrain).filter((t) =>
       (t.classes || []).some((c) => c.state === 'CHECKED' && (c.tier === 'AVAILABLE' || c.isAvailable))
     ).length;
   }, [p0Direct]);
 
   const waitlistedDirectCount = useMemo(() => {
-    return p0Direct.filter((t) => {
+    return p0Direct.filter(isValidDirectTrain).filter((t) => {
       const classes = t.classes || [];
       const hasConfirmed = classes.some((c) => c.state === 'CHECKED' && (c.tier === 'AVAILABLE' || c.isAvailable));
       const hasWaitlist = classes.some((c) => c.state === 'CHECKED' && (c.tier === 'WAITLIST' || c.tier === 'RAC'));
@@ -1047,7 +1056,7 @@ export function ResultsPage({
                 isLoadingAlternatives={isLoadingAlternatives}
                 isLoadingMoreTrains={isLoadingMoreTrains}
                 isSearchingDeeper={isSearchingDeeper}
-                hasConfirmedDirectSeat={hasConfirmedDirect(p0Direct)}
+                hasConfirmedDirectSeat={hasConfirmedDirect(p0Direct.filter(isValidDirectTrain))}
                 onCheckClass={handleP0CheckClass}
                 onRefreshCard={handleP0RefreshCard}
                 onExploreAlternatives={handleP0ExploreAlternativesButton}

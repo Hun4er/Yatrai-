@@ -13,15 +13,12 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
  */
 function validateConfig() {
   const isProduction = process.env.NODE_ENV === 'production';
-  const requiredInProduction = ['PORT', 'JWT_ACCESS_SECRET'];
+  const jwtSecret = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
 
-  if (isProduction) {
-    const missing = requiredInProduction.filter((key) => !process.env[key]);
-    if (missing.length > 0) {
-      throw new Error(
-        `[Configuration Error] Missing required production environment variables: ${missing.join(', ')}`
-      );
-    }
+  if (isProduction && !jwtSecret) {
+    throw new Error(
+      '[Configuration Error] Missing required production environment variable: JWT_ACCESS_SECRET (or JWT_SECRET). Please configure it in your hosting platform environment variables.'
+    );
   }
 }
 
@@ -66,6 +63,7 @@ export const config = Object.freeze({
   auth: {
     jwtAccessSecret:
       process.env.JWT_ACCESS_SECRET ||
+      process.env.JWT_SECRET ||
       (process.env.NODE_ENV === 'production'
         ? null
         : 'yatrai_dev_jwt_access_secret_do_not_use_in_production_987654'),
@@ -76,7 +74,9 @@ export const config = Object.freeze({
       process.env.AUTH_COOKIE_SECURE !== undefined
         ? process.env.AUTH_COOKIE_SECURE === 'true'
         : process.env.NODE_ENV === 'production',
-    cookieSameSite: process.env.AUTH_COOKIE_SAME_SITE || 'lax',
+    cookieSameSite:
+      process.env.AUTH_COOKIE_SAME_SITE ||
+      (process.env.NODE_ENV === 'production' ? 'none' : 'lax'),
     cookiePath: process.env.AUTH_COOKIE_PATH || '/api/auth',
   },
   providers: {

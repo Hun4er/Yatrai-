@@ -104,6 +104,22 @@ export function P0DirectTrainCard({
   const rawDayOffset = train.dayOffset ?? getDayOffset(depTime, arrTime, rawDuration);
   const dayOffsetBadge = formatDayOffsetBadge(rawDayOffset);
 
+  // Filter out incomplete cards or cards without seats
+  const hasSeats = Array.isArray(train?.classes) && train.classes.length > 0;
+  const hasCompleteDetails = Boolean(
+    trainNo &&
+    from &&
+    to &&
+    depTime &&
+    depTime !== '--:--' &&
+    arrTime &&
+    arrTime !== '--:--'
+  );
+
+  if (!hasSeats || !hasCompleteDetails) {
+    return null;
+  }
+
   // Has confirmed seat in any checked class?
   const hasConfirmed = (train.classes || []).some(
     (c) =>

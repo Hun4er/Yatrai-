@@ -22,7 +22,9 @@ export function createApp() {
         if (!origin) return callback(null, true);
         const cleanOrigin = origin.replace(/\/$/, '');
         if (
+          allowedOrigins.includes('*') ||
           allowedOrigins.includes(cleanOrigin) ||
+          cleanOrigin.endsWith('.vercel.app') ||
           (!config.isProduction && (cleanOrigin.includes('localhost') || cleanOrigin.includes('127.0.0.1')))
         ) {
           return callback(null, true);

@@ -15,6 +15,12 @@ export function toJourneyViewModel(newResponse) {
   const alternatives = Array.isArray(newResponse.alternatives) ? newResponse.alternatives : [];
 
   for (const t of direct) {
+    if (!t) continue;
+    const hasSeats = Array.isArray(t.classes) && t.classes.length > 0;
+    const hasDep = Boolean(t.departureTime && t.departureTime !== '--:--');
+    const hasArr = Boolean(t.arrivalTime && t.arrivalTime !== '--:--');
+    const hasRoute = Boolean((t.trainNumber || t.id) && t.from && t.to);
+    if (!hasSeats || !hasDep || !hasArr || !hasRoute) continue;
     const checkedClasses = (t.classes || []).filter(
       (c) => c.state === 'CHECKED' && typeof c.fare === 'number' && c.fare > 0
     );
@@ -90,7 +96,9 @@ export function toJourneyViewModel(newResponse) {
 
   for (let i = 0; i < alternatives.length; i++) {
     const alt = alternatives[i];
+    if (!alt) continue;
     const rawLegs = Array.isArray(alt.legs) ? alt.legs : [];
+    if (rawLegs.length === 0) continue;
     const isSameTrain = Boolean(alt.sameTrain || alt.type === 'same_train');
     const transfers = isSameTrain ? 0 : Math.max(0, rawLegs.filter((l) => l.mode === 'rail').length - 1);
     const fare = typeof alt.totalFare === 'number' && alt.totalFare > 0

@@ -322,10 +322,15 @@ export class DirectPassService {
       if (cancelledSet.has(num)) return false;
       if (!isRunningOnDate(t, dateStr)) return false;
       if (hasAlreadyDeparted(t, dateStr)) return false;
-      // Drop trains with no reservable class UNLESS classes_of_travel is empty
+      // Drop trains without complete schedule times
+      const depTime = t.departureTime || t.departure_time || t.from?.departure || t.from_time || t.departureTimeIso;
+      const arrTime = t.arrivalTime || t.arrival_time || t.to?.arrival || t.to_time || t.arrivalTimeIso;
+      if (!depTime || !arrTime || depTime === '--:--' || arrTime === '--:--') return false;
+
+      // Drop trains with no reservable class
       const classes = normalizeClasses(t.classes || t.train?.classes || t.classes_of_travel || []);
       const hasReservableClass = classes.some((c) => CAPACITY_ORDER.includes(c));
-      if (classes.length > 0 && !hasReservableClass) return false;
+      if (!hasReservableClass || classes.length === 0) return false;
       return true;
     });
 
@@ -389,9 +394,11 @@ export class DirectPassService {
       };
 
       if (!round1Class) {
-        // No class to check — mark all as UNVERIFIED
-        trainResult.classes = offered.map((c) => buildClassChip(c, 'UNVERIFIED', null));
-        results.push(trainResult);
+        // No class to check — mark all as UNVERIFIED if classes exist
+        if (offered.length > 0) {
+          trainResult.classes = offered.map((c) => buildClassChip(c, 'UNVERIFIED', null));
+          results.push(trainResult);
+        }
         continue;
       }
 
@@ -570,8 +577,18 @@ export class DirectPassService {
 
     logger.info(`[DirectPass] Done. Results: ${results.length}, waitingTrains: ${waitingTrains.length}, confirmed: ${confirmedFound}, partial: ${partial}, dateStrip=${dateStrip.length}, budget: ${budgetSummary.used}/${budgetSummary.cap}`);
 
+    const validDirect = results.filter((r) =>
+      r &&
+      Array.isArray(r.classes) &&
+      r.classes.length > 0 &&
+      r.departureTime &&
+      r.departureTime !== '--:--' &&
+      r.arrivalTime &&
+      r.arrivalTime !== '--:--'
+    );
+
     return {
-      direct: results,
+      direct: validDirect,
       waitingTrains,
       uncheckedClasses: results.flatMap((r) =>
         r.classes.filter((c) => c.state === 'UNCHECKED').map((c) => ({ trainNumber: r.trainNumber, class: c.class }))

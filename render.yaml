@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: yatrai-backend
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: AUTH_COOKIE_SAME_SITE
+        value: none
+      - key: AUTH_COOKIE_SECURE
+        value: true
+      - key: MONGODB_URI
+        sync: false
+      - key: CLIENT_URL
+        sync: false
+      - key: RAILKIT_API_KEY
+        sync: false
+      - key: LIVE_REQUESTS_ALLOWED
+        value: true
+

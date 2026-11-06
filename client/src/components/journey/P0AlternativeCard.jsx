@@ -12,7 +12,7 @@ import {
   Bookmark,
 } from 'lucide-react';
 import { saveLocalSavedJourney, removeLocalSavedJourney, isLocalSavedJourney } from '../../utils/browserCache.js';
-import { formatDuration } from '../../utils/formatters.js';
+import { formatDuration, formatTime } from '../../utils/formatters.js';
 
 /**
  * PlanErrorBoundary Component
@@ -108,6 +108,7 @@ export function P0AlternativeCardInner({
 
   const isSameTrain = Boolean(alternative.sameTrain || alternative.type === 'same_train');
   const legs = Array.isArray(alternative.legs) ? alternative.legs : [];
+  if (!legs || legs.length === 0) return null;
   const hubCode = alternative.hubCode || legs[0]?.to || 'Hub';
   const laneClass = alternative.laneClass || legs[0]?.class || 'SL';
   const tier = alternative.tier || (isSameTrain ? 'CONFIRMED' : 'ALTERNATIVE');
@@ -141,19 +142,20 @@ export function P0AlternativeCardInner({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#242931] pb-2.5">
         <div className="flex flex-wrap items-center gap-2">
           {/* Tier Badge */}
-          <span
-            className={`rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${
-              tier === 'CONFIRMED' || tier === 'AVAILABLE'
-                ? 'bg-[#4CC38A]/15 border border-[#4CC38A]/30 text-[#4CC38A]'
-                : tier === 'RISKY' || tier === 'WAITLIST' || tier === 'WL'
-                ? 'bg-[#E8B04A]/15 border border-[#E8B04A]/30 text-[#E8B04A]'
-                : tier === 'UNAVAILABLE' || tier === 'NOT_AVAILABLE'
-                ? 'bg-[#E5484D]/15 border border-[#E5484D]/30 text-[#E5484D]'
-                : 'bg-[#181C22] border border-[#232830] text-[#9AA3AF]'
-            }`}
-          >
-            {tier}
-          </span>
+          {tier && String(tier).toUpperCase() !== 'UNVERIFIED' && (
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${tier === 'CONFIRMED' || tier === 'AVAILABLE'
+                  ? 'bg-[#4CC38A]/15 border border-[#4CC38A]/30 text-[#4CC38A]'
+                  : tier === 'RISKY' || tier === 'WAITLIST' || tier === 'WL'
+                    ? 'bg-[#E8B04A]/15 border border-[#E8B04A]/30 text-[#E8B04A]'
+                    : tier === 'UNAVAILABLE' || tier === 'NOT_AVAILABLE'
+                      ? 'bg-[#E5484D]/15 border border-[#E5484D]/30 text-[#E5484D]'
+                      : 'bg-[#181C22] border border-[#232830] text-[#9AA3AF]'
+                }`}
+            >
+              {tier}
+            </span>
+          )}
 
           {/* Lane Class Tag */}
           <span className="rounded-lg bg-[#181C22] border border-[#232830] px-2 py-0.5 text-xs font-bold text-[#EDEFF2]">
@@ -304,7 +306,7 @@ export function P0AlternativeCardInner({
                       </span>
                     </div>
                     <div className="text-[11px] text-[#A7AFBA]">
-                      {leg.from} ({leg.departureTime || leg.departure || '--:--'}) → {leg.to} ({leg.arrivalTime || leg.arrival || '--:--'})
+                      {leg.from} ({formatTime(leg.departureTime || leg.departure)}) → {leg.to} ({formatTime(leg.arrivalTime || leg.arrival)})
                     </div>
                   </div>
 
@@ -357,11 +359,10 @@ export function P0AlternativeCardInner({
                 type="button"
                 disabled={allUnavailable}
                 onClick={() => onBook && onBook(alternative)}
-                className={`inline-flex items-center justify-center rounded-xl px-4 py-1.5 text-xs font-bold transition-colors shadow-sm cursor-pointer ${
-                  allUnavailable
+                className={`inline-flex items-center justify-center rounded-xl px-4 py-1.5 text-xs font-bold transition-colors shadow-sm cursor-pointer ${allUnavailable
                     ? 'bg-[#232830] text-[#6B7480] cursor-not-allowed border border-[#303640]'
                     : 'bg-[#E8B04A] text-[#0B0D10] hover:bg-[#F0C066]'
-                }`}
+                  }`}
               >
                 {buttonLabel}
               </button>
