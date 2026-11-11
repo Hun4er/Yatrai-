@@ -18,9 +18,13 @@
  * @returns {string} Normalized base URL ending with '/api' (or exactly '/api')
  */
 export function resolveApiBaseUrl(rawInput) {
-  const isProduction =
+  const isProduction = Boolean(
     (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.PROD) ||
-    (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'production');
+    (typeof globalThis !== 'undefined' &&
+      globalThis.process &&
+      globalThis.process.env &&
+      globalThis.process.env.NODE_ENV === 'production')
+  );
 
   if (!rawInput || typeof rawInput !== 'string' || !rawInput.trim()) {
     if (isProduction) {
@@ -137,8 +141,6 @@ async function performTokenRefresh(isStartup = false) {
   if (activeRefreshPromise) {
     return activeRefreshPromise;
   }
-
-  const hadActiveToken = Boolean(inMemoryAccessToken);
 
   activeRefreshPromise = (async () => {
     try {
@@ -540,7 +542,7 @@ export const api = {
           const errData = await response.json();
           if (errData?.error?.message) errMsg = errData.error.message;
           else if (errData?.message) errMsg = errData.message;
-        } catch (_e) {
+        } catch {
           // ignore json parse failure
         }
         throw new Error(errMsg);
