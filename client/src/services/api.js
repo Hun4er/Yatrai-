@@ -3,9 +3,206 @@
  * Handles all HTTP communications with the Yatrai Backend Service.
  */
 
-const API_BASE_URL =
+/**
+ * Safely resolves and normalizes the API base URL.
+ *
+ * Rules:
+ * 
+ * - Strips trailing slashes.
+ * - Ensures '/api' is present exactly once at the end of the base URL.
+ * - Collapses redundant '/api/api' or double slashes.
+ * - Supports relative '/api' for intentional local proxy development.
+ * - Warns explicitly in production if VITE_API_BASE_URL is missing.
+ *
+ * @param {string} [rawInput] - Raw base URL input (e.g. from VITE_API_BASE_URL)
+ * @returns {string} Normalized base URL ending with '/api' (or exactly '/api')
+ */
+export function resolveApiBaseUrl(rawInput) {
+  const isProduction =
+    (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.PROD) ||
+    (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'production');
+
+  if (!rawInput || typeof rawInput !== 'string' || !rawInput.trim()) {
+    if (isProduction) {
+      console.warn(
+        '[Yatrai API Config] Missing VITE_API_BASE_URL in production environment. Requests will default to relative /api.'
+      );
+    }
+    return '/api';
+  }
+
+  const trimmed = rawInput.trim();
+
+  // If already relative /api or /api/
+  if (trimmed === '/api' || trimmed === '/api/') {
+    return '/api';
+  }
+
+  // Relative path starting with /
+  if (trimmed.startsWith('/')) {
+    let clean = trimmed.replace(/\/+$/, '');
+    while (clean.endsWith('/api')) {
+      clean = clean.slice(0, -4).replace(/\/+$/, '');
+    }
+    return `${clean}/api`.replace(/\/+/g, '/');
+  }
+
+  // Absolute URL (http:// or https://)
+  try {
+    const parsed = new URL(trimmed);
+    let pathname = parsed.pathname.replace(/\/+$/, '');
+    while (pathname.endsWith('/api')) {
+      pathname = pathname.slice(0, -4).replace(/\/+$/, '');
+    }
+    pathname = `${pathname}/api`.replace(/\/+/g, '/');
+    parsed.pathname = pathname;
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString().replace(/\/+$/, '');
+  } catch {
+    let clean = trimmed.replace(/\/+$/, '');
+    while (clean.endsWith('/api')) {
+      clean = clean.slice(0, -4).replace(/\/+$/, '');
+    }
+    return `${clean}/api`;
+  }
+}
+
+/**
+ * Authoritative API URL construction function.
+ *
+ * Combines the normalized base URL with an endpoint path:
+ * - Prevents double slashes.
+ * - Prevents duplicate '/api/api' if endpoint accidentally includes '/api'.
+ * - Preserves query parameters and hash fragments.
+ * - Handles endpoints with or without leading slashes.
+ *
+ * @param {string} baseUrl - Base URL (e.g., https://example.com/api or /api)
+ * @param {string} [endpoint] - Target endpoint (e.g., '/locations/search?q=ndls')
+ * @returns {string} Canonical, fully-qualified request URL
+ */
+export function buildApiUrl(baseUrl, endpoint) {
+  const base = resolveApiBaseUrl(baseUrl);
+  if (!endpoint || typeof endpoint !== 'string') {
+    return base;
+  }
+
+  let ep = endpoint.trim().replace(/^\/+/, '');
+  // Strip redundant leading 'api/' or 'api'
+  if (/^api(\/|$)/i.test(ep)) {
+    ep = ep.replace(/^api\/?/i, '');
+  }
+  ep = ep.replace(/^\/+/, '');
+
+  if (!ep) {
+    return base;
+  }
+
+  return `${base}/${ep}`;
+}
+
+/**
+ * Safely resolves and normalizes the API base URL.
+ *
+ * Rules:
+ * - Strips trailing slashes.
+ * - Ensures '/api' is present exactly once at the end of the base URL.
+ * - Collapses redundant '/api/api' or double slashes.
+ * - Supports relative '/api' for intentional local proxy development.
+ * - Warns explicitly in production if VITE_API_BASE_URL is missing.
+ *
+ * @param {string} [rawInput] - Raw base URL input (e.g. from VITE_API_BASE_URL)
+ * @returns {string} Normalized base URL ending with '/api' (or exactly '/api')
+ */
+export function resolveApiBaseUrl(rawInput) {
+  const isProduction =
+    (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.PROD) ||
+    (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'production');
+
+  if (!rawInput || typeof rawInput !== 'string' || !rawInput.trim()) {
+    if (isProduction) {
+      console.warn(
+        '[Yatrai API Config] Missing VITE_API_BASE_URL in production environment. Requests will default to relative /api.'
+      );
+    }
+    return '/api';
+  }
+
+  const trimmed = rawInput.trim();
+
+  // If already relative /api or /api/
+  if (trimmed === '/api' || trimmed === '/api/') {
+    return '/api';
+  }
+
+  // Relative path starting with /
+  if (trimmed.startsWith('/')) {
+    let clean = trimmed.replace(/\/+$/, '');
+    while (clean.endsWith('/api')) {
+      clean = clean.slice(0, -4).replace(/\/+$/, '');
+    }
+    return `${clean}/api`.replace(/\/+/g, '/');
+  }
+
+  // Absolute URL (http:// or https://)
+  try {
+    const parsed = new URL(trimmed);
+    let pathname = parsed.pathname.replace(/\/+$/, '');
+    while (pathname.endsWith('/api')) {
+      pathname = pathname.slice(0, -4).replace(/\/+$/, '');
+    }
+    pathname = `${pathname}/api`.replace(/\/+/g, '/');
+    parsed.pathname = pathname;
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString().replace(/\/+$/, '');
+  } catch {
+    let clean = trimmed.replace(/\/+$/, '');
+    while (clean.endsWith('/api')) {
+      clean = clean.slice(0, -4).replace(/\/+$/, '');
+    }
+    return `${clean}/api`;
+  }
+}
+
+/**
+ * Authoritative API URL construction function.
+ *
+ * Combines the normalized base URL with an endpoint path:
+ * - Prevents double slashes.
+ * - Prevents duplicate '/api/api' if endpoint accidentally includes '/api'.
+ * - Preserves query parameters and hash fragments.
+ * - Handles endpoints with or without leading slashes.
+ *
+ * @param {string} baseUrl - Base URL (e.g., https://example.com/api or /api)
+ * @param {string} [endpoint] - Target endpoint (e.g., '/locations/search?q=ndls')
+ * @returns {string} Canonical, fully-qualified request URL
+ */
+export function buildApiUrl(baseUrl, endpoint) {
+  const base = resolveApiBaseUrl(baseUrl);
+  if (!endpoint || typeof endpoint !== 'string') {
+    return base;
+  }
+
+  let ep = endpoint.trim().replace(/^\/+/, '');
+  // Strip redundant leading 'api/' or 'api'
+  if (/^api(\/|$)/i.test(ep)) {
+    ep = ep.replace(/^api\/?/i, '');
+  }
+  ep = ep.replace(/^\/+/, '');
+
+  if (!ep) {
+    return base;
+  }
+
+  return `${base}/${ep}`;
+}
+
+const rawBaseUrl =
   (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
-  '/api';
+  '';
+
+export const API_BASE_URL = resolveApiBaseUrl(rawBaseUrl);
 
 /**
  * In-memory access token storage.
@@ -42,7 +239,7 @@ async function performTokenRefresh(isStartup = false) {
 
   activeRefreshPromise = (async () => {
     try {
-      const url = `${API_BASE_URL}/auth/refresh`;
+      const url = buildApiUrl(API_BASE_URL, '/auth/refresh');
       const response = await fetch(url, {
         method: 'POST',
         credentials: 'include',
@@ -62,8 +259,8 @@ async function performTokenRefresh(isStartup = false) {
 
       if (!response.ok || !data?.data?.accessToken) {
         setAccessToken(null);
-        // Only trigger sessionExpiredCallback if the user was actively logged in and this is not a passive startup check
-        if (!isStartup && hadActiveToken && sessionExpiredCallback) {
+        // Only trigger sessionExpiredCallback if this is not a passive startup check
+        if (!isStartup && sessionExpiredCallback) {
           sessionExpiredCallback('Your session has expired. Please sign in again.');
         }
         const error = new Error(
@@ -92,7 +289,7 @@ async function performTokenRefresh(isStartup = false) {
  * Standard fetch wrapper with JSON serialization, credentials transport, single-flight auto-refresh, and error normalization.
  */
 async function request(endpoint, options = {}, isRetry = false) {
-  const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const url = buildApiUrl(API_BASE_URL, endpoint);
 
   const defaultHeaders = {
     'Content-Type': 'application/json',
@@ -394,8 +591,8 @@ export const api = {
       const cleanId = String(id || '').trim();
       const is10DigitPnr = /^\d{10}$/.test(cleanId);
       const endpoint = is10DigitPnr
-        ? `${API_BASE_URL}/pnr/${encodeURIComponent(cleanId)}/pdf`
-        : `${API_BASE_URL}/booking/${encodeURIComponent(cleanId)}/pdf`;
+        ? buildApiUrl(API_BASE_URL, `/pnr/${encodeURIComponent(cleanId)}/pdf`)
+        : buildApiUrl(API_BASE_URL, `/booking/${encodeURIComponent(cleanId)}/pdf`);
 
       const response = await fetch(endpoint, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -429,7 +626,8 @@ export const api = {
     downloadPdfByPnr: async (pnr) => {
       const token = getAccessToken();
       const cleanPnr = String(pnr || '').trim();
-      const response = await fetch(`${API_BASE_URL}/pnr/${encodeURIComponent(cleanPnr)}/pdf`, {
+      const endpoint = buildApiUrl(API_BASE_URL, `/pnr/${encodeURIComponent(cleanPnr)}/pdf`);
+      const response = await fetch(endpoint, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: 'include',
       });
